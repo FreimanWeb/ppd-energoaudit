@@ -13,9 +13,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..spec import AggregateSpec, Branch, PumpKind
-from . import motor, specific_energy
+from . import curves, motor, specific_energy
 from .pump import (RegimeResult, compute_regime, decompose_kns,
                    decompose_pumping, nominal_efficiency)
+
+ETA_VFD_DEFAULT = 0.97  # η_пч по Методике («принимаем η_пч = 0,97»), формулы (15), (27)
 
 
 @dataclass
@@ -73,16 +75,18 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
     _trace(tr, "13", "η_НА = P_гидр/P_эл",
            f"{round(regime.p_hydraulic,2)}/{round(regime.p_electric,2)}", round(regime.eta_unit, 4))
 
-    # --- ЭД (24)-(27)
+    # --- ЭД (24)-(27); η_пч/η_ред из спеца агрегата — формулы (15), (27)
+    eta_vfd = ETA_VFD_DEFAULT if agg.vfd else 1.0
+    eta_gear = agg.transmission_eff
     kz = motor.load_factor(regime.p_electric, agg.motor.p_nom, agg.motor.eta_nom)
     eta_mr = motor.motor_efficiency(kz, agg.motor.eta_nom, agg.motor.alpha)
-    eta_pump = motor.pump_efficiency(regime.eta_unit, eta_mr)
+    eta_pump = motor.pump_efficiency(regime.eta_unit, eta_mr, eta_vfd, eta_gear)
     _trace(tr, "24", "K_з = P_эл/(P_ном/η_ЭД.ном)",
            f"{round(regime.p_electric,2)}/({agg.motor.p_nom}/{agg.motor.eta_nom})", round(kz, 4))
     _trace(tr, "25-26", "η_эд.р (при K_з<0,7)", f"K_з={round(kz,3)}, α={agg.motor.alpha}",
            round(eta_mr, 4))
-    _trace(tr, "27", "η_нас = η_НА/η_эд.р",
-           f"{round(regime.eta_unit,4)}/{round(eta_mr,4)}", round(eta_pump, 4))
+    _trace(tr, "27", "η_нас = η_НА/(η_эд.р·η_пч·η_ред)",
+           f"{round(regime.eta_unit,4)}/({round(eta_mr,4)}·{eta_vfd}·{eta_gear})", round(eta_pump, 4))
 
     # --- УРЭ (16)-(17)
     if rm.w is not None and rm.q_day:
@@ -96,13 +100,33 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
     _trace(tr, "17", "УРЭ_р = (p_вых−p_вх)/(3.6·η_ном)",
            f"({rm.p_out}−{rm.p_in})/(3.6·{round(eta_nom,4)})", round(sec_c, 4))
 
+    # --- должные напор (29) и КПД (30) по паспортным кривым (если заданы)
+    h_due = None
+    if len(agg.pump.curve_qh) >= 3:
+        h_due = curves.head_due(flow, agg.pump.curve_qh)                 # (29)
+        _trace(tr, "29", "H_д = aQ²+bQ+c (паспортная кривая Q-H)",
+               f"Q={round(flow, 2)}", round(h_due, 1))
+    elif agg.h_pump_due is not None:
+        h_due = agg.h_pump_due       # снято с паспортной кривой вручную (паспорт/отчёт)
+        _trace(tr, "29", "H_д (значение с паспортной кривой)", "ручной ввод", round(h_due, 1))
+
     # --- декомпозиция
     decomp = None
-    h_due = None
     if branch == Branch.transfer and agg.pump.kind == PumpKind.centrifugal:
-        eta_due = agg.eta_pump_due if agg.eta_pump_due is not None else agg.pump.eta_nom
+        if len(agg.pump.curve_qeta) >= 3:
+            eta_due = curves.eta_due(flow, agg.pump.curve_qeta)          # (30)
+            eta_due_src = "кривая Q-η"
+        elif agg.eta_pump_due is not None:
+            eta_due = agg.eta_pump_due
+            eta_due_src = "паспорт/отчёт (снято с кривой)"
+        else:
+            eta_due = agg.pump.eta_nom
+            eta_due_src = "η_нас.ном (допущение: кривой нет)"
+        _trace(tr, "30", "η_д = uQ²+vQ+w (должный КПД при подаче Q)",
+               f"Q={round(flow, 2)}, источник: {eta_due_src}", round(eta_due, 4))
         decomp = decompose_pumping(regime, eta_motor_nom=agg.motor.eta_nom,
-                                   eta_motor_real=eta_mr, eta_due=eta_due)
+                                   eta_motor_real=eta_mr, eta_due=eta_due,
+                                   eta_vfd=eta_vfd, eta_gear=eta_gear)
         eta_pump = decomp.eta_pump
     elif rm.p_bg is not None:
         decomp = decompose_kns(regime, eta_nom=eta_nom)

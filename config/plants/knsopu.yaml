@@ -19,7 +19,7 @@ aggregates:
     curve_qeta: []
   motor:
     model: СТДМ-800 2Р-УХЛ-4
-    synchronous: false
+    synchronous: true
     p_nom: 800.0
     eta_nom: 0.961
     cos_phi: 0.9
@@ -64,7 +64,7 @@ aggregates:
     curve_qeta: []
   motor:
     model: СТДМ-800 2Р-УХЛ-4
-    synchronous: false
+    synchronous: true
     p_nom: 800.0
     eta_nom: 0.961
     cos_phi: 0.9
@@ -109,7 +109,7 @@ aggregates:
     curve_qeta: []
   motor:
     model: СТДМ-1250 2Р-УХЛ-4
-    synchronous: false
+    synchronous: true
     p_nom: 1250.0
     eta_nom: 0.969
     cos_phi: 0.9

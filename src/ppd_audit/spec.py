@@ -45,6 +45,16 @@ def infer_pump_kind(model: str, n_rpm: Optional[float] = None) -> PumpKind:
     return PumpKind.centrifugal
 
 
+# Серии синхронных двигателей (влияет на α в (26): синхронный → α=2).
+_SYNCHRONOUS_MOTOR_HINTS = ("стд", "сдн", "сд-", "вдс", "сднз")
+
+
+def infer_motor_synchronous(model: str) -> bool:
+    """Эвристика синхронности ЭД по серии (СТД/СДН… — синхронные; АИ/ВАО/5АИ — асинхронные)."""
+    m = (model or "").lower().replace("ё", "е").replace(" ", "")
+    return any(h in m for h in _SYNCHRONOUS_MOTOR_HINTS)
+
+
 class PumpSpec(BaseModel):
     model: str = ""
     kind: PumpKind = PumpKind.centrifugal
@@ -120,6 +130,7 @@ class AggregateSpec(BaseModel):
     transmission_eff: float = 1.0
     vfd: bool = False
     eta_pump_due: Optional[float] = None   # должный КПД насоса при рабочей подаче (с кривой Q-η)
+    h_pump_due: Optional[float] = None     # должный напор при рабочей подаче, м (с кривой Q-H)
     regime: Optional[RegimeMeasurement] = None
     reference: Optional[ReferenceOutputs] = None
 

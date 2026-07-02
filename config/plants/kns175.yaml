@@ -1,0 +1,97 @@
+id: kns175
+name: КНС-175
+water_type: пресная
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
+  вода/КНС 14 АН/для примера/кнс 175 расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: DP 410x125
+    kind: объёмный
+    q_nom: 45.6
+    h_nom: 1448.0
+    eta_nom: 0.88
+    power_nom: 204.0
+    n_rpm: 279.56
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: siemens 3 MOT 1LG63/84MA
+    synchronous: false
+    p_nom: 250.0
+    eta_nom: 0.952
+    cos_phi: 0.87
+    voltage_kv: 0.38
+    i_nom: 460.0
+    n_rpm: 1550.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1123.0
+    p_in: 1.029735
+    p_out: 9.120510000000001
+    q_day: 838.6
+    t: 21.1
+    w: 2378.4
+    q_fact: 39.74407582938388
+    p_electric: 112.72037914691943
+    p_bg: 9.120510000000001
+    t_year: 1482.75
+  reference:
+    h_fact: 734.4146985058045
+    eta_fact: 0.7924239352085436
+    eta_nom: 0.83776
+    sec_fact: 2.8361554972573337
+    sec_calc: 2.6826746323529416
+    load_factor: 0.4292392037914692
+    p_hydraulic: 89.32232642180095
+    dw_efficiency: 9044.708473633047
+    dw_throttle: 0.0
+    t_year: 1482.75
+- id: НА-2
+  role: работа
+  pump:
+    model: ГНУ 1000-1100
+    kind: центробежный
+    q_nom: 41.67
+    h_nom: 1050.0
+    eta_nom: 0.68
+    power_nom: 175.21
+    n_rpm: 4106.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: ВАО2-315М2 У2,5
+    synchronous: false
+    p_nom: 250.0
+    eta_nom: 0.942
+    cos_phi: 0.91
+    voltage_kv: 0.38
+    i_nom: 256.0
+    n_rpm: 2964.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1123.0
+    p_in: 1.9810139999999998
+    p_out: 12.719679
+    q_day: 983.7
+    t: 24.0
+    w: 4701.6
+    q_fact: 40.987500000000004
+    p_electric: 195.9
+    p_bg: 11.699751000000001
+    t_year: 6343.2300000000005
+  reference:
+    h_fact: 974.7685998349766
+    eta_fact: 0.6241152397588055
+    eta_nom: 0.64056
+    sec_fact: 4.779505946935041
+    sec_calc: 4.656804202572748
+    load_factor: 0.7381512
+    p_hydraulic: 122.26417546875
+    dw_efficiency: 31901.611754216705
+    dw_throttle: 118022.0
+    t_year: 6343.2300000000005

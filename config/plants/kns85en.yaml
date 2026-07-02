@@ -1,0 +1,95 @@
+id: kns85en
+name: КНС-85 ЕН
+water_type: пресная
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
+  вода/КНС 14 АН/для примера/9 КНС -85 выезд 20.03.2024г/кнс 85 расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: REDA 1500-1400
+    kind: центробежный
+    q_nom: 62.5
+    h_nom: 1350.0
+    eta_nom: 0.68
+    power_nom: 337.91
+    n_rpm: 4165.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: REDA 14EA 5808S
+    synchronous: false
+    p_nom: 441.3
+    eta_nom: 0.95
+    voltage_kv: 6.0
+    i_nom: 52.0
+    n_rpm: 2978.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 0.9512789999999999
+    p_out: 13.7298
+    q_day: 876.5
+    t: 24.0
+    q_fact: 46.43
+    p_electric: 358.6
+    p_bg: 12.84717
+    t_year: 1920.82
+  reference:
+    h_fact: 1302.6015290519877
+    h_due: 1000.0
+    eta_fact: 0.459585680447109
+    eta_nom: 0.646
+    sec_fact: 7.723454662933449
+    sec_calc: 5.494720072239422
+    load_factor: 0.7719691819623838
+    p_hydraulic: 164.8074250083333
+    dw_efficiency: 198766.7360487512
+    dw_throttle: 47576.780260936255
+    t_year: 1920.82
+- id: НА-2
+  role: работа
+  pump:
+    model: СИН50.3.12
+    kind: объёмный
+    q_nom: 44.3
+    h_nom: 1620.0
+    eta_nom: 0.66
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: 5АИ 355 S4Y2
+    synchronous: false
+    p_nom: 250.0
+    eta_nom: 0.955
+    cos_phi: 0.9
+    voltage_kv: 0.38
+    i_nom: 422.0
+    n_rpm: 1485.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 1.47105
+    p_out: 5.589989999999999
+    q_day: 580.8
+    t: 23.9
+    w: 1135.1
+    q_fact: 24.301255230125523
+    p_electric: 47.49372384937239
+    p_bg: 5.589989999999999
+    t_year: 6391.8099999999995
+  reference:
+    h_fact: 419.87155963302746
+    h_due: 1000.0
+    eta_fact: 0.5854306404722049
+    eta_nom: 0.6113909999999999
+    sec_fact: 1.9543732782369148
+    sec_calc: 1.8713883586771802
+    load_factor: 0.1814260251046025
+    p_hydraulic: 27.804281171548112
+    dw_efficiency: 12889.965084175488
+    dw_throttle: 429081157.7220337
+    t_year: 6391.8099999999995

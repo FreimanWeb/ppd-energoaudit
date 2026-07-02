@@ -1,0 +1,51 @@
+id: kns129ln
+name: КНС-129 ЛН
+water_type: пресная
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
+  вода/КНС 14 АН/для примера/кнс 129 ЛН расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: ГНУ 750-1100
+    kind: центробежный
+    q_nom: 31.25
+    h_nom: 1050.0
+    eta_nom: 0.66
+    power_nom: 135.39
+    n_rpm: 4046.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: REDA (250 л.с.)
+    synchronous: false
+    p_nom: 183.88
+    eta_nom: 0.95
+    voltage_kv: 6.0
+    n_rpm: 2975.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1082.0
+    p_in: 2.2556100000000003
+    p_out: 11.7684
+    q_day: 799.4
+    t: 24.0
+    w: 3934.3
+    q_fact: 33.30833333333333
+    p_electric: 163.92916666666667
+    p_bg: 11.7684
+    t_year: 8329.330000000002
+  reference:
+    h_fact: 896.2138298654094
+    h_due: 935.9193344444448
+    eta_fact: 0.53691072575384
+    eta_nom: 0.6329400000000001
+    sec_fact: 4.921566174630974
+    sec_calc: 4.17486912924869
+    load_factor: 0.8469257577405555
+    p_hydraulic: 88.0153278472222
+    dw_efficiency: 207160.7162146085
+    dw_throttle: 0.0
+    t_year: 8329.330000000002

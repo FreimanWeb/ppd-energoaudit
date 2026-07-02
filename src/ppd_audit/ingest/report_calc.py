@@ -17,7 +17,8 @@ from typing import Optional
 import openpyxl
 
 from ..spec import (AggregateSpec, Branch, MotorSpec, ObjectSpec, PumpSpec,
-                    ReferenceOutputs, RegimeMeasurement, WaterType, infer_pump_kind)
+                    ReferenceOutputs, RegimeMeasurement, WaterType,
+                    infer_motor_synchronous, infer_pump_kind)
 
 
 def _norm(v) -> str:
@@ -254,7 +255,8 @@ def parse_calc_file(path: Path, object_id: str, object_name: str) -> ObjectSpec:
             q_nom=p.get("q_nom"), h_nom=p.get("h_nom"), eta_nom=p.get("eta_nom"),
             power_nom=p.get("power_nom"), n_rpm=p.get("n_rpm"))
         motor = MotorSpec(
-            model=m.get("model", ""), p_nom=m.get("p_nom"), eta_nom=m.get("eta_nom"),
+            model=m.get("model", ""), synchronous=infer_motor_synchronous(m.get("model", "")),
+            p_nom=m.get("p_nom"), eta_nom=m.get("eta_nom"),
             cos_phi=m.get("cos_phi"), voltage_kv=m.get("voltage_kv"), i_nom=m.get("i_nom"),
             n_rpm=m.get("n_rpm"))
 
@@ -262,10 +264,21 @@ def parse_calc_file(path: Path, object_id: str, object_name: str) -> ObjectSpec:
         p_in, p_out = regime["p_in"][i], regime["p_out"][i]
         if p_in is None or p_out is None:
             continue
+        # Правдоподобие: давления ППД — единицы МПа (макс ~16 по ограничениям).
+        # Значения в сотни/тысячи — захват чужой колонки (напор в м, проектные
+        # значения) → колонка не является реальным агрегатом, пропускаем.
+        if p_out > 30.0 or p_in > 30.0:
+            continue
+        # Ноль в ячейках расхода/энергии/наработки — «не заполнено» (черновики
+        # инженеров, напр. W=0 у КНС-85 НА-1), а не физический ноль → None,
+        # чтобы ядро выбрало запасной путь (УРЭ_ф = P_эл/Q вместо W/Q_сут).
+        _pos = lambda v: v if (v is not None and v > 0) else None  # noqa: E731
         rm = RegimeMeasurement(
-            rho=rho, p_in=p_in, p_out=p_out, q_day=regime["q_day"][i], t=regime["t"][i],
-            w=regime["w"][i], p_electric=regime["p_electric"][i],
-            q_fact=regime["q_fact"][i], p_bg=regime["p_bg"][i], t_year=regime["t_year"][i])
+            rho=rho, p_in=p_in, p_out=p_out,
+            q_day=_pos(regime["q_day"][i]), t=_pos(regime["t"][i]),
+            w=_pos(regime["w"][i]), p_electric=_pos(regime["p_electric"][i]),
+            q_fact=_pos(regime["q_fact"][i]), p_bg=_pos(regime["p_bg"][i]),
+            t_year=_pos(regime["t_year"][i]))
         ro = ReferenceOutputs(
             h_fact=ref["h_fact"][i], h_due=ref["h_due"][i],
             eta_fact=ref["eta_fact"][i], eta_nom=ref["eta_nom"][i],

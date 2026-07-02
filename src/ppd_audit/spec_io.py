@@ -83,6 +83,7 @@ def _from_legacy(raw: dict) -> ObjectSpec:
         id=agg_id, role="работа", pump=pump, motor=motor,
         transmission_eff=agg_raw.get("transmission_eff", 1.0),
         vfd=agg_raw.get("vfd", False), eta_pump_due=inp.get("eta_pump_due"),
+        h_pump_due=inp.get("h_pump_due"),
         regime=regime, reference=reference)
 
     return ObjectSpec(
