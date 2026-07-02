@@ -1,0 +1,11 @@
+# Тема дашборда энергоаудита ППД (светлая, корпоративная).
+[theme]
+base = "light"
+primaryColor = "#2f6098"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#eef3f8"
+textColor = "#16232e"
+font = "sans serif"
+
+[server]
+runOnSave = true

@@ -1,0 +1,83 @@
+{
+  "object_id": "kns155bn",
+  "object_name": "КНС-155 БН",
+  "template": "2024",
+  "water_type": "пресная",
+  "aggregates": {
+    "НА-1": {
+      "pump_model": "ЦНС 120-1400(-3)",
+      "sec_fact": 5.489,
+      "sec_calc": 5.111,
+      "eta_fact": 0.592,
+      "eta_nom": 0.636,
+      "load_factor": 0.769,
+      "h_fact": 1069.0,
+      "dw_efficiency": 201235.0,
+      "ranges": {
+        "h_fact": [
+          1069.0,
+          1069.0
+        ],
+        "p_hydraulic": [
+          377.79,
+          377.79
+        ],
+        "p_electric": [
+          638.43,
+          638.43
+        ],
+        "eta_fact": [
+          0.592,
+          0.592
+        ],
+        "eta_nom": [
+          0.636,
+          0.636
+        ],
+        "sec_fact": [
+          5.489,
+          5.489
+        ],
+        "sec_calc": [
+          5.111,
+          5.111
+        ],
+        "load_factor": [
+          0.769,
+          0.769
+        ],
+        "t_year": [
+          4590.79,
+          4590.79
+        ],
+        "dw_efficiency": [
+          201235.0,
+          201235.0
+        ]
+      },
+      "claims": {
+        "head_drop_m": [
+          54.0,
+          54.0
+        ],
+        "head_drop_pct": [
+          4.78,
+          4.78
+        ],
+        "eta_reduction_pp": [
+          4.384,
+          4.384
+        ],
+        "sec_over_calc": [
+          0.379,
+          0.379
+        ]
+      }
+    }
+  },
+  "teo": {
+    "total_loss_kwh": 201235.0,
+    "total_loss_krub": 764.693
+  },
+  "recommendations_count": 0
+}

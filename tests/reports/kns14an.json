@@ -1,0 +1,81 @@
+{
+  "object_id": "kns14an",
+  "object_name": "КНС-14 АН",
+  "template": "2026",
+  "water_type": "пресная",
+  "aggregates": {
+    "НА-2": {
+      "pump_model": "ГНУ REDA 1000-1300",
+      "sec_fact": 6.838,
+      "sec_calc": 5.774,
+      "eta_fact": 0.521,
+      "eta_nom": 0.617,
+      "load_factor": 0.504,
+      "h_fact": 1306.5,
+      "dw_efficiency": 247458.9,
+      "dw_throttle": 366906.2,
+      "ranges": {
+        "h_fact": [
+          1234.6,
+          1306.5
+        ],
+        "p_hydraulic": [
+          123.71,
+          127.85
+        ],
+        "p_electric": [
+          237.62,
+          243.36
+        ],
+        "eta_fact": [
+          0.521,
+          0.525
+        ],
+        "eta_nom": [
+          0.617,
+          0.617
+        ],
+        "sec_fact": [
+          6.404,
+          6.838
+        ],
+        "sec_calc": [
+          5.457,
+          5.774
+        ],
+        "load_factor": [
+          0.461,
+          0.504
+        ],
+        "dw_throttle": [
+          366906.2,
+          366906.2
+        ],
+        "dw_efficiency": [
+          247458.9,
+          247458.9
+        ]
+      },
+      "claims": {
+        "eta_reduction_pp": [
+          9.1,
+          9.6
+        ],
+        "sec_over_calc": [
+          0.97,
+          1.06
+        ],
+        "eta_curve_drop_pp": [
+          8.0,
+          10.0
+        ],
+        "head_drop_pct": [
+          4.2,
+          4.5
+        ]
+      }
+    }
+  },
+  "teo": {},
+  "recommendations_count": 0
+}

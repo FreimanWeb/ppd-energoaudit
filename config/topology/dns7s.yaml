@@ -1,0 +1,26 @@
+# Технологическая схема ДНС-7с (пилот с телеметрией), ЦДНГ-5 НГДУ «Джалильнефть».
+# Типовая обвязка: 4 насоса ЦНС-60-250 параллельно (Н-4 — фокус аудита №31). Дашборд.
+title: ДНС-7с (Джалильнефть) — пилот с телеметрией
+source: реконструкция по паспорту/телеметрии (НА Н-1…Н-4)
+nodes:
+  - {id: src,  type: source,    x: 0.0, y: 2.5, label: "Приём",  sub: "буфер БЕ",   hint: "Приём; УУЖ на входе"}
+  - {id: na1,  type: pump,      x: 1.6, y: 4.0, label: "Н-1",    sub: "ЦНС-60-250", hint: "ЦНС-60-250 (резерв/работа)"}
+  - {id: na2,  type: pump,      x: 1.6, y: 3.0, label: "Н-2",    sub: "ЦНС-60-250", hint: "ЦНС-60-250"}
+  - {id: na3,  type: pump,      x: 1.6, y: 2.0, label: "Н-3",    sub: "ЦНС-60-250", hint: "ЦНС-60-250"}
+  - {id: na4,  type: pump,      x: 1.6, y: 1.0, label: "Н-4",    sub: "160 кВт · фокус", agg: "Н-4", hint: "ЦНС-60-250, АД 160 кВт — фокус аудита №31"}
+  - {id: man,  type: manifold,  x: 3.2, y: 2.5, label: "Выкид",  sub: "УУЖ",        hint: "Выкид / узел учёта жидкости"}
+  - {id: comb, type: manifold,  x: 4.4, y: 2.5, label: "БГ",     sub: "гребёнка",   hint: "Блок-гребёнка распределения"}
+  - {id: wells,type: wells,     x: 5.6, y: 2.5, label: "Скважины",                  hint: "Нагнетательные скважины (приёмистость P–Q)"}
+  - {id: res,  type: reservoir, x: 6.8, y: 2.5, label: "Пласт",  sub: "CRM",        hint: "Отклик пласта (CRM)"}
+edges:
+  - {from: src,  to: na1}
+  - {from: src,  to: na2}
+  - {from: src,  to: na3}
+  - {from: src,  to: na4}
+  - {from: na1,  to: man}
+  - {from: na2,  to: man}
+  - {from: na3,  to: man}
+  - {from: na4,  to: man}
+  - {from: man,  to: comb}
+  - {from: comb, to: wells, kind: throttle}
+  - {from: wells, to: res}
