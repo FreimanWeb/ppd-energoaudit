@@ -7,3 +7,6 @@ data/generated/
 # кэш .docx-отчётов (конвертируется из .doc LibreOffice'ом — пересобирается)
 data/reports/
 *.egg-info/
+
+# Local tool indexes
+.codegraph/
