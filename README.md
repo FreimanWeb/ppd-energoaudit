@@ -38,15 +38,16 @@ tests/         pytest, в т.ч. кейс ДНС-7с (сверка с аудит
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e ".[app,api,dev]"
 python -m ppd_audit.ingest dns7s     # нормализация телеметрии + отчёт качества
 python -m ppd_audit.core dns7s       # воспроизведение аудита агрегата (сверка с эталоном)
 python -m ppd_audit.verify           # верификация: модель↔xlsx + трёхсторонняя сверка с отчётами
 pytest -q                            # тесты (units, ingest, ядро, ДНС-7с, верификация, UI, отчёты)
+uvicorn ppd_audit.api.main:app --reload  # backend API
 streamlit run app/main.py            # дашборды
 ```
 
-Через `make` (где доступен): `make verify` · `make test` · `make app` · `make reports`.
+Через `make` (где доступен): `make verify` · `make test` · `make api` · `make app` · `make reports`.
 
 Парсинг текстовых отчётов требует `python-docx` (в зависимостях). Бинарные `.doc`
 конвертируются внешним **LibreOffice** (`soffice`): macOS — `brew install --cask libreoffice`,
@@ -118,6 +119,15 @@ CRM/регрессии — как подключаемая реализация 
 
 UI-тесты `tests/reports/test_app_values.py` (AppTest) подтверждают, что дашборд
 **показывает числа, совпадающие с моделью** (а не только стартует).
+
+## Backend API
+
+FastAPI-слой — тонкий adapter над `ppd_audit.services`: математическое ядро остаётся в
+`core/`, Streamlit остаётся demo/verification UI. Первый контракт:
+
+- `POST /energy/audit` — вход `EnergyAuditRequest` (`ObjectSpec` + optional `aggregate_id`),
+  выход `EnergyAuditResponse` с KPI, потерями и trace формул.
+- `GET /health` — healthcheck.
 
 ## Соответствие ТЗ
 

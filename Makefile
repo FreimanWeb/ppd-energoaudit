@@ -1,14 +1,15 @@
 # Цифровая модель энергоаудита ППД — команды разработки/верификации.
-# Использование: make <цель>. Перед первым запуском: python -m venv .venv && pip install -e .
+# Использование: make <цель>. Перед первым запуском: python -m venv .venv && pip install -e ".[app,api,dev]"
 
 PY ?= python
 
-.PHONY: help verify test app ingest reports clean-reports
+.PHONY: help verify test app api ingest reports clean-reports
 
 help:
 	@echo "verify  — полная верификация: модель↔xlsx + трёхсторонняя сверка с отчётами (.doc/.docx)"
 	@echo "test    — pytest (ядро, ingest, UI/AppTest, сверка с отчётами)"
 	@echo "app     — запустить дашборд (streamlit)"
+	@echo "api     — запустить backend API (FastAPI)"
 	@echo "ingest  — нормализация телеметрии ДНС-7с"
 	@echo "reports — пересобрать кэш отчётов data/reports/<id>.docx (конвертация .doc)"
 	@echo "clean-reports — удалить кэш конвертированных отчётов"
@@ -23,6 +24,9 @@ test:
 
 app:
 	streamlit run app/main.py
+
+api:
+	uvicorn ppd_audit.api.main:app --reload
 
 ingest:
 	$(PY) -m ppd_audit.ingest dns7s
