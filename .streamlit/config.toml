@@ -1,0 +1,9 @@
+# Фиксированная тема — не зависит от тёмного/светлого режима браузера
+# зрителя (иначе на светлом/тёмном системном режиме подписи сливаются
+# с фоном карточек; см. CHANGELOG).
+[theme]
+base = "dark"
+primaryColor = "#e2a63c"
+backgroundColor = "#0b1118"
+secondaryBackgroundColor = "#121a24"
+textColor = "#e7edf3"

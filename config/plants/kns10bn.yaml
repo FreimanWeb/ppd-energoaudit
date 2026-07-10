@@ -1,0 +1,97 @@
+id: kns10bn
+name: КНС-10 БН
+water_type: пластовая
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/пластовая
+  вода/13 Кнс 10 БН 27.03.24/кнс-10 расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: ЦНС 40-1000
+    kind: центробежный
+    q_nom: 40.0
+    h_nom: 1000.0
+    eta_nom: 0.52
+    power_nom: 247.0
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ 630 2 РУХЛ
+    synchronous: true
+    p_nom: 630.0
+    eta_nom: 0.959
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1172.0
+    p_in: 0.843402
+    p_out: 8.924370000000001
+    q_day: 714.7
+    t: 14.9
+    w: 4959.1
+    q_fact: 47.966442953020135
+    p_electric: 332.8255033557047
+    p_bg: 8.892987600000001
+    t_year: 3625.27
+  reference:
+    h_fact: 702.8566657273175
+    h_due: 955.8792287824873
+    eta_fact: 0.32350559967198356
+    eta_nom: 0.49868
+    sec_fact: 6.93871554498391
+    sec_calc: 4.501310125397717
+    load_factor: 0.5066343773303504
+    p_hydraulic: 107.67091404921703
+    dw_efficiency: 423843.6132337298
+    dw_throttle: 4685.75655359354
+    t_year: 3625.27
+- id: НА-2
+  role: работа
+  pump:
+    model: ЦНС 63-1400(-3)
+    kind: центробежный
+    q_nom: 63.0
+    h_nom: 1100.0
+    eta_nom: 0.58
+    power_nom: 366.84
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ 630 2 РУХЛ
+    synchronous: true
+    p_nom: 630.0
+    eta_nom: 0.959
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1172.0
+    p_in: 1.25
+    p_out: 13.09
+    q_day: 212.8
+    t: 2.9
+    w: 1325.6
+    q_fact: 73.37931034482759
+    p_electric: 457.10344827586204
+    p_bg: 13.0
+    t_year: 303.4
+  reference:
+    h_fact: 1029.805206778623
+    h_due: 1022.8053288941735
+    eta_fact: 0.5279688862066653
+    eta_nom: 0.5562199999999999
+    sec_fact: 6.2293233082706765
+    sec_calc: 5.9129281379470155
+    load_factor: 0.6958130268199233
+    p_hydraulic: 241.33639846743293
+    dw_efficiency: 7043.995140377615
+    dw_throttle: 1054.1948275862053
+    t_year: 303.4

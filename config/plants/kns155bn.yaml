@@ -1,0 +1,53 @@
+id: kns155bn
+name: КНС-155 БН
+water_type: пластовая
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/пластовая
+  вода/15Кнс 155 БН 28.03.24/кнс-155 расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: ЦНС 120-1400(-3)
+    kind: центробежный
+    q_nom: 120.0
+    h_nom: 1100.0
+    eta_nom: 0.66
+    power_nom: 625.0
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТД -800-23УХЛ4
+    synchronous: true
+    p_nom: 800.0
+    eta_nom: 0.963
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    i_nom: 90.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1115.0
+    p_in: 1.245489
+    p_out: 12.939390000000001
+    q_day: 1267.7
+    t: 10.9
+    w: 6958.9
+    q_fact: 116.30275229357798
+    p_electric: 638.4311926605504
+    p_bg: 12.886398000000002
+    t_year: 4590.789999999999
+  reference:
+    h_fact: 1069.0931281798112
+    h_due: 1122.7939564767275
+    eta_fact: 0.5917425605938679
+    eta_nom: 0.63558
+    sec_fact: 5.489390234282559
+    sec_calc: 5.110774148546734
+    load_factor: 0.7685115481651376
+    p_hydraulic: 377.7869087079511
+    dw_efficiency: 201235.20574468013
+    dw_throttle: 13281.661964154497
+    t_year: 4590.789999999999

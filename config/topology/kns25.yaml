@@ -1,0 +1,30 @@
+# As-built технологическая схема КНС-25 (по «Технологическая схема КНС 25», 2023).
+# Только для дашборда (вкладка «Схема ППД»); ядро расчёта не использует.
+# Поля узла: id, type, x, y, label (короткая подпись), sub (мелкая строка),
+#            agg (привязка к агрегату — для подсветки по КПД), hint (текст при наведении).
+title: КНС-25 (Джалильнефть)
+source: Технологическая схема КНС-25 (KNS 25.pdf)
+nodes:
+  - {id: src,   type: source,    x: 0, y: 2.0, label: "Приём",     sub: "с УПТЖ",      hint: "Приём пресной воды с УПТЖ в КНС"}
+  - {id: filt,  type: prep,      x: 1, y: 2.0, label: "Фильтр",    sub: "+ расходомер", hint: "Фильтрация + узел учёта расхода"}
+  - {id: na1,   type: pump,      x: 2, y: 2.9, label: "НА-1",      sub: "СТ-А 250 кВт", agg: "НА-1", hint: "Плунжерный СТ-А УПНЖ 1500×150 (объёмный)"}
+  - {id: na2,   type: pump,      x: 2, y: 1.1, label: "НА-2",      sub: "ЦНС63×1400",   agg: "НА-2", hint: "Центробежный ЦНС63×1400, 630 кВт"}
+  - {id: man,   type: manifold,  x: 3, y: 2.0, label: "Выкид",     sub: "коллектор",   hint: "Напорный коллектор после насосов"}
+  - {id: vrp25, type: manifold,  x: 4, y: 3.1, label: "ВРП-25",    sub: "5 водоводов", hint: "Распредгребёнка: вод. 5371/5372/5497/3064, 5495…"}
+  - {id: vrp26, type: manifold,  x: 4, y: 2.0, label: "ВРП-26",    sub: "5 водоводов", hint: "Распредгребёнка: вод. 5356/5492/5390/5481…"}
+  - {id: vrp3,  type: manifold,  x: 4, y: 0.9, label: "Гребёнка 3", sub: "5 водоводов", hint: "Распредгребёнка: вод. 5387/5483/5485/5488…"}
+  - {id: wells, type: wells,     x: 5, y: 2.0, label: "Скважины",  sub: "~15 вод.",    hint: "Нагнетательные скважины по водоводам (приёмистость P–Q)"}
+  - {id: res,   type: reservoir, x: 6, y: 2.0, label: "Пласт",     sub: "CRM",         hint: "Отклик пласта (CRM)"}
+edges:
+  - {from: src,   to: filt}
+  - {from: filt,  to: na1}
+  - {from: filt,  to: na2}
+  - {from: na1,   to: man}
+  - {from: na2,   to: man}
+  - {from: man,   to: vrp25}
+  - {from: man,   to: vrp26}
+  - {from: man,   to: vrp3}
+  - {from: vrp25, to: wells, kind: throttle}
+  - {from: vrp26, to: wells, kind: throttle}
+  - {from: vrp3,  to: wells, kind: throttle}
+  - {from: wells, to: res}

@@ -1,0 +1,95 @@
+id: kns14an
+name: КНС-14 АН
+water_type: пресная
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
+  вода/КНС 14 АН/КНС 14 АН расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: ГНУ REDA 1000-1300
+    kind: центробежный
+    q_nom: 41.8
+    h_nom: 1224.4
+    eta_nom: 0.649
+    power_nom: 208.4
+    n_rpm: 4169.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: 4VAQ19929-А-12-5
+    synchronous: false
+    p_nom: 448.0
+    eta_nom: 0.95
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    i_nom: 52.0
+    n_rpm: 2978.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 1.235682
+    p_out: 9.375492
+    q_day: 806.0
+    t: 24.0
+    w: 4494.7
+    q_fact: 33.583333333333336
+    p_electric: 187.27916666666667
+    p_bg: 9.31665
+    t_year: 489.0
+  reference:
+    h_fact: 829.7461773700305
+    h_due: 1134.7288444444443
+    eta_fact: 0.40545821003997295
+    eta_nom: 0.5980535
+    sec_fact: 5.576550868486352
+    sec_calc: 3.780695762725798
+    load_factor: 0.3971321614583333
+    p_hydraulic: 75.93387569444444
+    dw_efficiency: 29491.981510576265
+    t_year: 489.0
+- id: НА-2
+  role: работа
+  pump:
+    model: СИН61.02.100
+    kind: объёмный
+    power_nom: 500.0
+    n_rpm: 300.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: АДЧР - 500-0,38/0,66-4У1
+    synchronous: false
+    p_nom: 500.0
+    eta_nom: 0.947
+    cos_phi: 0.9
+    voltage_kv: 0.38
+    i_nom: 889.0
+    n_rpm: 1500.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 0.637455
+    p_out: 12.7491
+    q_day: 912.0
+    t: 24.0
+    w: 5840.64
+    q_fact: 38.0
+    p_electric: 243.36
+    p_bg: 11.27805
+    t_year: 8271.0
+  reference:
+    h_fact: 1234.6223241590214
+    h_due: 1292.4624
+    eta_fact: 0.5253334223646724
+    eta_nom: 0.61655
+    sec_fact: 6.40421052631579
+    sec_calc: 5.456728299948639
+    load_factor: 0.46092384000000003
+    p_hydraulic: 127.84514166666668
+    dw_efficiency: 297791.76878274267
+    dw_throttle: 208304.30662557782
+    t_year: 8271.0

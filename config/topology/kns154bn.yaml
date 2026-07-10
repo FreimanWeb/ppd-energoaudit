@@ -1,0 +1,26 @@
+# As-built технологическая схема КНС-154 БН (по «Технологическая Схема КНС-154», 2022).
+# Только для дашборда (вкладка «Схема ППД»); ядро расчёта не использует.
+title: КНС-154 БН (Бавлынефть)
+source: Технологическая схема КНС-154.pdf
+nodes:
+  - {id: src,   type: source,    x: 0, y: 2.0, label: "Приём",   sub: "с УП-660",   hint: "Приём пластовой воды с УП-660"}
+  - {id: meter, type: meter,     x: 1, y: 2.0, label: "Счётчик", sub: "НОТА-В",     hint: "Узел учёта НОТА-В ОУ-150"}
+  - {id: filt,  type: prep,      x: 2, y: 2.0, label: "Фильтр",                     hint: "Фильтрация воды"}
+  - {id: tank,  type: prep,      x: 3, y: 2.0, label: "Ёмкость", sub: "V-1 м³",     hint: "Ёмкость V-1 м³ + насос охлаждения"}
+  - {id: na1,   type: pump,      x: 4, y: 2.9, label: "НА-1", sub: "ЦНС №1 180-950", agg: "НА-1", hint: "ЦНС №1 180-950 (ТОП-3)"}
+  - {id: na2,   type: pump,      x: 4, y: 1.1, label: "НА-2", sub: "ЦНС №2 240-950", agg: "НА-2", hint: "ЦНС №2 240-950 (ТОП-2)"}
+  - {id: man,   type: manifold,  x: 5, y: 2.0, label: "Выкид", sub: "счётчик Взлёт", hint: "Напорный выкид + расходомер Взлёт"}
+  - {id: comb,  type: manifold,  x: 6, y: 2.0, label: "Гребёнка", sub: "с КНС-154",  hint: "Распределительная гребёнка"}
+  - {id: wells, type: wells,     x: 7, y: 2.0, label: "Скважины", sub: "~10 вод.",  hint: "Нагнет. скважины: вод. 1622/ЕГ1543/ЕГ1545…"}
+  - {id: res,   type: reservoir, x: 8, y: 2.0, label: "Пласт",  sub: "CRM",         hint: "Отклик пласта (CRM)"}
+edges:
+  - {from: src,   to: meter}
+  - {from: meter, to: filt}
+  - {from: filt,  to: tank}
+  - {from: tank,  to: na1}
+  - {from: tank,  to: na2}
+  - {from: na1,   to: man}
+  - {from: na2,   to: man}
+  - {from: man,   to: comb}
+  - {from: comb,  to: wells, kind: throttle}
+  - {from: wells, to: res}

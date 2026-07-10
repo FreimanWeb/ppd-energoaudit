@@ -1,0 +1,142 @@
+id: knsopu
+name: КНС-ОПУ
+water_type: агрессивная
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/агрессивная
+  вода/КНС-ОПУ выезд 08.04.2026г/КНС -ОПУ расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: ЦНС 63-1400(-3)
+    kind: центробежный
+    q_nom: 1100.0
+    h_nom: 63.0
+    eta_nom: 0.6
+    power_nom: 366.84
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ-800 2Р-УХЛ-4
+    synchronous: true
+    p_nom: 800.0
+    eta_nom: 0.961
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1123.0
+    p_in: 2.196768
+    p_out: 11.621295000000002
+    q_day: 2265.9
+    t: 24.0
+    w: 12068.3
+    q_fact: 94.41250000000001
+    p_electric: 502.8458333333333
+    p_bg: 10.493490000000001
+    t_year: 6758.4
+  reference:
+    h_fact: 855.4818488049431
+    h_due: 864.9987002968749
+    eta_fact: 0.491531895068071
+    eta_nom: 0.559302
+    sec_fact: 5.326051458581579
+    sec_calc: 4.680698739977092
+    load_factor: 0.6040435572916666
+    p_hydraulic: 247.1647653854167
+    dw_efficiency: 411785.0105841921
+    dw_throttle: 357403.2788582914
+    t_year: 6758.4
+- id: НА-2
+  role: работа
+  pump:
+    model: ЦНС 80-1400(-3)
+    kind: центробежный
+    q_nom: 1100.0
+    h_nom: 80.0
+    eta_nom: 0.63
+    power_nom: 427.05
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ-800 2Р-УХЛ-4
+    synchronous: true
+    p_nom: 800.0
+    eta_nom: 0.961
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1123.0
+    p_in: 1.8437160000000001
+    p_out: 11.179979999999999
+    q_day: 1339.7
+    t: 14.2
+    w: 7281.0
+    q_fact: 94.34507042253522
+    p_electric: 512.7464788732394
+    p_bg: 10.395420000000001
+    t_year: 6758.4
+  reference:
+    h_fact: 847.4700520939705
+    h_due: 865.6480675312437
+    eta_fact: 0.4771854019136565
+    eta_nom: 0.5766
+    sec_fact: 5.4347988355601995
+    sec_calc: 4.497756966123251
+    load_factor: 0.6159367077464788
+    p_hydraulic: 244.67513460093895
+    dw_efficiency: 597478.2521977796
+    dw_throttle: 240997.2731612699
+    t_year: 6758.4
+- id: НА-3
+  role: работа
+  pump:
+    model: ЦНС 180-1422 (-1)
+    kind: центробежный
+    q_nom: 1300.0
+    h_nom: 180.0
+    eta_nom: 0.76
+    power_nom: 974.6
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ-1250 2Р-УХЛ-4
+    synchronous: true
+    p_nom: 1250.0
+    eta_nom: 0.969
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1123.0
+    p_in: 2.196768
+    p_out: 10.944612
+    q_day: 2115.3
+    t: 22.5
+    w: 11471.8
+    q_fact: 94.01333333333334
+    p_electric: 509.85777777777776
+    p_bg: 10.19928
+    t_year: 6758.4
+  reference:
+    h_fact: 794.0580740208211
+    h_due: 868.8318185955554
+    eta_fact: 0.44806284427901455
+    eta_nom: 0.5766
+    sec_fact: 5.423249657259017
+    sec_calc: 4.214284888426406
+    load_factor: 0.6124666555555556
+    p_hydraulic: 228.44832608888885
+    dw_efficiency: 768151.6866390104
+    dw_throttle: 228142.38231027848
+    t_year: 6758.4

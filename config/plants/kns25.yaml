@@ -1,0 +1,98 @@
+id: kns25
+name: КНС-25
+water_type: пресная
+branch: кнс
+source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
+  вода/КНС 25 выезд 11.03.2024/кнс 25 расчет.xlsx
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: СТ-А НПЖ 1-62,5-15 УХЛ3
+    kind: объёмный
+    q_nom: 62.5
+    h_nom: 1500.0
+    eta_nom: 0.85
+    power_nom: 340.0
+    n_rpm: 300.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: А355SMC4У3
+    synchronous: false
+    p_nom: 355.0
+    eta_nom: 0.959
+    cos_phi: 0.86
+    voltage_kv: 0.38
+    i_nom: 625.0
+    n_rpm: 1488.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 1.5720621000000001
+    p_out: 14.107369499999999
+    q_day: 1137.6
+    t: 24.0
+    w: 5018.8
+    q_fact: 47.4
+    p_electric: 209.11666666666667
+    p_bg: 13.337520000000001
+    t_year: 5411.0
+  reference:
+    h_fact: 1277.8091131498468
+    eta_fact: 0.7892637958077627
+    eta_nom: 0.8151499999999999
+    sec_fact: 4.411744022503516
+    sec_calc: 4.271643051381136
+    load_factor: 0.564909530516432
+    p_hydraulic: 165.0482141
+    dw_efficiency: 35933.2932148275
+    dw_throttle: 69492.35428075919
+    t_year: 5411.0
+- id: НА-2
+  role: работа
+  pump:
+    model: ЦНС-63-1400
+    kind: центробежный
+    q_nom: 63.0
+    h_nom: 1400.0
+    eta_nom: 0.58
+    power_nom: 476.9
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ -630-2РУХЛ4
+    synchronous: true
+    p_nom: 630.0
+    eta_nom: 0.95
+    cos_phi: 0.9
+    voltage_kv: 6.0
+    i_nom: 71.0
+    n_rpm: 3000.0
+  transmission_eff: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 0.8335950000000001
+    p_out: 14.02401
+    q_day: 1510.5
+    t: 23.2
+    w: 10632.2
+    q_fact: 65.10775862068965
+    p_electric: 458.28448275862075
+    p_bg: 14.004396000000002
+    t_year: 7845.0
+  reference:
+    h_fact: 1344.5886850152904
+    h_due: 1387.1851273595423
+    eta_fact: 0.5205393327580368
+    eta_nom: 0.5509999999999999
+    sec_fact: 7.038861304203907
+    sec_calc: 6.64973532970357
+    load_factor: 0.6910639025725233
+    p_hydraulic: 238.55509886853446
+    dw_efficiency: 198754.01656324384
+    dw_throttle: 5346.084412254543
+    t_year: 7845.0
