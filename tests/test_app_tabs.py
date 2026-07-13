@@ -94,3 +94,11 @@ def test_overview_answers_manager_questions(at_kns25):
     } <= labels
     text = _all_text(at_kns25)
     assert "Структура потерь" in text and "Топ-мероприятия" in text
+
+
+def test_dashboard_marks_calculated_and_estimated_blocks(at_kns25):
+    text = _all_text(at_kns25)
+    assert "Расчёт по Методике" in text
+    assert "Эвристическая оценка" in text
+    assert "As-built схема" in text
+    assert "Паспортная или модельная кривая" in text

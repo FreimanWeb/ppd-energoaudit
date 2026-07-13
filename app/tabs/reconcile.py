@@ -5,6 +5,7 @@ from __future__ import annotations
 import lib
 import pandas as pd
 import streamlit as st
+import ui
 
 from tabs.common import STATUS_BG, Ctx, fmt
 
@@ -24,6 +25,7 @@ def _fmt_report(r) -> str:
 
 def render(ctx: Ctx) -> None:
     st.subheader("Трёхсторонняя сверка: модель ↔ расчет.xlsx ↔ отчёт")
+    ui.provenance(("Сверка источников", "ok"))
     st.caption(
         "Третий источник — текстовый отчёт энергоаудита (.doc/.docx): независимый "
         "«человеческий» эталон. Колонки статусов: М↔xlsx · М↔отчёт · источники (xlsx↔отчёт)."

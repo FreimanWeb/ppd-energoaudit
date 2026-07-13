@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 import streamlit as st
+import ui
 
 from tabs.common import Ctx, clean_nums, fmt
 
@@ -49,6 +50,7 @@ def _subst_to_latex(s: str) -> str:
 
 def render(ctx: Ctx) -> None:
     st.subheader("Как получено каждое число — формулы методики")
+    ui.provenance(("Расчёт по Методике", "ok"))
     st.caption(
         "Символьная формула (Методика, разд. 8) → подстановка фактических величин → "
         "результат. Число в скобках — номер формулы методики. Полная карта "

@@ -5,6 +5,7 @@ from __future__ import annotations
 import lib
 import plotly.graph_objects as go
 import streamlit as st
+import ui
 
 from tabs.common import Ctx, fmt, loss_components
 
@@ -307,6 +308,7 @@ def render(ctx: Ctx) -> None:
 
     if topo:
         st.markdown(f"**{topo.get('title', 'Технологическая схема')}** — as-built по техсхеме")
+        ui.provenance(("As-built схема", "ok"), ("Расчётные показатели", ""))
         st.caption(
             "🖱️ Наведите курсор на узел — что в нём происходит и фактические значения. "
             "Насосы окрашены по КПД: 🟢 норма · 🟡 пониженный · 🔴 низкий. "
@@ -324,6 +326,7 @@ def render(ctx: Ctx) -> None:
             + f" МПа · Q={fmt(rm_s.q_day, 0)} м³/сут."
         )
     else:
+        ui.provenance(("Типовая схема", "warn"), ("Расчётные показатели", ""))
         _fallback_chain(ctx)
 
     _sankey(ctx)

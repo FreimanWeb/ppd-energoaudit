@@ -52,6 +52,9 @@ _CSS = """
 .pp-badge.ok{ background:rgba(46,158,107,.95); border-color:transparent; }
 .pp-badge.warn{ background:rgba(224,161,6,.95); border-color:transparent; }
 .pp-badge.bad{ background:rgba(217,83,79,.95); border-color:transparent; }
+.pp-provenance{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 8px; }
+.pp-provenance .pp-badge{ color:var(--pri); background:#e7eef8; border-color:#c9d9eb; }
+.pp-provenance .pp-badge.ok,.pp-provenance .pp-badge.warn{ color:var(--ink); border-color:transparent; }
 
 /* ── KPI (st.metric → карточки) ── */
 div[data-testid="stMetric"]{
@@ -109,6 +112,11 @@ def hero(title: str, subtitle: str, badges=()) -> None:
         f"<div class='pp-badges'>{_badges_html(badges)}</div></div>",
         unsafe_allow_html=True,
     )
+
+
+def provenance(*badges: tuple[str, str]) -> None:
+    """Компактно показать происхождение данных или уровень модели."""
+    st.markdown(f"<div class='pp-provenance'>{_badges_html(badges)}</div>", unsafe_allow_html=True)
 
 
 def note(text: str) -> None:

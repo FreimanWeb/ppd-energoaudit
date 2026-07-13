@@ -6,12 +6,14 @@ import json
 
 import lib
 import streamlit as st
+import ui
 
 from tabs.common import Ctx, fmt
 
 
 def render(ctx: Ctx) -> None:
     st.subheader("Качество и происхождение данных")
+    ui.provenance(("Проверка полноты", ""))
     st.write(f"**Источник:** {ctx.obj.source}")
     rm = ctx.agg.regime
     fields = {
@@ -40,6 +42,7 @@ def render(ctx: Ctx) -> None:
     qpath = lib._ROOT / "data" / "generated" / ctx.object_id / "quality_report.json"
     if qpath.exists():
         st.markdown("**Отчёт качества телеметрии:**")
+        ui.provenance(("Сохранённый отчёт телеметрии", "warn"))
         rep = json.loads(qpath.read_text(encoding="utf-8"))
         if rep.get("flags"):
             for fl in rep["flags"]:

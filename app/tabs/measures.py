@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import lib
 import streamlit as st
+import ui
 
 from tabs.common import Ctx, fmt
 
@@ -13,6 +14,7 @@ def render(ctx: Ctx) -> None:
     from ppd_audit.optimize import optimize_setpoint
 
     st.subheader("Реестр мероприятий с ТЭО")
+    ui.provenance(("Эвристическая оценка", "warn"), ("CAPEX — типовой", ""))
     evals = suggest_measures(ctx.audit, ctx.tariff)
     if evals:
         st.dataframe(
@@ -34,6 +36,7 @@ def render(ctx: Ctx) -> None:
 
     st.markdown("---")
     st.subheader("Оптимизация уставки (с ограничениями)")
+    ui.provenance(("Расчётная оценка", "warn"), ("Ограничения — конфиг", ""))
     opt = optimize_setpoint(ctx.audit, lib.constraints())
     cc = st.columns(4)
     cc[0].metric("p_вых текущее, МПа", fmt(opt.current_p_out, 2))

@@ -35,6 +35,7 @@ def _system_curve(q_work, h_fact, p_in, p_bg, rho, q_nom):
 
 def render(ctx: Ctx) -> None:
     st.subheader("Рабочая точка: насос × трубопровод")
+    ui.provenance(("Паспортная или модельная кривая", "warn"))
     p, audit = ctx.agg.pump, ctx.audit
     reg = audit.regime
     rmp = ctx.agg.regime

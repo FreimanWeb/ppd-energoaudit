@@ -11,12 +11,14 @@ import lib
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import ui
 
 from tabs.common import Ctx, fmt, loss_components
 
 
 def _kpi_rows(ctx: Ctx) -> None:
     audit, reg, tariff = ctx.audit, ctx.audit.regime, ctx.tariff
+    ui.provenance(("Расчёт по Методике", "ok"), ("Тариф и цель — конфиг", ""))
     c = st.columns(4)
     sec_dev = (audit.sec_fact - audit.sec_calc) / audit.sec_calc * 100 if audit.sec_calc else None
     c[0].metric(
@@ -120,6 +122,7 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
                 st.caption("Детализация по статьям и ₽/год — вкладка «📉 Карта потерь».")
     with cc[1]:
         st.markdown("**Топ-мероприятия** — что даст наибольший эффект")
+        ui.provenance(("Эвристическая оценка", "warn"))
         evals = suggest_measures(audit, tariff)[:3]
         if not evals:
             st.success("Применимых мероприятий не выявлено — режим близок к норме.")
@@ -261,6 +264,7 @@ def _report_excerpt(ctx: Ctx) -> None:
         return
     src = facts["source"].split("/")[-1]
     with st.expander(f"📄 Текстовый отчёт энергоаудита — выводы (источник: {src})"):
+        ui.provenance(("Из текстового отчёта", ""))
         ra = facts.get("aggregates", {}).get(ctx.agg_id, {})
         for c in ra.get("claims", []):
             st.markdown(f"> {c['text']}")
