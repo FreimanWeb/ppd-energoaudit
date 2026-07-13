@@ -55,10 +55,8 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
 
     # --- η_ном (14)/(15)
     eta_nom = agg.nominal_efficiency()
-    if eta_nom is None and agg.reference and agg.reference.eta_nom:
-        eta_nom = agg.reference.eta_nom
     if eta_nom is None:
-        raise ValueError(f"нет данных для η_ном агрегата {agg.id}")
+        raise ValueError(f"нет паспортных КПД для η_ном агрегата {agg.id}")
     _trace(tr, "14", "η_ном = η_ЭД.ном·η_нас.ном·η_тр",
            f"{agg.motor.eta_nom}·{agg.pump.eta_nom}·{agg.transmission_eff}", round(eta_nom, 4))
 
