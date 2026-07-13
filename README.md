@@ -127,6 +127,8 @@ FastAPI-слой — тонкий adapter над `ppd_audit.services`: мате�
 
 - `POST /energy/audit` — вход `EnergyAuditRequest` (`ObjectSpec` + optional `aggregate_id`),
   выход `EnergyAuditResponse` с KPI, потерями и trace формул.
+- `POST /telemetry/validate` — вход `TelemetrySubmission`: только raw telemetry с контекстом
+  объекта/техместа/периода; выход — quality-report и нормализованные входы по агрегатам.
 - `GET /health` — healthcheck.
 
 ## Соответствие ТЗ
