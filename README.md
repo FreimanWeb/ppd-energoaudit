@@ -47,7 +47,7 @@ uvicorn ppd_audit.api.main:app --reload  # backend API
 streamlit run app/main.py            # дашборды
 ```
 
-Через `make` (где доступен): `make verify` · `make test` · `make api` · `make app` · `make reports`.
+Через `make`: `make help` · `make lint` · `make test` · `make verify` · `make api` · `make app`.
 
 Парсинг текстовых отчётов требует `python-docx` (в зависимостях). Бинарные `.doc`
 конвертируются внешним **LibreOffice** (`soffice`): macOS — `brew install --cask libreoffice`,
