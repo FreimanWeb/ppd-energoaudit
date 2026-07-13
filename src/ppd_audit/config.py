@@ -9,9 +9,29 @@ from functools import cache
 from pathlib import Path
 
 import yaml
+from pydantic import BaseModel, Field
 
-from .models import Constraints, FluidProps
 from .spec import ObjectSpec
+
+
+class FluidProps(BaseModel):
+    """Свойства жидкости из config/fluids.yaml."""
+
+    rho: float = Field(..., description="плотность, кг/м³")
+    nu: float = Field(..., description="кинематическая вязкость, сСт")
+    estimate: bool = False
+    note: str = ""
+
+
+class Constraints(BaseModel):
+    """Технологические ограничения из config/constraints.yaml."""
+
+    pressure_limits: dict = Field(default_factory=dict)
+    vfd: dict = Field(default_factory=dict)
+    operation: dict = Field(default_factory=dict)
+    wells: dict = Field(default_factory=dict)
+    kpi: dict = Field(default_factory=dict)
+    economics: dict = Field(default_factory=dict)
 
 
 def project_root() -> Path:

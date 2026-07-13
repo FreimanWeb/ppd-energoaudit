@@ -6,8 +6,8 @@ import pytest
 from ppd_audit.config import load_constraints
 from ppd_audit.core import hydraulics, nodes, wells, zra
 from ppd_audit.core.audit import run_pump_audit
+from ppd_audit.core.losses import build_loss_map
 from ppd_audit.core.reservoir import CRMLite, DemoReservoir, ReservoirInput, get_model
-from ppd_audit.decomposition import build_loss_map
 from ppd_audit.measures import suggest_measures
 from ppd_audit.optimize import optimize_setpoint
 

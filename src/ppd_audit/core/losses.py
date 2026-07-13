@@ -1,26 +1,21 @@
-"""Сводная декомпозиция УРЭ и цифровая карта потерь.
-
-Собирает потери мощности агрегата (из core.audit) в единую структуру: полезная
-мощность + статьи потерь с долями, годовой энергией и стоимостью. Используется
-дашбордом (карта потерь) и отчётами.
-"""
+"""Цифровая карта потерь по результату расчётного ядра."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .core.audit import AuditResult
-from .core.pump import KnsDecomposition
+from .audit import AuditResult
+from .pump import KnsDecomposition
 
 
 @dataclass
 class LossItem:
     name: str
     power_kw: float
-    share: float  # доля от P_эл
+    share: float
     annual_kwh: float
     annual_rub: float
-    category: str  # "полезная" | "потеря"
+    category: str
 
 
 @dataclass
@@ -36,18 +31,17 @@ class LossMap:
 
 
 def _components(audit: AuditResult) -> tuple[float, list[tuple[str, float]]]:
-    """(полезная мощность, [(статья, кВт)]) из декомпозиции (КНС/перекачка)."""
     d = audit.decomposition
     if d is None:
         return audit.regime.p_hydraulic, []
-    if isinstance(d, KnsDecomposition):  # КНС (31-36)
+    if isinstance(d, KnsDecomposition):
         return d.p_bg_useful, [
             ("Потери КПД", d.dp_efficiency),
             ("Номинальные", d.dp_nominal),
             ("Дросселирование", d.dp_na_throttle),
             ("Гидравл. насос→БГ", d.dp_hydraulic),
         ]
-    return audit.regime.p_hydraulic, [  # перекачка (37-42)
+    return audit.regime.p_hydraulic, [
         ("Износ", d.dp_wear),
         ("Неоптимальная подача", d.dp_suboptimal),
         ("Завышенная мощность ЭД", d.dp_motor),
@@ -56,17 +50,11 @@ def _components(audit: AuditResult) -> tuple[float, list[tuple[str, float]]]:
     ]
 
 
-def build_loss_map(
-    audit: AuditResult,
-    tariff: float = 4.68,
-    t_year: float = 8760.0,
-) -> LossMap:
-    """Цифровая карта потерь агрегата с годовой энергией и стоимостью."""
+def build_loss_map(audit: AuditResult, tariff: float = 4.68, t_year: float = 8760.0) -> LossMap:
+    """Карта потерь агрегата с годовой энергией и стоимостью."""
     p_el = audit.regime.p_electric
     t_year = (audit.spec and audit.spec.regime and audit.spec.regime.t_year) or t_year
     useful, comps = _components(audit)
-    comps = [(n, v) for n, v in comps if abs(v) > 1e-9]
-
     items = [
         LossItem(
             "Полезная мощность",
@@ -77,6 +65,9 @@ def build_loss_map(
             "полезная",
         )
     ]
-    for name, kw in comps:
-        items.append(LossItem(name, kw, kw / p_el, kw * t_year, kw * t_year * tariff, "потеря"))
-    return LossMap(aggregate_id=audit.aggregate_id, p_electric=p_el, useful_kw=useful, items=items)
+    items += [
+        LossItem(name, kw, kw / p_el, kw * t_year, kw * t_year * tariff, "потеря")
+        for name, kw in comps
+        if abs(kw) > 1e-9
+    ]
+    return LossMap(audit.aggregate_id, p_el, useful, items)
