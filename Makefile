@@ -1,39 +1,56 @@
 # Цифровая модель энергоаудита ППД — команды разработки/верификации.
-# Использование: make <цель>. Перед первым запуском: python -m venv .venv && pip install -e ".[app,api,dev]"
+# Перед первым запуском: uv sync --extra app --extra api --extra dev
 
-PY ?= python
+UV ?= uv
 
-.PHONY: help verify test app api ingest reports clean-reports
+.DEFAULT_GOAL := help
 
-help:
-	@echo "verify  — полная верификация: модель↔xlsx + трёхсторонняя сверка с отчётами (.doc/.docx)"
-	@echo "test    — pytest (ядро, ingest, UI/AppTest, сверка с отчётами)"
-	@echo "app     — запустить дашборд (streamlit)"
-	@echo "api     — запустить backend API (FastAPI)"
-	@echo "ingest  — нормализация телеметрии ДНС-7с"
-	@echo "reports — пересобрать кэш отчётов data/reports/<id>.docx (конвертация .doc)"
-	@echo "clean-reports — удалить кэш конвертированных отчётов"
+.PHONY: help format lint fix test verify app api ingest reports clean-reports
+
+help: ## Показать доступные команды
+	@echo "PPD Energoaudit: make <цель>"
+	@echo "  format        форматировать код"
+	@echo "  lint          проверить Ruff"
+	@echo "  fix           исправить Ruff и форматирование"
+	@echo "  test          запустить pytest"
+	@echo "  verify        сверить модель с xlsx и отчётами"
+	@echo "  app           запустить Streamlit-дашборд"
+	@echo "  api           запустить FastAPI"
+	@echo "  ingest        нормализовать телеметрию ДНС-7с"
+	@echo "  reports       пересобрать кэш .docx-отчётов"
+	@echo "  clean-reports удалить кэш конвертированных отчётов"
+
+format: ## Форматировать код
+	$(UV) run ruff format .
+
+lint: ## Проверить Ruff без изменения файлов
+	$(UV) run ruff check .
+	$(UV) run ruff format --check .
+
+fix: ## Исправить Ruff и форматирование
+	$(UV) run ruff check . --fix
+	$(UV) run ruff format .
 
 # Пересобирает обе таблицы сверки: data/generated/verification_report.* и
 # data/generated/reconciliation_reports.{csv,md}. Конвертирует .doc при необходимости.
 verify:
-	$(PY) -m ppd_audit.verify
+	$(UV) run python -m ppd_audit.verify
 
 test:
-	$(PY) -m pytest -q
+	$(UV) run pytest -q
 
 app:
-	streamlit run app/main.py
+	$(UV) run streamlit run app/main.py
 
 api:
-	uvicorn ppd_audit.api.main:app --reload
+	$(UV) run uvicorn ppd_audit.api.main:app --reload
 
 ingest:
-	$(PY) -m ppd_audit.ingest dns7s
+	$(UV) run python -m ppd_audit.ingest dns7s
 
 # Принудительная пересборка кэша .docx-отчётов из манифеста (config/verification.yaml).
 reports:
-	$(PY) -c "import yaml; from pathlib import Path; \
+	$(UV) run python -c "import yaml; from pathlib import Path; \
 from ppd_audit.config import project_root; \
 from ppd_audit.ingest.convert import ensure_report_docx; \
 r=project_root(); m=yaml.safe_load((r/'config/verification.yaml').read_text(encoding='utf-8')); \
