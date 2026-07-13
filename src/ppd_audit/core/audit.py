@@ -247,7 +247,7 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
 
 def run_pump_audit(plant_id: str, aggregate_id: str | None = None) -> AuditResult:
     """Аудит агрегата объекта из config/plants/<id>.yaml (через ObjectSpec)."""
-    from ..spec_io import load_object_spec
+    from ..spec import load_object_spec
 
     obj = load_object_spec(plant_id)
     agg = obj.aggregate(aggregate_id) if aggregate_id else obj.working_aggregates()[0]

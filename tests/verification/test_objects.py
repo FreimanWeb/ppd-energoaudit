@@ -12,7 +12,7 @@ import pytest
 import yaml
 
 from ppd_audit.config import project_root
-from ppd_audit.spec_io import load_object_spec
+from ppd_audit.spec import load_object_spec
 from ppd_audit.verify.compare import FAIL
 from ppd_audit.verify.runner import load_manifest, run_verification
 

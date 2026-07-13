@@ -3,7 +3,7 @@ from importlib import import_module
 from fastapi.testclient import TestClient
 
 from ppd_audit.api.main import app, validate_telemetry_submission
-from ppd_audit.spec_io import load_object_spec
+from ppd_audit.spec import load_object_spec
 from ppd_audit.telemetry import TelemetrySubmission
 
 

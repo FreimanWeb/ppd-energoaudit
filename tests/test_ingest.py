@@ -9,7 +9,7 @@ import pytest
 from ppd_audit.config import project_root
 from ppd_audit.ingest.pipeline import ingest_plant
 from ppd_audit.quality.report import build_quality_report
-from ppd_audit.spec_io import load_object_spec
+from ppd_audit.spec import load_object_spec
 
 
 @pytest.fixture(scope="module")

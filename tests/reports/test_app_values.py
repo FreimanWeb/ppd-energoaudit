@@ -12,7 +12,7 @@ pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest
 
 from ppd_audit.core.audit import audit_aggregate
-from ppd_audit.spec_io import load_object_spec
+from ppd_audit.spec import load_object_spec
 
 
 APP = "app/main.py"

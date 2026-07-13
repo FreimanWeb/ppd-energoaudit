@@ -16,8 +16,7 @@ import yaml
 from ..config import project_root
 from ..core.audit import audit_aggregate
 from ..ingest.report_calc import apply_t_year_overrides, parse_calc_file_with_cells
-from ..spec import ObjectSpec
-from ..spec_io import save_object_spec
+from ..spec import ObjectSpec, save_object_spec
 from .compare import (
     FAIL,
     OK,

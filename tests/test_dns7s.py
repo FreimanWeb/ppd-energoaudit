@@ -8,7 +8,7 @@ config/plants/dns7s.yaml → aggregates[].reference.
 import pytest
 
 from ppd_audit.core.audit import run_pump_audit
-from ppd_audit.spec_io import load_object_spec
+from ppd_audit.spec import load_object_spec
 
 
 @pytest.fixture(scope="module")

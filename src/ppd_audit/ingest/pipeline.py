@@ -13,7 +13,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..config import project_root
-from ..spec_io import load_object_spec
+from ..spec import load_object_spec
 from . import readers
 
 

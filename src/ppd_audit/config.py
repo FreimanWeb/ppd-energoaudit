@@ -40,6 +40,6 @@ def load_fluids() -> dict[str, FluidProps]:
 @cache
 def load_plant(plant_id: str) -> ObjectSpec:
     """Совместимый псевдоним нативного загрузчика паспорта объекта."""
-    from .spec_io import load_object_spec
+    from .spec import load_object_spec
 
     return load_object_spec(plant_id)

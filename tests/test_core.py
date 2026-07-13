@@ -23,8 +23,8 @@ from ppd_audit.spec import (
     PumpSpec,
     ReferenceOutputs,
     RegimeMeasurement,
+    load_object_spec,
 )
-from ppd_audit.spec_io import load_object_spec
 
 
 def test_nominal_efficiency_14():

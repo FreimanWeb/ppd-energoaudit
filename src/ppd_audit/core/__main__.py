@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-from ..spec_io import load_object_spec
+from ..spec import load_object_spec
 from .audit import run_pump_audit
 from .pump import PumpingDecomposition
 

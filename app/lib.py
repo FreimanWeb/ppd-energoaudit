@@ -18,8 +18,7 @@ if str(_ROOT / "src") not in sys.path:
 
 from ppd_audit.config import load_constraints  # noqa: E402
 from ppd_audit.core.audit import AuditResult, audit_aggregate  # noqa: E402
-from ppd_audit.spec import ObjectSpec  # noqa: E402
-from ppd_audit.spec_io import load_object_spec  # noqa: E402
+from ppd_audit.spec import ObjectSpec, load_object_spec  # noqa: E402
 from ppd_audit.verify.reconcile import run_reconciliation  # noqa: E402
 from ppd_audit.verify.runner import run_verification  # noqa: E402
 

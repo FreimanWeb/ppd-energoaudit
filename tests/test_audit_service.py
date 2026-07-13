@@ -1,6 +1,6 @@
 from ppd_audit.core.audit import AuditResult
 from ppd_audit.services.audit import run_energy_audit
-from ppd_audit.spec_io import load_object_spec
+from ppd_audit.spec import load_object_spec
 
 
 def test_run_energy_audit_returns_core_result():

@@ -4,14 +4,16 @@
 
 Ядро формул (7)-(47) работает с этими структурами и не знает о формате исходников.
 Спец собирается из любого источника: yaml-паспорт объекта, парсер «… расчет.xlsx»
-или ручной ввод (см. spec_io.py).
+или ручной ввод.
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
+import yaml
 from pydantic import BaseModel, Field
 
 
@@ -166,3 +168,29 @@ class ObjectSpec(BaseModel):
 
     def working_aggregates(self) -> list[AggregateSpec]:
         return [a for a in self.aggregates if a.regime is not None]
+
+
+def _plants_dir() -> Path:
+    from .config import project_root
+
+    return project_root() / "config" / "plants"
+
+
+def save_object_spec(spec: ObjectSpec, path: Path | None = None) -> Path:
+    """Сохранить спец в нативный YAML-формат."""
+    path = path or (_plants_dir() / f"{spec.id}.yaml")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(
+            spec.model_dump(mode="json", exclude_none=True), f, allow_unicode=True, sort_keys=False
+        )
+    return path
+
+
+def load_object_spec(plant_id: str) -> ObjectSpec:
+    """Загрузить нативный YAML-паспорт объекта."""
+    path = _plants_dir() / f"{plant_id}.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"Паспорт объекта не найден: {path}")
+    with path.open(encoding="utf-8") as f:
+        return ObjectSpec(**yaml.safe_load(f))
