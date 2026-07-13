@@ -6,8 +6,6 @@ duplicating the plant passport schema.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 from ..spec import ObjectSpec
@@ -15,7 +13,7 @@ from ..spec import ObjectSpec
 
 class EnergyAuditRequest(BaseModel):
     object: ObjectSpec = Field(..., description="Нормализованный паспорт и режим объекта")
-    aggregate_id: Optional[str] = Field(None, description="Агрегат; по умолчанию первый рабочий")
+    aggregate_id: str | None = Field(None, description="Агрегат; по умолчанию первый рабочий")
 
 
 class EnergyAuditMetrics(BaseModel):
@@ -31,9 +29,9 @@ class EnergyAuditMetrics(BaseModel):
     sec_fact_kwh_m3: float
     sec_calc_kwh_m3: float
     dw_efficiency_kwh_year: float
-    h_due_m: Optional[float] = None
-    sec_optimal_kwh_m3: Optional[float] = None
-    dw_throttle_kwh_year: Optional[float] = None
+    h_due_m: float | None = None
+    sec_optimal_kwh_m3: float | None = None
+    dw_throttle_kwh_year: float | None = None
 
 
 class EnergyAuditResponse(BaseModel):

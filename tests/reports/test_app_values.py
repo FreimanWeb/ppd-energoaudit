@@ -7,16 +7,24 @@
 
 import pytest
 
-pytest.importorskip("streamlit")
-from streamlit.testing.v1 import AppTest  # noqa: E402
 
-from ppd_audit.core.audit import audit_aggregate  # noqa: E402
-from ppd_audit.spec_io import load_object_spec     # noqa: E402
+pytest.importorskip("streamlit")
+from streamlit.testing.v1 import AppTest
+
+from ppd_audit.core.audit import audit_aggregate
+from ppd_audit.spec_io import load_object_spec
+
 
 APP = "app/main.py"
 REPORT_OBJECTS = ["КНС-25", "КНС-155", "КНС-ОПУ", "КНС-10", "КНС-154", "КНС-14"]
-OID = {"КНС-25": "kns25", "КНС-155": "kns155bn", "КНС-ОПУ": "knsopu",
-       "КНС-10": "kns10bn", "КНС-154": "kns154bn", "КНС-14": "kns14an"}
+OID = {
+    "КНС-25": "kns25",
+    "КНС-155": "kns155bn",
+    "КНС-ОПУ": "knsopu",
+    "КНС-10": "kns10bn",
+    "КНС-154": "kns154bn",
+    "КНС-14": "kns14an",
+}
 
 
 def _num(s: str):
@@ -56,13 +64,14 @@ def test_displayed_kpi_matches_model(label_part):
     assert not at.exception, f"{label_part}: {at.exception}"
 
     oid = OID[label_part]
-    agg_id = at.selectbox[1].value                      # выбранный агрегат
+    agg_id = at.selectbox[1].value  # выбранный агрегат
     obj = load_object_spec(oid)
     res = audit_aggregate(obj.aggregate(agg_id), obj.branch)
 
     sec_ui = _num(_metric(at, "УРЭ факт, кВт·ч/м³").value)
-    assert sec_ui == pytest.approx(res.sec_fact, rel=0.01), \
+    assert sec_ui == pytest.approx(res.sec_fact, rel=0.01), (
         f"{label_part}/{agg_id}: УРЭ факт UI {sec_ui} ≠ модель {res.sec_fact}"
+    )
     seccalc_ui = _num(_metric(at, "УРЭ расчётный, кВт·ч/м³").value)
     assert seccalc_ui == pytest.approx(res.sec_calc, rel=0.01)
     eta_ui = _num(_metric(at, "КПД факт").value)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 
-from .contracts import EnergyAuditMetrics, EnergyAuditRequest, EnergyAuditResponse
 from ..core.audit import AuditResult
 from ..services.audit import run_energy_audit
 from ..spec import ObjectSpec
@@ -14,6 +13,8 @@ from ..telemetry import (
     map_telemetry_to_calculation_input,
     validate_telemetry,
 )
+from .contracts import EnergyAuditMetrics, EnergyAuditRequest, EnergyAuditResponse
+
 
 app = FastAPI(title="PPD Energoaudit API", version="0.1.0")
 

@@ -23,6 +23,7 @@ from ppd_audit.ingest.report_calc import parse_calc_file
 from ppd_audit.ingest.report_doc import parse_report
 from ppd_audit.verify.reconcile import FAIL, run_reconciliation
 
+
 ROOT = Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "data" / "reports"
 FIXTURES = Path(__file__).resolve().parent
@@ -101,8 +102,9 @@ def test_parser_matches_fixture(reports, oid):
             if field in ("pump_model", "ranges", "claims"):
                 continue
             got = getattr(ar.reference, field)
-            assert got is not None and _approx(got, ev, rel=0.01), \
+            assert got is not None and _approx(got, ev, rel=0.01), (
                 f"{oid}/{agg_id}.{field}: {got} ≠ {ev}"
+            )
 
 
 def test_absolute_and_relative_extracted(reports):
@@ -182,11 +184,12 @@ def test_plunger_branch_kns25(reports):
     """Плунжерный НА-1 КНС-25 (СТ-А): отчёт и модель — ветка объёмного насоса."""
     rep = reports["kns25"]
     assert "ст-а" in rep.aggregate("НА-1").pump_model.lower()
-    spec = parse_calc_file(NTU / "Пресная вода/КНС 25 выезд 11.03.2024/кнс 25 расчет.xlsx",
-                           "kns25", "КНС-25")
+    spec = parse_calc_file(
+        NTU / "Пресная вода/КНС 25 выезд 11.03.2024/кнс 25 расчет.xlsx", "kns25", "КНС-25"
+    )
     res = audit_aggregate(spec.aggregate("НА-1"), spec.branch)
     assert res.pump_kind == "объёмный"
-    assert res.h_due is None        # для объёмного кривая Q-H неприменима
+    assert res.h_due is None  # для объёмного кривая Q-H неприменима
 
 
 # ───────────────────────── трёхсторонняя сверка ─────────────────────────
@@ -202,24 +205,32 @@ def test_reconciliation_runs(reconciliation):
 
 def test_no_unexpected_source_disagreements(reconciliation):
     """Все расхождения источников (xlsx ≠ отчёт) разобраны и внесены в реестр."""
-    fails = {(r.object_id, r.aggregate_id, r.metric)
-             for r in reconciliation["rows"] if r.st_sources == FAIL}
-    assert fails <= KNOWN_SOURCE_DISAGREEMENTS, \
+    fails = {
+        (r.object_id, r.aggregate_id, r.metric)
+        for r in reconciliation["rows"]
+        if r.st_sources == FAIL
+    }
+    assert fails <= KNOWN_SOURCE_DISAGREEMENTS, (
         f"новые необъяснённые расхождения источников: {fails - KNOWN_SOURCE_DISAGREEMENTS}"
+    )
 
 
 def test_no_unexpected_model_report_fails(reconciliation):
     """Все ✗ «модель↔отчёт» объяснены (рассогласование привязки агрегатов OPU/КНС-14)."""
-    fails = {(r.object_id, r.aggregate_id, r.metric)
-             for r in reconciliation["rows"] if r.st_model_report == FAIL}
-    assert fails <= KNOWN_MODEL_REPORT_FAILS, \
+    fails = {
+        (r.object_id, r.aggregate_id, r.metric)
+        for r in reconciliation["rows"]
+        if r.st_model_report == FAIL
+    }
+    assert fails <= KNOWN_MODEL_REPORT_FAILS, (
         f"новые ✗ модель↔отчёт: {fails - KNOWN_MODEL_REPORT_FAILS}"
+    )
 
 
 def test_clean_objects_model_report_agree(reconciliation):
     """Для согласованных объектов измеряемые KPI модель↔отчёт совпадают."""
     for r in reconciliation["rows"]:
-        if r.object_id in ("kns25", "kns155bn") and r.metric in (
-                "УРЭ факт, кВт·ч/м³", "КПД факт"):
-            assert r.st_model_report in ("✓", "—"), \
+        if r.object_id in ("kns25", "kns155bn") and r.metric in ("УРЭ факт, кВт·ч/м³", "КПД факт"):
+            assert r.st_model_report in ("✓", "—"), (
                 f"{r.object_id}/{r.aggregate_id} {r.metric}: {r.st_model_report}"
+            )

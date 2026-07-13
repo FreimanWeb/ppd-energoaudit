@@ -1,8 +1,6 @@
 """Тесты остальной цепочки ППД: водоводы, узлы, скважины, пласт, мероприятия,
 декомпозиция, оптимизация."""
 
-import math
-
 import pytest
 
 from ppd_audit.config import load_constraints
@@ -15,6 +13,7 @@ from ppd_audit.optimize import optimize_setpoint
 
 
 # ---------- Водоводы ----------
+
 
 def test_unaccounted_losses_dns7s():
     # эталон отчёта №31: Δp_факт=2,45, Δp_расч=2,30 → 6,5 % (< 10 %)
@@ -31,7 +30,7 @@ def test_unaccounted_losses_anomaly_flag():
 def test_darcy_weisbach_positive_and_monotone():
     dp1 = hydraulics.darcy_weisbach_dp(50, 1000, 0.15, 5e-5, 1000, 1.0)
     dp2 = hydraulics.darcy_weisbach_dp(100, 1000, 0.15, 5e-5, 1000, 1.0)
-    assert 0 < dp1 < dp2          # больше расход → больше потери
+    assert 0 < dp1 < dp2  # больше расход → больше потери
 
 
 def test_hazen_williams_sane():
@@ -46,17 +45,25 @@ def test_annual_hydraulic_energy():
 
 # ---------- ЗРА / штуцеры ----------
 
+
 def test_throttle_loss():
     # Δp_задв = 0,77 МПа на штуцере; проверяем (31)-(32)-(45)
-    t = zra.throttle_loss(p_before=14.1, p_after=13.33, q=47.4, eta_nom=0.815,
-                          t_year=5411, tariff=4.68)
+    t = zra.throttle_loss(
+        p_before=14.1,
+        p_after=13.33,
+        q=47.4,
+        eta_nom=0.815,
+        t_year=5411,
+        tariff=4.68,
+    )
     assert t.dp_throttle == pytest.approx(0.77, abs=1e-9)
     assert t.power_hydraulic == pytest.approx(0.77 * 47.4 / 3.6, rel=1e-6)
-    assert t.power_electric > t.power_hydraulic        # /η_ном > гидравлической
+    assert t.power_electric > t.power_hydraulic  # /η_ном > гидравлической
     assert t.annual_kwh > 0 and t.annual_rub == pytest.approx(t.annual_kwh * 4.68)
 
 
 # ---------- Распредузлы ----------
+
 
 def test_material_balance():
     b = nodes.material_balance("узел-1", {"вход": 1000.0}, {"в1": 600.0, "в2": 380.0})
@@ -72,6 +79,7 @@ def test_material_balance_anomaly():
 
 # ---------- Скважины ----------
 
+
 def test_injectivity_fit_linear():
     pts = [(5.0, 100.0), (10.0, 200.0), (15.0, 300.0)]  # Q = 20·p
     c = wells.fit_injectivity(pts)
@@ -86,10 +94,14 @@ def test_injectivity_limit():
 
 # ---------- Отклик пласта ----------
 
+
 def test_reservoir_demo():
-    data = ReservoirInput(injectors=["i1", "i2"], producers=["p1"],
-                          injection={"i1": [10, 10], "i2": [20, 20]},
-                          production={"p1": [15, 15]})
+    data = ReservoirInput(
+        injectors=["i1", "i2"],
+        producers=["p1"],
+        injection={"i1": [10, 10], "i2": [20, 20]},
+        production={"p1": [15, 15]},
+    )
     res = DemoReservoir().fit(data)
     assert res.connectivity["p1"] == {"i1": 0.5, "i2": 0.5}
     assert res.estimate
@@ -100,8 +112,12 @@ def test_reservoir_crm_recovers_connectivity():
     i1 = [10, 20, 30, 40, 50]
     i2 = [50, 40, 30, 20, 10]
     p1 = [0.6 * a + 0.4 * b for a, b in zip(i1, i2)]
-    data = ReservoirInput(injectors=["i1", "i2"], producers=["p1"],
-                          injection={"i1": i1, "i2": i2}, production={"p1": p1})
+    data = ReservoirInput(
+        injectors=["i1", "i2"],
+        producers=["p1"],
+        injection={"i1": i1, "i2": i2},
+        production={"p1": p1},
+    )
     res = CRMLite().fit(data)
     assert res.connectivity["p1"]["i1"] == pytest.approx(0.6, abs=0.05)
     assert res.connectivity["p1"]["i2"] == pytest.approx(0.4, abs=0.05)
@@ -115,6 +131,7 @@ def test_reservoir_factory():
 
 
 # ---------- Декомпозиция / мероприятия / оптимизация (на реальном объекте) ----------
+
 
 @pytest.fixture(scope="module")
 def audit_kns25():

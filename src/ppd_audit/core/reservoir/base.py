@@ -15,16 +15,17 @@ from typing import Protocol, runtime_checkable
 @dataclass
 class ReservoirInput:
     """Ряды по скважинам (одинаковой длины по времени)."""
+
     injectors: list[str]
     producers: list[str]
-    injection: dict[str, list[float]]    # inj_id → ряд закачки, м³/сут
+    injection: dict[str, list[float]]  # inj_id → ряд закачки, м³/сут
     production: dict[str, list[float]] = field(default_factory=dict)  # prod_id → ряд добычи
 
 
 @dataclass
 class ReservoirResult:
-    connectivity: dict[str, dict[str, float]]   # prod → {inj → λ (доля)}
-    effective_injection: dict[str, float]       # inj → эффективная закачка, м³/сут
+    connectivity: dict[str, dict[str, float]]  # prod → {inj → λ (доля)}
+    effective_injection: dict[str, float]  # inj → эффективная закачка, м³/сут
     model: str
     estimate: bool = True
     note: str = ""
@@ -33,6 +34,7 @@ class ReservoirResult:
 @runtime_checkable
 class ReservoirModel(Protocol):
     """Контракт модели отклика пласта."""
+
     name: str
 
     def fit(self, data: ReservoirInput) -> ReservoirResult: ...

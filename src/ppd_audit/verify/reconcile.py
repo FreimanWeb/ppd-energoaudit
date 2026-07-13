@@ -18,7 +18,7 @@ from __future__ import annotations
 import csv
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 import yaml
 
@@ -28,6 +28,7 @@ from ..ingest.convert import ensure_report_docx
 from ..ingest.report_calc import parse_calc_file
 from ..ingest.report_doc import AggregateReport, ObjectReport, parse_report
 from ..spec import ReferenceOutputs
+
 
 OK, WARN, FAIL, NA = "✓", "⚠", "✗", "—"
 
@@ -39,37 +40,41 @@ class ReconRow:
     water_type: str
     aggregate_id: str
     pump_kind: str
-    kind: str                      # 'абс' | 'отн'
+    kind: str  # 'абс' | 'отн'
     metric: str
-    model: Optional[float]
-    xlsx: Optional[float]
-    report: Optional[float]        # представительное (для 2026 — последняя дата)
-    report_lo: Optional[float]
-    report_hi: Optional[float]
+    model: float | None
+    xlsx: float | None
+    report: float | None  # представительное (для 2026 — последняя дата)
+    report_lo: float | None
+    report_hi: float | None
     st_model_xlsx: str
     st_model_report: str
-    st_sources: str                # xlsx ↔ отчёт (согласованность источников)
+    st_sources: str  # xlsx ↔ отчёт (согласованность источников)
     tolerance: float
     note: str
 
 
-def _rng_dev(v: Optional[float], lo: Optional[float], hi: Optional[float]) -> Optional[float]:
+def _rng_dev(v: float | None, lo: float | None, hi: float | None) -> float | None:
     """Знаковое относительное отклонение v от диапазона [lo,hi] (0, если внутри)."""
     if v is None or lo is None or hi is None:
         return None
-    mid = (lo + hi) / 2.0
     if lo <= v <= hi:
         return 0.0
+    mid = (lo + hi) / 2.0
     edge = lo if v < lo else hi
     return (v - edge) / abs(mid) if mid else None
 
 
-def _status(v: Optional[float], lo: Optional[float], hi: Optional[float],
-            rel_tol: float, abs_floor: float = 0.0) -> tuple[str, Optional[float]]:
+def _status(
+    v: float | None,
+    lo: float | None,
+    hi: float | None,
+    rel_tol: float,
+    abs_floor: float = 0.0,
+) -> tuple[str, float | None]:
     """Статус попадания v в [lo,hi]±допуск; возвращает (статус, отн.откл)."""
     if v is None or lo is None or hi is None:
         return NA, None
-    mid = (lo + hi) / 2.0
     edge = lo if v < lo else (hi if v > hi else v)
     abs_dev = v - edge
     if abs(abs_dev) <= abs_floor:
@@ -82,25 +87,47 @@ def _status(v: Optional[float], lo: Optional[float], hi: Optional[float],
 
 
 # Абсолютные метрики: (поле, подпись, getter модели, getter xlsx, поле отчёта).
-_ABS: list[tuple[str, str, Callable[[AuditResult], Optional[float]],
-                 Callable[[ReferenceOutputs], Optional[float]], str]] = [
+_ABS: list[
+    tuple[
+        str,
+        str,
+        Callable[[AuditResult], float | None],
+        Callable[[ReferenceOutputs], float | None],
+        str,
+    ]
+] = [
     ("sec_fact", "УРЭ факт, кВт·ч/м³", lambda r: r.sec_fact, lambda o: o.sec_fact, "sec_fact"),
     ("sec_calc", "УРЭ расчётный, кВт·ч/м³", lambda r: r.sec_calc, lambda o: o.sec_calc, "sec_calc"),
     ("eta_fact", "КПД факт", lambda r: r.regime.eta_unit, lambda o: o.eta_fact, "eta_fact"),
     ("eta_nom", "КПД номинальный", lambda r: r.regime.eta_nom, lambda o: o.eta_nom, "eta_nom"),
-    ("load_factor", "K загрузки ЭД", lambda r: r.load_factor, lambda o: o.load_factor, "load_factor"),
+    (
+        "load_factor",
+        "K загрузки ЭД",
+        lambda r: r.load_factor,
+        lambda o: o.load_factor,
+        "load_factor",
+    ),
     ("h_fact", "Напор факт, м", lambda r: r.regime.h_fact, lambda o: o.h_fact, "h_fact"),
-    ("dw_efficiency", "ΔW КПД, кВт·ч/год", lambda r: r.dw_efficiency, lambda o: o.dw_efficiency, "dw_efficiency"),
+    (
+        "dw_efficiency",
+        "ΔW КПД, кВт·ч/год",
+        lambda r: r.dw_efficiency,
+        lambda o: o.dw_efficiency,
+        "dw_efficiency",
+    ),
 ]
 
 
-def _model_relative(res: AuditResult) -> dict[str, Optional[float]]:
+def _model_relative(res: AuditResult) -> dict[str, float | None]:
     """Относительные показатели, вычисленные из величин модели (для сверки с прозой)."""
-    out: dict[str, Optional[float]] = {}
+    out: dict[str, float | None] = {}
     en, ef = res.regime.eta_nom, res.regime.eta_unit
     out["eta_reduction_pp"] = (en - ef) * 100 if en is not None and ef is not None else None
-    out["sec_over_calc"] = (res.sec_fact - res.sec_calc
-                            if res.sec_fact is not None and res.sec_calc is not None else None)
+    out["sec_over_calc"] = (
+        res.sec_fact - res.sec_calc
+        if res.sec_fact is not None and res.sec_calc is not None
+        else None
+    )
     if res.h_due and res.regime.h_fact is not None:
         out["head_drop_m"] = res.h_due - res.regime.h_fact
         out["head_drop_pct"] = (res.h_due - res.regime.h_fact) / res.h_due * 100
@@ -118,10 +145,16 @@ _REL_LABELS = {
 }
 
 
-def reconcile_aggregate(obj_id, obj_name, water, res: AuditResult,
-                        xlsx_ref: Optional[ReferenceOutputs],
-                        rep_agg: Optional[AggregateReport],
-                        tol: dict, rep_tol: dict) -> list[ReconRow]:
+def reconcile_aggregate(
+    obj_id,
+    obj_name,
+    water,
+    res: AuditResult,
+    xlsx_ref: ReferenceOutputs | None,
+    rep_agg: AggregateReport | None,
+    tol: dict,
+    rep_tol: dict,
+) -> list[ReconRow]:
     rows: list[ReconRow] = []
 
     # ---- абсолютные показатели (три источника) ----
@@ -135,11 +168,27 @@ def reconcile_aggregate(obj_id, obj_name, water, res: AuditResult,
         st_mr = _status(m, *rep_rng, t)[0] if rep_rng else NA
         st_src = _status(x, *rep_rng, t)[0] if (x is not None and rep_rng) else NA
         note = _explain(key, st_mx, st_mr, st_src, obj_id, res, x, rep_rng)
-        rows.append(ReconRow(
-            obj_id, obj_name, water, res.aggregate_id, res.pump_kind, "абс", label,
-            _r(m), _r(x), _r(rep_val),
-            _r(rep_rng[0]) if rep_rng else None, _r(rep_rng[1]) if rep_rng else None,
-            st_mx, st_mr, st_src, t, note))
+        rows.append(
+            ReconRow(
+                obj_id,
+                obj_name,
+                water,
+                res.aggregate_id,
+                res.pump_kind,
+                "абс",
+                label,
+                _r(m),
+                _r(x),
+                _r(rep_val),
+                _r(rep_rng[0]) if rep_rng else None,
+                _r(rep_rng[1]) if rep_rng else None,
+                st_mx,
+                st_mr,
+                st_src,
+                t,
+                note,
+            )
+        )
 
     # ---- относительные утверждения прозы (модель ↔ отчёт) ----
     if rep_agg:
@@ -156,13 +205,32 @@ def reconcile_aggregate(obj_id, obj_name, water, res: AuditResult,
             m = mrel.get(metric)
             rel_tol, abs_floor = rep_tol.get(metric, [0.10, 0.0])
             st_mr, _ = _status(m, lo, hi, rel_tol, abs_floor)
-            note = "" if st_mr in (OK, NA) else "модель вне диапазона прозы (методика/округление/дата)"
+            note = (
+                "" if st_mr in (OK, NA) else "модель вне диапазона прозы (методика/округление/дата)"
+            )
             if m is None:
                 note = "модель не считает (нет кривой Q-H / нет должного напора)"
-            rows.append(ReconRow(
-                obj_id, obj_name, water, res.aggregate_id, res.pump_kind, "отн", label,
-                _r(m), None, _r((lo + hi) / 2), _r(lo), _r(hi),
-                NA, st_mr, NA, rel_tol, note))
+            rows.append(
+                ReconRow(
+                    obj_id,
+                    obj_name,
+                    water,
+                    res.aggregate_id,
+                    res.pump_kind,
+                    "отн",
+                    label,
+                    _r(m),
+                    None,
+                    _r((lo + hi) / 2),
+                    _r(lo),
+                    _r(hi),
+                    NA,
+                    st_mr,
+                    NA,
+                    rel_tol,
+                    note,
+                )
+            )
     return rows
 
 
@@ -227,14 +295,19 @@ def run_reconciliation() -> dict:
             continue
         try:
             spec = parse_calc_file(xlsx_path, obj["id"], obj["name"])
-        except Exception as e:                       # noqa: BLE001
+        except Exception as e:
             errors.append(f"{obj['id']}: ошибка парсинга xlsx — {e}")
             continue
         try:
             docx = ensure_report_docx(rep_src, reports_dir / f"{obj['id']}.docx")
-            report = parse_report(docx, obj["id"], obj["name"],
-                                  water_type=spec.water_type, source_original=str(rep_src))
-        except Exception as e:                       # noqa: BLE001
+            report = parse_report(
+                docx,
+                obj["id"],
+                obj["name"],
+                water_type=spec.water_type,
+                source_original=str(rep_src),
+            )
+        except Exception as e:
             errors.append(f"{obj['id']}: ошибка парсинга отчёта — {e}")
             continue
         reports[obj["id"]] = report
@@ -242,16 +315,24 @@ def run_reconciliation() -> dict:
         for agg in spec.working_aggregates():
             try:
                 res = audit_aggregate(agg, spec.branch)
-            except Exception as e:                   # noqa: BLE001
+            except Exception as e:
                 errors.append(f"{obj['id']}/{agg.id}: ошибка расчёта — {e}")
                 continue
             rep_agg = report.aggregate(agg.id)
-            rows.extend(reconcile_aggregate(
-                obj["id"], obj["name"], spec.water_type.value, res,
-                agg.reference, rep_agg, tol, rep_tol))
+            rows.extend(
+                reconcile_aggregate(
+                    obj["id"],
+                    obj["name"],
+                    spec.water_type.value,
+                    res,
+                    agg.reference,
+                    rep_agg,
+                    tol,
+                    rep_tol,
+                )
+            )
 
-    return {"rows": rows, "reports": reports, "errors": errors,
-            "summary": _summary(rows)}
+    return {"rows": rows, "reports": reports, "errors": errors, "summary": _summary(rows)}
 
 
 def _summary(rows: list[ReconRow]) -> dict:
@@ -260,6 +341,7 @@ def _summary(rows: list[ReconRow]) -> dict:
         for r in rows:
             c[getattr(r, attr)] = c.get(getattr(r, attr), 0) + 1
         return c
+
     src = [r for r in rows if r.st_sources != NA]
     src_ok = sum(1 for r in src if r.st_sources == OK)
     return {
@@ -272,9 +354,25 @@ def _summary(rows: list[ReconRow]) -> dict:
     }
 
 
-_CSV_FIELDS = ["object_id", "object_name", "water_type", "aggregate_id", "pump_kind",
-               "kind", "metric", "model", "xlsx", "report", "report_lo", "report_hi",
-               "st_model_xlsx", "st_model_report", "st_sources", "tolerance", "note"]
+_CSV_FIELDS = [
+    "object_id",
+    "object_name",
+    "water_type",
+    "aggregate_id",
+    "pump_kind",
+    "kind",
+    "metric",
+    "model",
+    "xlsx",
+    "report",
+    "report_lo",
+    "report_hi",
+    "st_model_xlsx",
+    "st_model_report",
+    "st_sources",
+    "tolerance",
+    "note",
+]
 
 
 def save_reconciliation(result: dict, root: Path | None = None) -> dict:
@@ -305,16 +403,19 @@ def _fmt(x) -> str:
 
 def _to_markdown(result: dict) -> str:
     s = result["summary"]
-    lines = ["# Трёхсторонняя сверка: модель ↔ расчет.xlsx ↔ отчёт",
-             "",
-             f"Строк: **{s['total_rows']}**. Согласованность источников (xlsx↔отчёт): "
-             f"**{s['source_agreement_rate']:.0%}** из {s['source_pairs']} пар."
-             if s["source_agreement_rate"] is not None else f"Строк: {s['total_rows']}.",
-             "",
-             f"- Модель↔xlsx: ✓ {s['model_xlsx'][OK]} · ⚠ {s['model_xlsx'][WARN]} · ✗ {s['model_xlsx'][FAIL]}",
-             f"- Модель↔отчёт: ✓ {s['model_report'][OK]} · ⚠ {s['model_report'][WARN]} · ✗ {s['model_report'][FAIL]}",
-             f"- Источники (xlsx↔отчёт): ✓ {s['sources'][OK]} · ⚠ {s['sources'][WARN]} · ✗ {s['sources'][FAIL]}",
-             ""]
+    lines = [
+        "# Трёхсторонняя сверка: модель ↔ расчет.xlsx ↔ отчёт",
+        "",
+        f"Строк: **{s['total_rows']}**. Согласованность источников (xlsx↔отчёт): "
+        f"**{s['source_agreement_rate']:.0%}** из {s['source_pairs']} пар."
+        if s["source_agreement_rate"] is not None
+        else f"Строк: {s['total_rows']}.",
+        "",
+        f"- Модель↔xlsx: ✓ {s['model_xlsx'][OK]} · ⚠ {s['model_xlsx'][WARN]} · ✗ {s['model_xlsx'][FAIL]}",
+        f"- Модель↔отчёт: ✓ {s['model_report'][OK]} · ⚠ {s['model_report'][WARN]} · ✗ {s['model_report'][FAIL]}",
+        f"- Источники (xlsx↔отчёт): ✓ {s['sources'][OK]} · ⚠ {s['sources'][WARN]} · ✗ {s['sources'][FAIL]}",
+        "",
+    ]
     if result["errors"]:
         lines += ["## Ошибки парсинга", *[f"- {e}" for e in result["errors"]], ""]
 
@@ -328,13 +429,18 @@ def _to_markdown(result: dict) -> str:
         lines.append("| Показатель | Модель | xlsx | Отчёт | М↔xlsx | М↔отч | Ист. | Примечание |")
         lines.append("|---|---|---|---|:--:|:--:|:--:|---|")
         for r in rs:
-            rep = (_fmt(r.report) if r.report_lo == r.report_hi
-                   else f"{_fmt(r.report_lo)}…{_fmt(r.report_hi)}")
-            lines.append(f"| {r.metric} | {_fmt(r.model)} | {_fmt(r.xlsx)} | {rep} | "
-                         f"{r.st_model_xlsx} | {r.st_model_report} | {r.st_sources} | {r.note} |")
-        rep = result["reports"].get(oid)
-        if rep:
-            ra = rep.aggregate(agg)
+            report_value = (
+                _fmt(r.report)
+                if r.report_lo == r.report_hi
+                else f"{_fmt(r.report_lo)}…{_fmt(r.report_hi)}"
+            )
+            lines.append(
+                f"| {r.metric} | {_fmt(r.model)} | {_fmt(r.xlsx)} | {report_value} | "
+                f"{r.st_model_xlsx} | {r.st_model_report} | {r.st_sources} | {r.note} |"
+            )
+        object_report = result["reports"].get(oid)
+        if object_report:
+            ra = object_report.aggregate(agg)
             if ra and ra.claims:
                 seen_q, uniq = set(), []
                 for c in ra.claims:

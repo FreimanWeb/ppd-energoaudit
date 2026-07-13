@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+
 LOAD_FACTOR_FULL = 0.7  # порог: при K_з ≥ 0,7 принимаем η_эд ≈ η_эд.ном
 
 
@@ -33,12 +34,16 @@ def motor_efficiency(kz: float, eta_motor_nom: float, alpha: float = 1.0) -> flo
     """
     if kz >= LOAD_FACTOR_FULL:
         return eta_motor_nom
-    beta = (alpha / kz + kz) / (1.0 + alpha)                # (26)
+    beta = (alpha / kz + kz) / (1.0 + alpha)  # (26)
     return 1.0 / (1.0 + (1.0 / eta_motor_nom - 1.0) * beta)  # (25)
 
 
-def pump_efficiency(eta_unit: float, eta_motor_real: float,
-                    eta_vfd: float = 1.0, eta_gear: float = 1.0) -> float:
+def pump_efficiency(
+    eta_unit: float,
+    eta_motor_real: float,
+    eta_vfd: float = 1.0,
+    eta_gear: float = 1.0,
+) -> float:
     """КПД насоса (27): η_нас = η_НА / (η_эд.р · η_пч · η_ред).
 
     η_НА = η_unit — фактический КПД насосной установки (13).

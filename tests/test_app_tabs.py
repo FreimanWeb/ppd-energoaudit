@@ -7,8 +7,10 @@
 
 import pytest
 
+
 pytest.importorskip("streamlit")
-from streamlit.testing.v1 import AppTest  # noqa: E402
+from streamlit.testing.v1 import AppTest
+
 
 APP = "app/main.py"
 
@@ -82,8 +84,13 @@ def test_empty_states_are_friendly(at_dns7s):
 def test_overview_answers_manager_questions(at_kns25):
     """Главная вкладка отвечает руководителю: УРЭ ф/р/опт, потери, топ-мероприятия."""
     labels = {m.label for m in at_kns25.metric}
-    assert {"УРЭ факт, кВт·ч/м³", "УРЭ расчётный, кВт·ч/м³",
-            "УРЭ оптимальный, кВт·ч/м³", "КПД факт",
-            "ΔW по КПД, кВт·ч/год", "ΔW по КПД, тыс. ₽/год"} <= labels
+    assert {
+        "УРЭ факт, кВт·ч/м³",
+        "УРЭ расчётный, кВт·ч/м³",
+        "УРЭ оптимальный, кВт·ч/м³",
+        "КПД факт",
+        "ΔW по КПД, кВт·ч/год",
+        "ΔW по КПД, тыс. ₽/год",
+    } <= labels
     text = _all_text(at_kns25)
     assert "Структура потерь" in text and "Топ-мероприятия" in text

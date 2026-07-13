@@ -23,15 +23,15 @@ def expected():
 
 def test_head_and_powers(result, expected):
     g = result.regime
-    assert g.h_fact == pytest.approx(expected["h_fact"], abs=0.5)        # (8)
+    assert g.h_fact == pytest.approx(expected["h_fact"], abs=0.5)  # (8)
     assert g.p_hydraulic == pytest.approx(expected["p_hydraulic"], abs=0.1)  # (11)
     assert g.p_electric == pytest.approx(expected["p_electric"], abs=0.1)
 
 
 def test_efficiencies(result, expected):
     g = result.regime
-    assert g.eta_unit == pytest.approx(expected["eta_fact"], abs=0.005)      # (13) η_НА
-    assert g.eta_nom == pytest.approx(expected["eta_nom"], abs=0.001)        # (14) η_ном
+    assert g.eta_unit == pytest.approx(expected["eta_fact"], abs=0.005)  # (13) η_НА
+    assert g.eta_nom == pytest.approx(expected["eta_nom"], abs=0.001)  # (14) η_ном
     assert result.eta_motor_real == pytest.approx(expected["eta_motor_calc"], abs=0.002)  # (25-26)
     assert result.eta_pump == pytest.approx(expected["eta_pump"], abs=0.002)  # (27)
 
@@ -68,6 +68,7 @@ def test_unaccounted_hydraulic_losses():
     Δp_расч = p_вых − p_ДНС3с(расчёт) = 2,8 − 0,50 = 2,30 МПа; |откл.| = 6,5 % (< 10 %).
     """
     from ppd_audit.core.hydraulics import unaccounted_losses
+
     u = unaccounted_losses(dp_fact=2.8 - 0.35, dp_calc=2.8 - 0.5)
     assert u.relative == pytest.approx(0.065, abs=0.002)
     assert not u.anomaly

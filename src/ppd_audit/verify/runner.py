@@ -15,10 +15,20 @@ import yaml
 
 from ..config import project_root
 from ..core.audit import audit_aggregate
-from ..ingest.report_calc import parse_calc_file
+from ..ingest.report_calc import apply_t_year_overrides, parse_calc_file_with_cells
 from ..spec import ObjectSpec
 from ..spec_io import save_object_spec
-from .compare import FAIL, MetricRow, OK, WARN, compare_aggregate, row_to_dict
+from .compare import (
+    FAIL,
+    OK,
+    WARN,
+    CellRow,
+    MetricRow,
+    cell_row_to_dict,
+    compare_aggregate,
+    compare_cell_bindings,
+    row_to_dict,
+)
 
 
 def load_manifest() -> dict:
@@ -33,6 +43,7 @@ def run_verification(save_specs: bool = True) -> dict:
     tol = man.get("tolerances", {})
 
     rows: list[MetricRow] = []
+    cell_rows: list[CellRow] = []
     specs: dict[str, ObjectSpec] = {}
     errors: list[str] = []
 
@@ -42,25 +53,37 @@ def run_verification(save_specs: bool = True) -> dict:
             errors.append(f"{obj['id']}: нет файла {path}")
             continue
         try:
-            spec = parse_calc_file(path, obj["id"], obj["name"])
-        except Exception as e:                       # noqa: BLE001
+            parsed = parse_calc_file_with_cells(path, obj["id"], obj["name"])
+            apply_t_year_overrides(parsed, obj.get("t_year_overrides", {}))
+            spec = parsed.spec
+        except Exception as e:
             errors.append(f"{obj['id']}: ошибка парсинга — {e}")
             continue
         specs[obj["id"]] = spec
         if save_specs:
             save_object_spec(spec)
+        results = {}
         for agg in spec.working_aggregates():
             try:
                 res = audit_aggregate(agg, spec.branch)
-            except Exception as e:                   # noqa: BLE001
+            except Exception as e:
                 errors.append(f"{obj['id']}/{agg.id}: ошибка расчёта — {e}")
                 continue
-            rows.extend(compare_aggregate(
-                obj["id"], obj["name"], spec.water_type.value, res,
-                agg.reference, tol))
+            results[agg.id] = res
+            rows.extend(
+                compare_aggregate(
+                    obj["id"], obj["name"], spec.water_type.value, res, agg.reference, tol
+                )
+            )
+        cell_rows.extend(compare_cell_bindings(parsed.cells, results, tol))
 
-    return {"rows": rows, "specs": specs, "errors": errors,
-            "summary": _summarize(rows)}
+    return {
+        "rows": rows,
+        "specs": specs,
+        "errors": errors,
+        "summary": _summarize(rows),
+        "cells": cell_rows,
+    }
 
 
 def _summarize(rows: list[MetricRow]) -> dict:
@@ -84,6 +107,7 @@ def save_report(result: dict, root: Path | None = None) -> dict:
     out = root / "data" / "generated"
     out.mkdir(parents=True, exist_ok=True)
     rows = [row_to_dict(r) for r in result["rows"]]
+    cell_rows = [cell_row_to_dict(r) for r in result.get("cells", [])]
 
     csv_path = out / "verification_report.csv"
     if rows:
@@ -94,6 +118,31 @@ def save_report(result: dict, root: Path | None = None) -> dict:
 
     json_path = out / "verification_report.json"
     with json_path.open("w", encoding="utf-8") as f:
-        json.dump({"summary": result["summary"], "errors": result["errors"], "rows": rows},
-                  f, ensure_ascii=False, indent=2)
-    return {"csv": csv_path, "json": json_path}
+        json.dump(
+            {"summary": result["summary"], "errors": result["errors"], "rows": rows},
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    cells_csv_path = out / "verification_cells.csv"
+    if cell_rows:
+        with cells_csv_path.open("w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(cell_rows[0].keys()))
+            w.writeheader()
+            w.writerows(cell_rows)
+
+    cells_json_path = out / "verification_cells.json"
+    with cells_json_path.open("w", encoding="utf-8") as f:
+        json.dump(
+            {"summary": result["summary"], "errors": result["errors"], "cells": cell_rows},
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+    return {
+        "csv": csv_path,
+        "json": json_path,
+        "cells_csv": cells_csv_path,
+        "cells_json": cells_json_path,
+    }

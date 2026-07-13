@@ -20,14 +20,15 @@ from . import readers
 @dataclass
 class NormalizedDataset:
     """Нормализованные ряды объекта (в памяти)."""
+
     plant_id: str
-    pressure_in: dict[str, pd.DataFrame] = field(default_factory=dict)   # agg → [ts, value]
+    pressure_in: dict[str, pd.DataFrame] = field(default_factory=dict)  # agg → [ts, value]
     pressure_out: dict[str, pd.DataFrame] = field(default_factory=dict)
     flow: pd.DataFrame | None = None
     levels: dict[str, pd.DataFrame] = field(default_factory=dict)
-    journals: dict[str, pd.DataFrame] = field(default_factory=dict)      # agg → [ts, state]
-    energy: dict[str, pd.DataFrame] = field(default_factory=dict)        # agg → [ts, kwh, quality]
-    transfer: pd.DataFrame | None = None                                 # [date, plan, fact, counter]
+    journals: dict[str, pd.DataFrame] = field(default_factory=dict)  # agg → [ts, state]
+    energy: dict[str, pd.DataFrame] = field(default_factory=dict)  # agg → [ts, kwh, quality]
+    transfer: pd.DataFrame | None = None  # [date, plan, fact, counter]
 
 
 def _sheet_for(prefix: str, agg: str) -> str:
@@ -48,8 +49,12 @@ def ingest_plant(plant_id: str = "dns7s", root: Path | None = None) -> Normalize
     ds = NormalizedDataset(plant_id=plant_id)
 
     for agg in aggs:
-        ds.pressure_in[agg] = readers.read_timeseries(src, _sheet_for(sig["p_in"]["sheet_prefix"], agg))
-        ds.pressure_out[agg] = readers.read_timeseries(src, _sheet_for(sig["p_out"]["sheet_prefix"], agg))
+        ds.pressure_in[agg] = readers.read_timeseries(
+            src, _sheet_for(sig["p_in"]["sheet_prefix"], agg)
+        )
+        ds.pressure_out[agg] = readers.read_timeseries(
+            src, _sheet_for(sig["p_out"]["sheet_prefix"], agg)
+        )
         ds.journals[agg] = readers.read_journal(src, _sheet_for(sig["state"]["sheet_prefix"], agg))
         ds.energy[agg] = readers.read_energy(src, _sheet_for(sig["energy"]["sheet_prefix"], agg))
 
@@ -64,9 +69,11 @@ def ingest_plant(plant_id: str = "dns7s", root: Path | None = None) -> Normalize
 
 # --- Сохранение -----------------------------------------------------------
 
+
 def _has_parquet() -> bool:
     try:
         import pyarrow  # noqa: F401
+
         return True
     except ImportError:
         return False

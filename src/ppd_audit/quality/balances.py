@@ -34,9 +34,11 @@ def volume_balance(flow: pd.DataFrame, transfer: pd.DataFrame) -> dict:
     tr["date"] = pd.to_datetime(tr["date"]).dt.normalize()
     merged = uuj.merge(tr[["date", "fact"]], on="date", how="inner")
     if merged.empty:
-        return {"note": "нет пересечения периодов УУЖ и перекачки",
-                "uuj_period": [str(uuj.date.min()), str(uuj.date.max())],
-                "transfer_period": [str(tr.date.min()), str(tr.date.max())]}
+        return {
+            "note": "нет пересечения периодов УУЖ и перекачки",
+            "uuj_period": [str(uuj.date.min()), str(uuj.date.max())],
+            "transfer_period": [str(tr.date.min()), str(tr.date.max())],
+        }
     merged["resid"] = merged["volume_uuj"] - merged["fact"]
     merged["resid_pct"] = merged["resid"] / merged["fact"] * 100.0
     return {

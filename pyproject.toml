@@ -33,6 +33,56 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
+target-version = "py314"
+preview = true
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+]
+
+# Настройки для форматирования
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+
+# Включаем автоматические исправления для ruff
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "RET"]
+extend-select = [
+    "RUF100",
+    "PLR1702",
+    "C4",
+    "TC004",
+    "TC005",
+]
+ignore = [
+    "E266",
+    "RET504",
+    "RET505",
+    "RET507",
+    "RET508",
+    "UP035",
+    "UP034",
+    "UP037",
+    "UP041",
+]
+
+fixable = ["ALL"]  # Автоматически исправлять ошибки, где это возможно
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["worker"]
+combine-as-imports = true
+lines-after-imports = 2
+
+[tool.ruff.lint.pylint]
+max-nested-blocks = 4
+
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]

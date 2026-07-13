@@ -6,8 +6,10 @@
 
 import pytest
 
+
 pytest.importorskip("streamlit")
-from streamlit.testing.v1 import AppTest  # noqa: E402
+from streamlit.testing.v1 import AppTest
+
 
 APP = "app/main.py"
 
@@ -35,8 +37,7 @@ def test_new_tabs_render(label_part):
     at.selectbox[0].set_value(option).run()
     assert not at.exception, f"{label_part}: {at.exception}"
     # «Новый объект»: таблица требований телеметрии (колонка «Обозн.»)
-    has_telemetry = any("Обозн." in list(getattr(df.value, "columns", []))
-                        for df in at.dataframe)
+    has_telemetry = any("Обозн." in list(getattr(df.value, "columns", [])) for df in at.dataframe)
     assert has_telemetry, f"{label_part}: нет таблицы телеметрии (вкладка «Новый объект»)"
     # «Схема ППД»: блок потока мощности (Sankey)
     text = " ".join(m.value for m in at.markdown)
@@ -45,8 +46,10 @@ def test_new_tabs_render(label_part):
 
 def test_topology_files_valid():
     """config/topology/*.yaml: у узлов есть x/y/label, рёбра ссылаются на существующие узлы."""
-    import yaml
     from pathlib import Path
+
+    import yaml
+
     root = Path(__file__).resolve().parents[1]
     files = list((root / "config" / "topology").glob("*.yaml"))
     assert files, "нет файлов топологии"

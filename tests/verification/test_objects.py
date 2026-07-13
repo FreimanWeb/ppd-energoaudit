@@ -19,6 +19,16 @@ def verification():
     return run_verification(save_specs=False)
 
 
+def test_per_cell_trace_present(verification):
+    cells = verification["cells"]
+    assert cells
+    ref = next(c for c in cells if c.role == "reference" and c.field == "sec_fact")
+    assert ref.value_cell
+    assert ref.method_ref == "16"
+    assert ref.model_value is not None
+    assert ref.status in {"✓", "⚠", "✗", "—"}
+
+
 # Известные расхождения с разобранной причиной (НЕ баг модели):
 #  · КНС-ОПУ: в эталонном файле номинальный КПД «залип» на 0,5766 для трёх разных
 #    насосов (ЦНС 63/80/180-1422, паспортные η=0,60/0,63/0,76) → модель берёт верный
@@ -49,15 +59,15 @@ KNOWN_DEVIATIONS = {
     ("knsopu", "НА-3", "K загрузки ЭД"),
     ("knsopu", "НА-3", "ΔW КПД, кВт·ч/год"),
     ("knsopu", "НА-3", "ΔW дрос, кВт·ч/год"),
-    ("kns10bn", "НА-1", "ΔW дрос, кВт·ч/год"),      # (45) η_факт vs η_ном
-    ("kns155tbn", "НА-1", "ΔW дрос, кВт·ч/год"),    # (45) η_факт vs η_ном
+    ("kns10bn", "НА-1", "ΔW дрос, кВт·ч/год"),  # (45) η_факт vs η_ном
+    ("kns155tbn", "НА-1", "ΔW дрос, кВт·ч/год"),  # (45) η_факт vs η_ном
     ("kns155tbn", "НА-2", "КПД факт"),
     ("kns155tbn", "НА-2", "K загрузки ЭД"),
     ("kns155tbn", "НА-2", "ΔW КПД, кВт·ч/год"),
-    ("kns85en", "НА-1", "ΔW дрос, кВт·ч/год"),      # (45) η_факт vs η_ном
-    ("kns85en", "НА-2", "ΔW КПД, кВт·ч/год"),       # η_тр=0,97 СИН не в паспорте xlsx
-    ("kns85en", "НА-2", "ΔW дрос, кВт·ч/год"),      # мусорная ячейка эталона (4,29e8)
-    ("kns138ln", "НА-1", "K загрузки ЭД"),          # эталон: формула по чужому ЭД
+    ("kns85en", "НА-1", "ΔW дрос, кВт·ч/год"),  # (45) η_факт vs η_ном
+    ("kns85en", "НА-2", "ΔW КПД, кВт·ч/год"),  # η_тр=0,97 СИН не в паспорте xlsx
+    ("kns85en", "НА-2", "ΔW дрос, кВт·ч/год"),  # мусорная ячейка эталона (4,29e8)
+    ("kns138ln", "НА-1", "K загрузки ЭД"),  # эталон: формула по чужому ЭД
 }
 
 # Измеряемый KPI с разобранной причиной (НЕ баг модели): эталон определяет Q для
@@ -66,37 +76,54 @@ KNOWN_MEASURED_KPI_DEVIATIONS = {
     ("kns155tbn", "НА-2", "КПД факт"),
 }
 
+# Расчёт намеренно не запускается: в исходном xlsx КПД насоса СИН61.02.100 указан
+# как «н/д», а η_ном=0,61655 собран из паспортов REDA соседнего агрегата.
+KNOWN_INPUT_GAPS = {
+    "kns14an/НА-2: ошибка расчёта — нет паспортных КПД для η_ном агрегата НА-2",
+}
+
 
 def test_all_objects_parsed(verification):
-    """11 объектов распарсены без ошибок, ≥21 агрегата."""
-    assert not verification["errors"], verification["errors"]
+    """12 объектов распарсены; известный паспортный пробел не маскируется fallback-ом."""
+    assert set(verification["errors"]) == KNOWN_INPUT_GAPS
     objects = {r.object_id for r in verification["rows"]}
     aggregates = {(r.object_id, r.aggregate_id) for r in verification["rows"]}
-    assert len(objects) == 11
-    assert len(aggregates) >= 21
+    assert len(objects) == 12
+    assert len(aggregates) + len(KNOWN_INPUT_GAPS) >= 21
+
+
+def test_kns13_uses_excel_annualization_assumption(verification):
+    aggregate = verification["specs"]["kns13ln"].aggregate("НА-1")
+    assert aggregate.regime.t_year == 8760.0
 
 
 def test_measured_kpi_reproduced(verification):
     """УРЭ факт и напор факт воспроизводятся ВО ВСЕХ агрегатах. КПД факт — тоже везде,
     кроме разобранного реестра KNOWN_MEASURED_KPI_DEVIATIONS (эталон определяет Q
     для гидромощности иначе — см. комментарий к реестру)."""
-    strict = [r for r in verification["rows"]
-              if r.metric.startswith(("УРЭ факт", "Напор факт"))]
-    bad_strict = [(r.object_id, r.aggregate_id, r.metric, round(r.rel_dev, 3))
-                  for r in strict if r.status == FAIL]
+    strict = [r for r in verification["rows"] if r.metric.startswith(("УРЭ факт", "Напор факт"))]
+    bad_strict = [
+        (r.object_id, r.aggregate_id, r.metric, round(r.rel_dev, 3))
+        for r in strict
+        if r.status == FAIL
+    ]
     assert not bad_strict, f"УРЭ факт / напор разошлись: {bad_strict}"
 
-    eta_fails = {(r.object_id, r.aggregate_id, r.metric)
-                 for r in verification["rows"]
-                 if r.metric.startswith("КПД факт") and r.status == FAIL}
-    assert eta_fails <= KNOWN_MEASURED_KPI_DEVIATIONS, \
+    eta_fails = {
+        (r.object_id, r.aggregate_id, r.metric)
+        for r in verification["rows"]
+        if r.metric.startswith("КПД факт") and r.status == FAIL
+    }
+    assert eta_fails <= KNOWN_MEASURED_KPI_DEVIATIONS, (
         f"новые расхождения КПД факт: {eta_fails - KNOWN_MEASURED_KPI_DEVIATIONS}"
+    )
 
 
 def test_no_unexpected_failures(verification):
     """Все ✗ объяснены и внесены в реестр; новых расхождений нет."""
-    fails = {(r.object_id, r.aggregate_id, r.metric)
-             for r in verification["rows"] if r.status == FAIL}
+    fails = {
+        (r.object_id, r.aggregate_id, r.metric) for r in verification["rows"] if r.status == FAIL
+    }
     unexpected = fails - KNOWN_DEVIATIONS
     assert not unexpected, f"новые необъяснённые расхождения: {unexpected}"
 
@@ -126,19 +153,35 @@ def test_dw_throttle_eta_fact_convention(verification):
             continue
         assert dw.model is not None and ef.model and en.model
         predicted = dw.model * en.model / ef.model
-        assert predicted == pytest.approx(dw.reference, rel=0.02), \
+        assert predicted == pytest.approx(dw.reference, rel=0.02), (
             f"{oid}/{agg}: ΔW дрос не объясняется η_факт-конвенцией"
+        )
         checked += 1
     assert checked >= 2, "ожидались известные η_факт-расхождения (kns10bn, kns85en…)"
 
 
-@pytest.mark.parametrize("object_id",
-                         ["kns25", "kns155bn", "kns14an", "kns10bn", "kns154bn", "kns155tbn",
-                          "kns85en", "kns129ln", "kns138ln", "kns175"])
+@pytest.mark.parametrize(
+    "object_id",
+    [
+        "kns25",
+        "kns155bn",
+        "kns14an",
+        "kns10bn",
+        "kns154bn",
+        "kns155tbn",
+        "kns85en",
+        "kns129ln",
+        "kns138ln",
+        "kns175",
+    ],
+)
 def test_object_sec_fact(verification, object_id):
     """Покейсово: УРЭ факт объекта в допуске ±2%."""
-    rows = [r for r in verification["rows"]
-            if r.object_id == object_id and r.metric.startswith("УРЭ факт")]
+    rows = [
+        r
+        for r in verification["rows"]
+        if r.object_id == object_id and r.metric.startswith("УРЭ факт")
+    ]
     assert rows, f"нет строк УРЭ факт для {object_id}"
     for r in rows:
         assert abs(r.rel_dev) <= 0.02, f"{object_id}/{r.aggregate_id}: УРЭф {r.rel_dev:+.1%}"

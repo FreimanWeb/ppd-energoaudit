@@ -28,6 +28,7 @@ def reynolds(q_nom: float, nu: float, d_outer_mm: float, wall_mm: float) -> floa
 @dataclass
 class ViscosityFactors:
     """Коэффициенты пересчёта характеристик на вязкость (постоянны в 0,8..1,2·Q_ном)."""
+
     k_q: float = 1.0
     k_h: float = 1.0
     k_eta: float = 1.0

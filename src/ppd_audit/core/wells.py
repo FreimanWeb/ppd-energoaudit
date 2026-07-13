@@ -14,9 +14,10 @@ import numpy as np
 @dataclass
 class InjectivityCurve:
     """Линейная индикаторная кривая: Q = k·(p_заб − p₀) = k·p + b."""
-    k: float                 # коэф. приёмистости, м³/сут/МПа (наклон)
-    b: float                 # свободный член
-    r2: float                # качество аппроксимации
+
+    k: float  # коэф. приёмистости, м³/сут/МПа (наклон)
+    b: float  # свободный член
+    r2: float  # качество аппроксимации
 
     def flow_at(self, p: float) -> float:
         return self.k * p + self.b
@@ -46,13 +47,17 @@ class InjectivityCheck:
     q: float
     q_limit: float
     over_limit: bool
-    margin: float            # запас до лимита, м³/сут
+    margin: float  # запас до лимита, м³/сут
 
 
 def check_injectivity_limit(q: float, q_limit: float) -> InjectivityCheck:
     """Проверка приёмистости против лимита (config/constraints.yaml: wells.injectivity_max)."""
-    return InjectivityCheck(q=q, q_limit=q_limit, over_limit=q > q_limit,
-                            margin=q_limit - q)
+    return InjectivityCheck(
+        q=q,
+        q_limit=q_limit,
+        over_limit=q > q_limit,
+        margin=q_limit - q,
+    )
 
 
 def detect_anomaly(curve: InjectivityCurve, r2_min: float = 0.9) -> bool:

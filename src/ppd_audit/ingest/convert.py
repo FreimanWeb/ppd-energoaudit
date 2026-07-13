@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+
 # Кандидаты на бинарь LibreOffice: PATH и штатные места установки (macOS/Linux).
 _SOFFICE_CANDIDATES = [
     "soffice",
@@ -52,11 +53,14 @@ def convert_doc_to_docx(src: Path, dst: Path) -> Path:
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         env = os.environ.copy()
-        env.setdefault("SAL_USE_VCLPLUGIN", "svp")          # headless-рендер без X11
-        env.setdefault("HOME", tmp)                          # изолированный профиль LO
+        env.setdefault("SAL_USE_VCLPLUGIN", "svp")  # headless-рендер без X11
+        env.setdefault("HOME", tmp)  # изолированный профиль LO
         proc = subprocess.run(
             [soffice, "--headless", "--convert-to", "docx", "--outdir", tmp, str(src)],
-            env=env, capture_output=True, text=True, timeout=180,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
         out = sorted(Path(tmp).glob("*.docx"))
         if not out:

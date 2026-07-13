@@ -9,12 +9,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from .. import units
 
 
 # --- УРЭ (16)-(18) --------------------------------------------------------
+
 
 def sec_fact(p_electric_avg: float, q_avg: float) -> float:
     """УРЭ факт (16): P_эл.ср/Q_ср = W/Q_сут, кВт·ч/м³."""
@@ -36,25 +36,34 @@ def sec_optimal(p_opt: float, p_in: float, eta_ndt: float) -> float:
 
 # --- Характеристика трубопровода и оптимальное давление (19)-(23) ----------
 
+
 @dataclass
 class PipeCharacteristic:
-    h_static: float   # H_с, м (20)
-    k_t: float        # K_т, м/(м³/ч)² (21)
+    h_static: float  # H_с, м (20)
+    k_t: float  # K_т, м/(м³/ч)² (21)
 
     def head(self, q: float) -> float:
         """H_т = H_с + K_т·Q² (19)."""
         return self.h_static + self.k_t * q * q
 
 
-def pipe_characteristic(*, h_fact: float, q: float, rho: float,
-                        p_pp: float, p_in: float, h_pp: float, h_geo: float) -> PipeCharacteristic:
+def pipe_characteristic(
+    *,
+    h_fact: float,
+    q: float,
+    rho: float,
+    p_pp: float,
+    p_in: float,
+    h_pp: float,
+    h_geo: float,
+) -> PipeCharacteristic:
     """Характеристика трубопровода (20)-(21).
 
     H_с ≈ (p_пп − p_вх)/(ρg)·1e6 + h_пп − h   (20)
     K_т = (H_ф − H_с)/Q²                       (21)
     """
     h_static = units.head_from_pressure(p_pp - p_in, rho) + h_pp - h_geo  # (20)
-    k_t = (h_fact - h_static) / (q * q)                                   # (21)
+    k_t = (h_fact - h_static) / (q * q)  # (21)
     return PipeCharacteristic(h_static=h_static, k_t=k_t)
 
 
@@ -63,19 +72,20 @@ def optimal_pressure(*, q_day: float, rho: float, pipe: PipeCharacteristic) -> f
 
     Q_прит = Q_сут/24 (22);  p_опт = ρg·(H_с + K_т·Q_прит²)·1e-6 (23).
     """
-    q_inflow = q_day / 24.0                              # (22)
+    q_inflow = q_day / 24.0  # (22)
     h_opt = pipe.head(q_inflow)
-    return rho * units.G * h_opt * 1.0e-6                # (23)
+    return rho * units.G * h_opt * 1.0e-6  # (23)
 
 
 # --- Годовые потери энергии (44)-(47) -------------------------------------
 
+
 @dataclass
 class AnnualLosses:
-    dw_efficiency: float   # ΔW_кпд (44), кВт·ч/год
-    dw_throttle: Optional[float] = None   # ΔW_др (45)
-    dw_cyclic: Optional[float] = None     # ΔW_ц (46)
-    dw_ndt: Optional[float] = None        # ΔW_ндт (47)
+    dw_efficiency: float  # ΔW_кпд (44), кВт·ч/год
+    dw_throttle: float | None = None  # ΔW_др (45)
+    dw_cyclic: float | None = None  # ΔW_ц (46)
+    dw_ndt: float | None = None  # ΔW_ндт (47)
 
 
 def annual_loss_efficiency_by_sec(q_year: float, sec_f: float, sec_c: float) -> float:

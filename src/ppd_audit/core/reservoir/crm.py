@@ -15,6 +15,7 @@ from .base import ReservoirInput, ReservoirResult
 
 class CRMLite:
     """Регрессионная оценка связностей закачка→добыча (CRM-lite)."""
+
     name = "crm-lite"
 
     def fit(self, data: ReservoirInput) -> ReservoirResult:
@@ -29,7 +30,7 @@ class CRMLite:
             lam, *_ = np.linalg.lstsq(X, y, rcond=None)
             lam = np.clip(lam, 0.0, None)
             s = lam.sum()
-            if s > 1.0:                     # нормировка Σλ ≤ 1 (физичность)
+            if s > 1.0:  # нормировка Σλ ≤ 1 (физичность)
                 lam = lam / s
             conn[prod] = {i: round(float(v), 4) for i, v in zip(injs, lam)}
 
@@ -40,6 +41,10 @@ class CRMLite:
             mean_inj = float(np.mean(data.injection[inj])) if data.injection[inj] else 0.0
             eff[inj] = round(mean_inj * min(total_lambda, 1.0), 2)
 
-        return ReservoirResult(connectivity=conn, effective_injection=eff,
-                               model=self.name, estimate=True,
-                               note="CRM-lite: связности по МНК (статический режим)")
+        return ReservoirResult(
+            connectivity=conn,
+            effective_injection=eff,
+            model=self.name,
+            estimate=True,
+            note="CRM-lite: связности по МНК (статический режим)",
+        )

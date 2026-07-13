@@ -9,6 +9,7 @@ import sys
 
 from ..config import load_plant
 from .audit import run_pump_audit
+from .pump import PumpingDecomposition
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,10 +38,14 @@ def main(argv: list[str] | None = None) -> int:
     line("УРЭ_ф (16), кВт·ч/м³", r.sec_fact, exp.get("sec_fact"))
     line("УРЭ_р (17), кВт·ч/м³", r.sec_calc, exp.get("sec_calc"))
     d = r.decomposition
-    print(f"  {'ΔW_НА = ΔP_КПД·T_год':24s} {r.dw_efficiency:>12.1f} {'кВт·ч/год':<10s} "
-          f"эталон {exp.get('dw_efficiency','—')}")
-    if hasattr(d, "balance_ok"):
-        print(f"  Баланс мощностей (43): невязка {d.balance_residual:.2e} кВт, сходится: {d.balance_ok}")
+    print(
+        f"  {'ΔW_НА = ΔP_КПД·T_год':24s} {r.dw_efficiency:>12.1f} {'кВт·ч/год':<10s} "
+        f"эталон {exp.get('dw_efficiency', '—')}"
+    )
+    if isinstance(d, PumpingDecomposition):
+        print(
+            f"  Баланс мощностей (43): невязка {d.balance_residual:.2e} кВт, сходится: {d.balance_ok}"
+        )
     return 0
 
 

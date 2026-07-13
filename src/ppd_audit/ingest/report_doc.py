@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from docx import Document
 from docx.table import Table
@@ -31,16 +31,20 @@ from pydantic import BaseModel, Field
 
 from ..spec import ReferenceOutputs, WaterType
 
+
 # ───────────────────────────── модели фактов отчёта ─────────────────────────────
 
 
 class ReportClaim(BaseModel):
     """Относительное утверждение из прозы отчёта (может быть диапазоном X…Y)."""
-    metric: str                       # eta_reduction_pp | sec_over_calc | head_drop_m | head_drop_pct | eta_curve_drop_pp
+
+    metric: (
+        str  # eta_reduction_pp | sec_over_calc | head_drop_m | head_drop_pct | eta_curve_drop_pp
+    )
     value_min: float
-    value_max: float                  # = value_min, если не диапазон
+    value_max: float  # = value_min, если не диапазон
     unit: str = ""
-    aggregate_id: Optional[str] = None
+    aggregate_id: str | None = None
     text: str = ""
 
     @property
@@ -49,7 +53,7 @@ class ReportClaim(BaseModel):
 
 
 class AggregateReport(BaseModel):
-    id: str                           # НА-1..n
+    id: str  # НА-1..n
     pump_model: str = ""
     reference: ReferenceOutputs = Field(default_factory=ReferenceOutputs)
     # диапазон [min, max] значений по датам замера (2026: несколько дат; 2024: [v, v]).
@@ -57,7 +61,7 @@ class AggregateReport(BaseModel):
     ranges: dict[str, list[float]] = Field(default_factory=dict)
     claims: list[ReportClaim] = Field(default_factory=list)
 
-    def range_of(self, field: str) -> Optional[tuple[float, float]]:
+    def range_of(self, field: str) -> tuple[float, float] | None:
         r = self.ranges.get(field)
         return (r[0], r[1]) if r else None
 
@@ -66,16 +70,16 @@ class ObjectReport(BaseModel):
     object_id: str
     object_name: str
     water_type: WaterType = WaterType.fresh
-    template: str = "2024"            # 2024 | 2026
-    source: str = ""                  # путь к разобранному .docx
-    source_original: str = ""         # исходный .doc/.docx
+    template: str = "2024"  # 2024 | 2026
+    source: str = ""  # путь к разобранному .docx
+    source_original: str = ""  # исходный .doc/.docx
     report_date: str = ""
     aggregates: list[AggregateReport] = Field(default_factory=list)
-    teo: dict = Field(default_factory=dict)        # сводка ТЭО (потери, экономия, окупаемость)
+    teo: dict = Field(default_factory=dict)  # сводка ТЭО (потери, экономия, окупаемость)
     recommendations: list[str] = Field(default_factory=list)
     quotes: list[str] = Field(default_factory=list)  # ключевые выводы (цитаты)
 
-    def aggregate(self, agg_id: str) -> Optional[AggregateReport]:
+    def aggregate(self, agg_id: str) -> AggregateReport | None:
         for a in self.aggregates:
             if a.id == agg_id:
                 return a
@@ -84,8 +88,20 @@ class ObjectReport(BaseModel):
 
 # ───────────────────────────── низкоуровневые утилиты ─────────────────────────────
 
-_MONTHS = ("январ", "феврал", "март", "апрел", "ма", "июн", "июл", "август",
-           "сентябр", "октябр", "ноябр", "декабр")
+_MONTHS = (
+    "январ",
+    "феврал",
+    "март",
+    "апрел",
+    "ма",
+    "июн",
+    "июл",
+    "август",
+    "сентябр",
+    "октябр",
+    "ноябр",
+    "декабр",
+)
 
 
 def _norm(v) -> str:
@@ -95,7 +111,7 @@ def _norm(v) -> str:
     return re.sub(r"\s+", " ", s.strip().lower().replace("ё", "е"))
 
 
-def _num(v) -> Optional[float]:
+def _num(v) -> float | None:
     """Первое число из ячейки (рус. формат): «5 411»→5411, «1 234,6»→1234.6, «н/д»→None."""
     if v is None:
         return None
@@ -104,13 +120,13 @@ def _num(v) -> Optional[float]:
     if isinstance(v, (int, float)):
         return float(v)
     s = str(v).replace("\xa0", " ").replace(" ", " ").replace(" ", " ")
-    s = re.sub(r"(?<=\d)[ \t]+(?=\d)", "", s)          # пробел как разделитель тысяч
+    s = re.sub(r"(?<=\d)[ \t]+(?=\d)", "", s)  # пробел как разделитель тысяч
     s = s.replace(",", ".")
     m = re.search(r"-?\d+(?:\.\d+)?", s)
     return float(m.group()) if m else None
 
 
-def _iter_blocks(doc: Document):
+def _iter_blocks(doc: Any):
     """Параграфы и таблицы в порядке документа: ('p', text) | ('tbl', grid)."""
     body = doc.element.body
     for child in body.iterchildren():
@@ -133,10 +149,10 @@ def _grid_has_dates(grid: list[list[str]]) -> bool:
     return False
 
 
-def _agg_num(text: str) -> Optional[int]:
+def _agg_num(text: str) -> int | None:
     """Номер агрегата из подписи: «Н-1», «насосного агрегата № 2», «НА-3»."""
     t = _norm(text)
-    m = re.search(r"(?:на|н)\s*[-–]\s*(\d)", t)         # Н-1 / НА-1
+    m = re.search(r"(?:на|н)\s*[-–]\s*(\d)", t)  # Н-1 / НА-1
     if m:
         return int(m.group(1))
     m = re.search(r"агрегат\w*\s*(?:№\s*)?(\d)", t)
@@ -200,7 +216,7 @@ def _find_value_row(grids, *pats, exclude=()):
     return None
 
 
-def _trailing_values(row: list[str], n: int) -> list[Optional[float]]:
+def _trailing_values(row: list[str], n: int) -> list[float | None]:
     """Последние n числовых значений строки (хвостовые столбцы-агрегаты)."""
     return [_num(c) for c in row[-n:]] if n else []
 
@@ -209,7 +225,7 @@ def _parse_2024(grids, n_agg: int) -> tuple[list[ReferenceOutputs], list[dict]]:
     refs = [ReferenceOutputs() for _ in range(n_agg)]
     ranges: list[dict] = [{} for _ in range(n_agg)]
 
-    def assign(field: str, vals: list[Optional[float]]):
+    def assign(field: str, vals: list[float | None]):
         for i in range(n_agg):
             v = vals[i] if i < len(vals) else None
             if v is not None:
@@ -245,13 +261,13 @@ def _read_timeseries(grid, ref: ReferenceOutputs, rng: dict) -> None:
             if any(p in lbl for p in pats) and not any(e in lbl for e in excl):
                 vals = _ts_values(row)
                 if vals:
-                    setattr(ref, field, vals[-1])           # последняя (поздняя) дата
+                    setattr(ref, field, vals[-1])  # последняя (поздняя) дата
                     prev = rng.get(field, [vals[0], vals[0]])
                     rng[field] = [min(prev[0], *vals), max(prev[1], *vals)]
                 break
 
 
-def _annual_loss_col(grid) -> Optional[int]:
+def _annual_loss_col(grid) -> int | None:
     """Индекс столбца «кВт·ч» в таблице годовых потерь (2026: [назв|обозн|кВт·ч|тыс.руб])."""
     for row in grid[:2]:
         for j, c in enumerate(row):
@@ -289,7 +305,7 @@ def _parse_2026(blocks) -> list[AggregateReport]:
         grid = payload
         hdr = " ".join(_norm(c) for c in (grid[0] if grid else []))
         is_cont = "продолжение" in hdr
-        if _grid_has_dates(grid):                       # таблица ряда замеров агрегата
+        if _grid_has_dates(grid):  # таблица ряда замеров агрегата
             num = _agg_num(caption) or (max(aggs) if (is_cont and aggs) else None)
             if num is None:
                 num = (max(aggs) + 1) if aggs else 1
@@ -307,18 +323,24 @@ def _parse_2026(blocks) -> list[AggregateReport]:
 _RANGE = r"([\d.,]+)\s*(?:[…\-–]{1,3}\s*([\d.,]+))?"
 
 
-def _mk_claim(metric: str, m: re.Match, unit: str, agg_id, text: str) -> Optional[ReportClaim]:
+def _mk_claim(metric: str, m: re.Match, unit: str, agg_id, text: str) -> ReportClaim | None:
     lo = _num(m.group(1))
     if lo is None:
         return None
     hi = _num(m.group(2)) if m.lastindex and m.group(2) else lo
     if hi is None:
         hi = lo
-    return ReportClaim(metric=metric, value_min=min(lo, hi), value_max=max(lo, hi),
-                       unit=unit, aggregate_id=agg_id, text=text.strip()[:300])
+    return ReportClaim(
+        metric=metric,
+        value_min=min(lo, hi),
+        value_max=max(lo, hi),
+        unit=unit,
+        aggregate_id=agg_id,
+        text=text.strip()[:300],
+    )
 
 
-def _extract_claims(sentences: list[str], single_agg: Optional[str]) -> list[ReportClaim]:
+def _extract_claims(sentences: list[str], single_agg: str | None) -> list[ReportClaim]:
     claims: list[ReportClaim] = []
     for raw in sentences:
         t = _norm(raw)
@@ -331,13 +353,17 @@ def _extract_claims(sentences: list[str], single_agg: Optional[str]) -> list[Rep
 
         # КПД НА снижен на X[…Y] п.п./% (относительно номинального)
         m = re.search(r"кпд[^.]*?сниж\w*\s*(?:на)?\s*" + _RANGE + r"\s*(?:п\.?\s*п|%)", t)
-        if m and ("номинал" in t or "номин" in t or "относительно ном" in t or "п.п" in t or "п. п" in t):
+        if m and (
+            "номинал" in t or "номин" in t or "относительно ном" in t or "п.п" in t or "п. п" in t
+        ):
             if "паспортн" not in t.split("снижен")[0][-40:]:
                 c = _mk_claim("eta_reduction_pp", m, "п.п.", agg, raw)
                 if c:
                     claims.append(c)
         # КПД насоса относительно паспортной характеристики снижен на X[…Y] п.п.
-        m = re.search(r"кпд[^.]*?паспортн[^.]*?сниж\w*\s*(?:на)?\s*" + _RANGE + r"\s*(?:п\.?\s*п|%)", t)
+        m = re.search(
+            r"кпд[^.]*?паспортн[^.]*?сниж\w*\s*(?:на)?\s*" + _RANGE + r"\s*(?:п\.?\s*п|%)", t
+        )
         if m:
             c = _mk_claim("eta_curve_drop_pp", m, "п.п.", agg, raw)
             if c:
@@ -349,17 +375,38 @@ def _extract_claims(sentences: list[str], single_agg: Optional[str]) -> list[Rep
             if c:
                 claims.append(c)
         # напор/рабочая точка ниже Q-H на N м (Z %)
-        m = re.search(r"(?:напор|рабоч\w* точк\w*|располагается)[^.]*?ниже[^.]*?на\s*"
-                      r"([\d.,]+)\s*м[^.()]*\(\s*([\d.,]+)\s*%", t)
+        m = re.search(
+            r"(?:напор|рабоч\w* точк\w*|располагается)[^.]*?ниже[^.]*?на\s*"
+            r"([\d.,]+)\s*м[^.()]*\(\s*([\d.,]+)\s*%",
+            t,
+        )
         if not m:
-            m = re.search(r"напор[^.]*?сниж\w*\s*(?:на)?\s*([\d.,]+)\s*м[^.()]*\(\s*([\d.,]+)\s*%", t)
+            m = re.search(
+                r"напор[^.]*?сниж\w*\s*(?:на)?\s*([\d.,]+)\s*м[^.()]*\(\s*([\d.,]+)\s*%", t
+            )
         if m:
-            claims.append(ReportClaim(metric="head_drop_m", value_min=_num(m.group(1)),
-                                      value_max=_num(m.group(1)), unit="м", aggregate_id=agg,
-                                      text=raw.strip()[:300]))
-            claims.append(ReportClaim(metric="head_drop_pct", value_min=_num(m.group(2)),
-                                      value_max=_num(m.group(2)), unit="%", aggregate_id=agg,
-                                      text=raw.strip()[:300]))
+            head_drop_m, head_drop_pct = _num(m.group(1)), _num(m.group(2))
+            assert head_drop_m is not None and head_drop_pct is not None
+            claims.append(
+                ReportClaim(
+                    metric="head_drop_m",
+                    value_min=head_drop_m,
+                    value_max=head_drop_m,
+                    unit="м",
+                    aggregate_id=agg,
+                    text=raw.strip()[:300],
+                )
+            )
+            claims.append(
+                ReportClaim(
+                    metric="head_drop_pct",
+                    value_min=head_drop_pct,
+                    value_max=head_drop_pct,
+                    unit="%",
+                    aggregate_id=agg,
+                    text=raw.strip()[:300],
+                )
+            )
         else:
             # напор относительно паспортной характеристики снижен на X[…Y] %
             m = re.search(r"напор[^.]*?паспортн[^.]*?сниж\w*\s*(?:на)?\s*" + _RANGE + r"\s*%", t)
@@ -373,21 +420,25 @@ def _extract_claims(sentences: list[str], single_agg: Optional[str]) -> list[Rep
 # ───────────────────────────── ТЭО / рекомендации ─────────────────────────────
 
 
-def _parse_teo_2024(grids) -> dict:
+def _parse_teo_2024(grids) -> dict[str, Any]:
     """Карта потерь/ТЭО (таблица «Направление потерь … ЧДД … окупаемость»)."""
-    teo = {"measures": []}
+    teo: dict[str, Any] = {"measures": []}
     for g in grids:
         head = " ".join(_norm(c) for c in (g[0] if g else []))
         if "направление потерь" not in head:
             continue
         # карта колонок по двум строкам шапки
-        hdr = [" ".join(_norm(g[r][c]) for r in range(min(2, len(g))) if c < len(g[r]))
-               for c in range(len(g[0]))]
+        hdr = [
+            " ".join(_norm(g[r][c]) for r in range(min(2, len(g))) if c < len(g[r]))
+            for c in range(len(g[0]))
+        ]
+
         def col(*pats):
             for j, h in enumerate(hdr):
                 if any(p in h for p in pats):
                     return j
             return None
+
         c_kwh = col("квт∙ч", "квт·ч", "квт.ч")
         c_rub = col("тыс.руб", "тыс. руб")
         c_meas = col("предлагаемое", "мероприятие")
@@ -399,23 +450,33 @@ def _parse_teo_2024(grids) -> dict:
             kwh = _num(row[c_kwh]) if c_kwh is not None and c_kwh < len(row) else None
             if lbl.startswith("всего") or "итого" in lbl:
                 teo["total_loss_kwh"] = kwh
-                teo["total_loss_krub"] = _num(row[c_rub]) if c_rub is not None and c_rub < len(row) else None
+                teo["total_loss_krub"] = (
+                    _num(row[c_rub]) if c_rub is not None and c_rub < len(row) else None
+                )
                 continue
             meas = str(row[c_meas]).strip() if c_meas is not None and c_meas < len(row) else ""
             if "насос" in lbl and (kwh or meas):
                 teo["measures"].append({
-                    "element": str(row[c_elem]).strip() if c_elem is not None and c_elem < len(row) else "",
-                    "problem": str(row[c_prob]).strip() if c_prob is not None and c_prob < len(row) else "",
+                    "element": str(row[c_elem]).strip()
+                    if c_elem is not None and c_elem < len(row)
+                    else "",
+                    "problem": str(row[c_prob]).strip()
+                    if c_prob is not None and c_prob < len(row)
+                    else "",
                     "loss_kwh": kwh,
-                    "loss_krub": _num(row[c_rub]) if c_rub is not None and c_rub < len(row) else None,
+                    "loss_krub": _num(row[c_rub])
+                    if c_rub is not None and c_rub < len(row)
+                    else None,
                     "measure": meas,
-                    "payback": str(row[c_pay]).strip() if c_pay is not None and c_pay < len(row) else "",
+                    "payback": str(row[c_pay]).strip()
+                    if c_pay is not None and c_pay < len(row)
+                    else "",
                 })
         break
     # «Всего» в отчётах иногда в тыс.кВт·ч (смешение единиц) — берём надёжную сумму по НА
-    kwh = [m["loss_kwh"] for m in teo["measures"] if m.get("loss_kwh")]
-    if kwh:
-        teo["total_loss_kwh"] = round(sum(kwh), 1)
+    losses_kwh = [m["loss_kwh"] for m in teo["measures"] if m.get("loss_kwh")]
+    if losses_kwh:
+        teo["total_loss_kwh"] = round(sum(losses_kwh), 1)
     return teo
 
 
@@ -446,7 +507,9 @@ def _collect_recommendations(grids, paras) -> list[str]:
     recs: list[str] = []
     for p in paras:
         t = _norm(p)
-        if re.search(r"предлагается\s+замен|рекомендуется\s+замен|необходимо\s+(?:замен|капитальн)", t):
+        if re.search(
+            r"предлагается\s+замен|рекомендуется\s+замен|необходимо\s+(?:замен|капитальн)", t
+        ):
             recs.append(re.sub(r"\s+", " ", p.strip())[:300])
     # реестр рекомендаций (2026)
     for g in grids:
@@ -465,8 +528,11 @@ def _collect_recommendations(grids, paras) -> list[str]:
     return out[:12]
 
 
-_WATER_BY_PATH = {"пресная": WaterType.fresh, "агрессив": WaterType.aggressive,
-                  "пластов": WaterType.formation}
+_WATER_BY_PATH = {
+    "пресная": WaterType.fresh,
+    "агрессив": WaterType.aggressive,
+    "пластов": WaterType.formation,
+}
 
 
 def _water_type(path: Path) -> WaterType:
@@ -485,9 +551,13 @@ def _report_date(name: str) -> str:
 # ───────────────────────────── главный вход ─────────────────────────────
 
 
-def parse_report(docx_path: Path, object_id: str, object_name: str,
-                 water_type: Optional[WaterType] = None,
-                 source_original: str = "") -> ObjectReport:
+def parse_report(
+    docx_path: Path,
+    object_id: str,
+    object_name: str,
+    water_type: WaterType | None = None,
+    source_original: str = "",
+) -> ObjectReport:
     """Разобрать .docx-отчёт энергоаудита в ObjectReport (таблицы + утверждения прозы)."""
     docx_path = Path(docx_path)
     doc = Document(str(docx_path))
@@ -504,9 +574,15 @@ def parse_report(docx_path: Path, object_id: str, object_name: str,
     else:
         n_agg = len(pumps) or 1
         refs, ranges = _parse_2024(grids, n_agg)
-        agg_reports = [AggregateReport(id=f"НА-{i+1}",
-                                       pump_model=pumps[i] if i < len(pumps) else "",
-                                       reference=refs[i], ranges=ranges[i]) for i in range(n_agg)]
+        agg_reports = [
+            AggregateReport(
+                id=f"НА-{i + 1}",
+                pump_model=pumps[i] if i < len(pumps) else "",
+                reference=refs[i],
+                ranges=ranges[i],
+            )
+            for i in range(n_agg)
+        ]
         teo = _parse_teo_2024(grids)
 
     # проставить модели насосов из паспорта по НОМЕРУ агрегата (НА-n → pumps[n-1])
@@ -520,7 +596,7 @@ def parse_report(docx_path: Path, object_id: str, object_name: str,
 
     # относительные утверждения из прозы (и из ячеек ТЭО-таблицы 2024)
     single = agg_reports[0].id if len(agg_reports) == 1 else None
-    teo_cells = []
+    teo_cells: list[str] = []
     for g in grids:
         head = " ".join(_norm(c) for c in (g[0] if g else []))
         if "направление потерь" in head:
@@ -528,11 +604,15 @@ def parse_report(docx_path: Path, object_id: str, object_name: str,
                 teo_cells.extend(str(c) for c in row if "сниж" in _norm(c))
     claims = _extract_claims(paras + teo_cells, single)
     for c in claims:
-        ar = next((a for a in agg_reports if a.id == c.aggregate_id), None)
-        if ar is None and single:
-            ar = agg_reports[0]
-        if ar is not None:
-            ar.claims.append(c)
+        claim_aggregate: AggregateReport | None = None
+        for candidate in agg_reports:
+            if candidate.id == c.aggregate_id:
+                claim_aggregate = candidate
+                break
+        if claim_aggregate is None and single:
+            claim_aggregate = agg_reports[0]
+        if claim_aggregate is not None:
+            claim_aggregate.claims.append(c)
 
     recommendations = _collect_recommendations(grids, paras)
     quotes = [c.text for c in claims]
@@ -547,8 +627,15 @@ def parse_report(docx_path: Path, object_id: str, object_name: str,
             uq.append(q)
 
     return ObjectReport(
-        object_id=object_id, object_name=object_name,
+        object_id=object_id,
+        object_name=object_name,
         water_type=water_type or _water_type(docx_path),
-        template=template, source=str(docx_path), source_original=source_original,
+        template=template,
+        source=str(docx_path),
+        source_original=source_original,
         report_date=_report_date(docx_path.name) or _report_date(source_original),
-        aggregates=agg_reports, teo=teo, recommendations=recommendations, quotes=uq[:10])
+        aggregates=agg_reports,
+        teo=teo,
+        recommendations=recommendations,
+        quotes=uq[:10],
+    )

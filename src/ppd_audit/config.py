@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import yaml
@@ -23,20 +23,20 @@ def _load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_constraints() -> Constraints:
     """config/constraints.yaml → Constraints."""
     return Constraints(**_load_yaml(project_root() / "config" / "constraints.yaml"))
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_fluids() -> dict[str, FluidProps]:
     """config/fluids.yaml → {тип воды: FluidProps}."""
     raw = _load_yaml(project_root() / "config" / "fluids.yaml")
     return {name: FluidProps(**props) for name, props in raw["fluids"].items()}
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_plant(plant_id: str) -> Plant:
     """config/plants/<plant_id>.yaml → Plant."""
     path = project_root() / "config" / "plants" / f"{plant_id}.yaml"
@@ -57,5 +57,4 @@ def resolve_fluid(plant: Plant) -> FluidProps:
     nu = plant.fluid.get("nu", base.nu if base else 1.0)
     # если плотность взята из паспорта-замера — это уже не «оценка»
     estimate = "rho" not in plant.fluid
-    return FluidProps(rho=rho, nu=nu, estimate=estimate,
-                      note=plant.fluid.get("type", ""))
+    return FluidProps(rho=rho, nu=nu, estimate=estimate, note=plant.fluid.get("type", ""))

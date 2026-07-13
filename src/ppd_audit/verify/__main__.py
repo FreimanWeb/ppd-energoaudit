@@ -28,10 +28,14 @@ def main() -> int:
 
     s = res["summary"]
     print("\n=== Итог ===")
-    print(f"Строк сверки: {s['total_rows']} | {OK} {s['by_status'][OK]} · "
-          f"{WARN} {s['by_status'][WARN]} · {FAIL} {s['by_status'][FAIL]} · {NA} {s['by_status'][NA]}")
-    print(f"Измеряемые KPI (УРЭф/КПДф) в допуске: {s['measured_ok']}/{s['measured_metrics']} "
-          f"({s['measured_pass_rate'] * 100:.0f}%)")
+    print(
+        f"Строк сверки: {s['total_rows']} | {OK} {s['by_status'][OK]} · "
+        f"{WARN} {s['by_status'][WARN]} · {FAIL} {s['by_status'][FAIL]} · {NA} {s['by_status'][NA]}"
+    )
+    print(
+        f"Измеряемые KPI (УРЭф/КПДф) в допуске: {s['measured_ok']}/{s['measured_metrics']} "
+        f"({s['measured_pass_rate'] * 100:.0f}%)"
+    )
     for e in res["errors"]:
         print(f"  ⚠ {e}")
 
@@ -46,25 +50,37 @@ def main() -> int:
     cur = None
     for r in rec["rows"]:
         if r.st_model_xlsx == OK and r.st_model_report in (OK, NA) and r.st_sources in (OK, NA):
-            continue                                  # печатаем только расхождения
+            continue  # печатаем только расхождения
         head = (r.object_id, r.aggregate_id)
         if head != cur:
             cur = head
             print(f"\n— {r.object_name} · {r.aggregate_id} · {r.pump_kind} —")
-        rep = ("—" if r.report is None else
-               (f"{r.report:.3f}" if r.report_lo == r.report_hi
-                else f"{r.report_lo:.3f}…{r.report_hi:.3f}"))
-        print(f"   М↔xlsx {r.st_model_xlsx} М↔отч {r.st_model_report} ист.{r.st_sources}  "
-              f"{r.metric:26s} модель {('—' if r.model is None else f'{r.model:.3f}'):>10}  "
-              f"xlsx {('—' if r.xlsx is None else f'{r.xlsx:.3f}'):>10}  отчёт {rep:>14}  {r.note}")
+        rep = (
+            "—"
+            if r.report is None
+            else (
+                f"{r.report:.3f}"
+                if r.report_lo == r.report_hi
+                else f"{r.report_lo:.3f}…{r.report_hi:.3f}"
+            )
+        )
+        print(
+            f"   М↔xlsx {r.st_model_xlsx} М↔отч {r.st_model_report} ист.{r.st_sources}  "
+            f"{r.metric:26s} модель {('—' if r.model is None else f'{r.model:.3f}'):>10}  "
+            f"xlsx {('—' if r.xlsx is None else f'{r.xlsx:.3f}'):>10}  отчёт {rep:>14}  {r.note}"
+        )
 
     rs = rec["summary"]
     print("\n=== Итог трёхсторонней сверки ===")
-    print(f"Строк: {rs['total_rows']} | модель↔отчёт: {OK} {rs['model_report'][OK]} · "
-          f"{WARN} {rs['model_report'][WARN]} · {FAIL} {rs['model_report'][FAIL]}")
+    print(
+        f"Строк: {rs['total_rows']} | модель↔отчёт: {OK} {rs['model_report'][OK]} · "
+        f"{WARN} {rs['model_report'][WARN]} · {FAIL} {rs['model_report'][FAIL]}"
+    )
     if rs["source_agreement_rate"] is not None:
-        print(f"Согласованность источников (xlsx↔отчёт): {rs['source_agreement_rate'] * 100:.0f}% "
-              f"из {rs['source_pairs']} пар")
+        print(
+            f"Согласованность источников (xlsx↔отчёт): {rs['source_agreement_rate'] * 100:.0f}% "
+            f"из {rs['source_pairs']} пар"
+        )
     for e in rec["errors"]:
         print(f"  ⚠ {e}")
     rpaths = save_reconciliation(rec)
