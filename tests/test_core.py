@@ -3,16 +3,15 @@
 негативные тесты самопроверок (аудит ядра 02.07.2026).
 """
 
-import math
-
 import pytest
 
 from ppd_audit.core import curves, motor, specific_energy
 from ppd_audit.core.audit import audit_aggregate
 from ppd_audit.core.pump import (RegimeResult, compute_regime, decompose_kns,
                                  decompose_pumping, nominal_efficiency)
+from ppd_audit.core.pump_profiles import profile_for
 from ppd_audit.spec import (AggregateSpec, Branch, MotorSpec, PumpSpec,
-                            RegimeMeasurement)
+                            PumpKind, RegimeMeasurement)
 
 
 def test_nominal_efficiency_14():
@@ -28,6 +27,28 @@ def test_formula_15_with_vfd_and_gear():
     agg = AggregateSpec(id="т", pump=PumpSpec(eta_nom=0.60),
                         motor=MotorSpec(eta_nom=0.94), vfd=True, transmission_eff=0.98)
     assert agg.nominal_efficiency() == pytest.approx(0.97 * 0.94 * 0.98 * 0.60, abs=1e-12)
+
+
+def test_positive_displacement_profile_excludes_curve_diagnostics():
+    profile = profile_for(PumpKind.positive_displacement)
+
+    assert profile.name == "positive_displacement"
+    assert profile.uses_qh_curve is False
+    assert profile.uses_qeta_curve is False
+
+
+def test_positive_displacement_audit_marks_qh_diagnostic_not_applicable():
+    agg = _make_transfer_agg(pump=PumpSpec(
+        model="СТ-А НПЖ", kind=PumpKind.positive_displacement, eta_nom=0.60,
+        curve_qh=[[40.0, 280.0], [60.0, 250.0], [80.0, 200.0]],
+    ))
+
+    result = audit_aggregate(agg, Branch.transfer)
+
+    assert result.audit_profile == "positive_displacement"
+    assert result.h_due is None
+    assert result.trace["29"]["value"] is None
+    assert "неприменима" in result.trace["29"]["subst"]
 
 
 def test_motor_efficiency_branches():

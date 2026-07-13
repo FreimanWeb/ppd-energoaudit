@@ -12,10 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ..spec import AggregateSpec, Branch, PumpKind
+from ..spec import AggregateSpec, Branch
 from . import curves, motor, specific_energy
-from .pump import (RegimeResult, compute_regime, decompose_kns,
-                   decompose_pumping, nominal_efficiency)
+from .pump_profiles import profile_for
+from .pump import RegimeResult, compute_regime, decompose_kns, decompose_pumping
 
 ETA_VFD_DEFAULT = 0.97  # η_пч по Методике («принимаем η_пч = 0,97»), формулы (15), (27)
 
@@ -25,6 +25,7 @@ class AuditResult:
     aggregate_id: str
     branch: str
     pump_kind: str
+    audit_profile: str
     regime: RegimeResult
     load_factor: float                # K_з (24)
     eta_motor_real: float             # η_эд.р (25-26)
@@ -49,6 +50,7 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
     if agg.regime is None:
         raise ValueError(f"у агрегата {agg.id} нет измеренного режима")
     rm = agg.regime
+    profile = profile_for(agg.pump.kind)
     tr: dict = {}
 
     # --- η_ном (14)/(15)
@@ -102,7 +104,9 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
 
     # --- должные напор (29) и КПД (30) по паспортным кривым (если заданы)
     h_due = None
-    if len(agg.pump.curve_qh) >= 3:
+    if not profile.uses_qh_curve:
+        _trace(tr, "29", "H_д / Q-H", profile.curve_diagnostics_reason, None)
+    elif len(agg.pump.curve_qh) >= 3:
         h_due = curves.head_due(flow, agg.pump.curve_qh)                 # (29)
         _trace(tr, "29", "H_д = aQ²+bQ+c (паспортная кривая Q-H)",
                f"Q={round(flow, 2)}", round(h_due, 1))
@@ -112,7 +116,7 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
 
     # --- декомпозиция
     decomp = None
-    if branch == Branch.transfer and agg.pump.kind == PumpKind.centrifugal:
+    if branch == Branch.transfer and profile.uses_qeta_curve:
         if len(agg.pump.curve_qeta) >= 3:
             eta_due = curves.eta_due(flow, agg.pump.curve_qeta)          # (30)
             eta_due_src = "кривая Q-η"
@@ -145,6 +149,7 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
 
     return AuditResult(
         aggregate_id=agg.id, branch=branch.value, pump_kind=agg.pump.kind.value,
+        audit_profile=profile.name,
         regime=regime, load_factor=kz, eta_motor_real=eta_mr, eta_pump=eta_pump,
         sec_fact=sec_f, sec_calc=sec_c, dw_efficiency=dw_eff, decomposition=decomp,
         h_due=h_due, sec_optimal=sec_opt, dw_throttle=dw_thr, spec=agg, trace=tr)
