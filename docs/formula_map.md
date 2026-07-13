@@ -49,7 +49,7 @@ P — кВт, W — кВт·ч, УРЭ — кВт·ч/м³; g = 9,81; кгс/с�
 
 | № | Формула | Реализация | Тест | Соответствие |
 |---|---|---|---|---|
-| (28) | Re = Q_ном·10⁷/(9π·ν·(D−d)) | `core/curves.py::reynolds` | `test_core.py::test_reynolds_and_viscosity_factors` | ⚠ **отступление от буквы PDF**: код использует внутренний диаметр D−2d (d — толщина стенки, внутренний диаметр = D−2d физически); PDF пишет (D−d). Влияние — только на нефтеперекачку с вязкой жидкостью (в текущей верификации таких нет). Вопрос заказчику — findings §В1 |
+| (28) | Re = Q_ном·10⁷/(9π·ν·(D−2d)) | `core/curves.py::reynolds` | `test_core.py::test_reynolds_and_viscosity_factors` | ✓ PDF и код используют внутренний диаметр D−2d; d — толщина стенки |
 | — | K_Q, K_H, K_η по номограмме рис. 8.4.1 | `core/curves.py::viscosity_factors` — **заглушка** (K=1 при Re≥10⁵, грубая оценка ниже) | `test_reynolds_and_viscosity_factors` (только ветка K=1) | ⚠ номограмма НЕ оцифрована; калибровочная точка PDF: Re=400 → K_Q=0,72, K_H=0,815, K_η=0,385 — заглушка даёт (1,0/0,81/0,76). Для воды ППД (Re≥10⁵) корректно K=1. Бэклог — findings §Б1 |
 | (29) | H_д = aQ²+bQ+c | `core/curves.py::fit_parabola`+`head_due`; подключено в `audit.py` при наличии `curve_qh` | `test_core.py::test_parabola_fit`, `test_head_due_from_curve` | ✓ (подключено к оркестратору 02.07.2026 — ранее функция была, но не вызывалась) |
 | (30) | η_д = uQ²+vQ+w | `core/curves.py::eta_due`; в `audit.py` при наличии `curve_qeta`, иначе `eta_pump_due` из паспорта/отчёта, иначе η_нас.ном | `test_parabola_fit`, `test_eta_due_from_curve`; ДНС-7с: η_д=0,576 из отчёта №31 | ✓ (та же оговорка) |
