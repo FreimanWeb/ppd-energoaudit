@@ -13,14 +13,26 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # каталог app/ для import lib/ui/tabs
 
-import lib  # noqa: E402  data-слой (настраивает путь к src/)
-import streamlit as st  # noqa: E402
-import ui  # noqa: E402  дизайн-система (CSS + компоненты)
-from tabs import (formulas, losses, measures, new_object, overview,  # noqa: E402
-                  quality, reconcile, scheme, working_point)
-from tabs.common import WATER_EMOJI, Ctx, fmt  # noqa: E402
+# каталог app/ для import lib/ui/tabs
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import lib
+import streamlit as st
+import ui
+from tabs import (
+    formulas,
+    losses,
+    measures,
+    new_object,
+    overview,
+    quality,
+    reconcile,
+    scheme,
+    working_point,
+)
+from tabs.common import WATER_EMOJI, Ctx, fmt
+
 
 st.set_page_config(page_title="Энергоаудит ППД", page_icon="⚡", layout="wide")
 ui.inject_css()
@@ -29,12 +41,16 @@ ui.inject_css()
 
 st.sidebar.title("⚡ Энергоаудит ППД")
 index = lib.object_index()
-waters = sorted({o["water"] for o in index}, key=lambda w: lib.WATER_ORDER.index(w)
-                if w in lib.WATER_ORDER else 9)
+waters = sorted(
+    {o["water"] for o in index},
+    key=lambda w: lib.WATER_ORDER.index(w) if w in lib.WATER_ORDER else 9,
+)
 sel_waters = st.sidebar.multiselect("Тип воды", waters, default=waters)
 flt = [o for o in index if o["water"] in sel_waters] or index
 
-obj_labels = {f"{o['name']}  ·  {WATER_EMOJI.get(o['water'],'')} {o['water']}": o["id"] for o in flt}
+obj_labels = {
+    f"{o['name']}  ·  {WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"] for o in flt
+}
 obj_choice = st.sidebar.selectbox("Объект", list(obj_labels))
 object_id = obj_labels[obj_choice]
 obj = lib.get_object(object_id)
@@ -44,8 +60,7 @@ agg_id = st.sidebar.selectbox("Агрегат", agg_ids)
 agg = obj.aggregate(agg_id)
 audit = lib.get_audit(object_id, agg_id)
 
-ctx = Ctx(object_id=object_id, agg_id=agg_id, obj=obj, agg=agg,
-          audit=audit, tariff=lib.tariff())
+ctx = Ctx(object_id=object_id, agg_id=agg_id, obj=obj, agg=agg, audit=audit, tariff=lib.tariff())
 
 st.sidebar.markdown("---")
 st.sidebar.caption(f"Ветка расчёта: **{obj.branch.value}**")
@@ -59,11 +74,14 @@ _eta_tone = "ok" if _eta_ratio >= 0.9 else ("warn" if _eta_ratio >= 0.78 else "b
 ui.hero(
     f"{obj.name} · {agg_id}",
     f"Цифровой энергоаудит ППД · источник: {obj.source.split('/')[-1]}",
-    [(f"{WATER_EMOJI.get(obj.water_type.value, '')} {obj.water_type.value} вода", ""),
-     (f"ветка: {obj.branch.value}", ""),
-     (f"насос: {audit.pump_kind}", ""),
-     (f"КПД {fmt(audit.regime.eta_unit, 3)} / ном {fmt(audit.regime.eta_nom, 3)}", _eta_tone),
-     (f"УРЭ {fmt(audit.sec_fact, 2)} кВт·ч/м³", "")])
+    [
+        (f"{WATER_EMOJI.get(obj.water_type.value, '')} {obj.water_type.value} вода", ""),
+        (f"ветка: {obj.branch.value}", ""),
+        (f"насос: {audit.pump_kind}", ""),
+        (f"КПД {fmt(audit.regime.eta_unit, 3)} / ном {fmt(audit.regime.eta_nom, 3)}", _eta_tone),
+        (f"УРЭ {fmt(audit.sec_fact, 2)} кВт·ч/м³", ""),
+    ],
+)
 
 # ───────────────────────── Вкладки (от общего к частному) ─────────────────────────
 

@@ -8,12 +8,22 @@ from __future__ import annotations
 
 import streamlit as st
 
+
 # Палитра (используется и в Plotly-графиках для единства стиля).
 PALETTE = {
-    "primary": "#1f4e79", "accent": "#2f80ed", "ok": "#2e9e6b",
-    "warn": "#e0a106", "bad": "#d9534f", "ink": "#16283a", "muted": "#5b6b7b",
-    "bg": "#eef3f9", "card": "#ffffff", "line": "#e2ebf4",
-    "water": "#2f80ed", "water_dark": "#1f4e79", "throttle": "#e0a106",
+    "primary": "#1f4e79",
+    "accent": "#2f80ed",
+    "ok": "#2e9e6b",
+    "warn": "#e0a106",
+    "bad": "#d9534f",
+    "ink": "#16283a",
+    "muted": "#5b6b7b",
+    "bg": "#eef3f9",
+    "card": "#ffffff",
+    "line": "#e2ebf4",
+    "water": "#2f80ed",
+    "water_dark": "#1f4e79",
+    "throttle": "#e0a106",
 }
 
 _CSS = """
@@ -97,7 +107,8 @@ def hero(title: str, subtitle: str, badges=()) -> None:
         f"<div class='pp-hero'><div class='pp-hero-title'>{title}</div>"
         f"<div class='pp-hero-sub'>{subtitle}</div>"
         f"<div class='pp-badges'>{_badges_html(badges)}</div></div>",
-        unsafe_allow_html=True)
+        unsafe_allow_html=True,
+    )
 
 
 def note(text: str) -> None:

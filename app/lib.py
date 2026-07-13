@@ -10,17 +10,19 @@ from pathlib import Path
 
 import streamlit as st
 
+
 # Пакет лежит в src/ — добавляем в путь при запуске `streamlit run app/main.py`
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_ROOT / "src"))
 
-from ppd_audit.config import load_constraints           # noqa: E402
+from ppd_audit.config import load_constraints  # noqa: E402
 from ppd_audit.core.audit import AuditResult, audit_aggregate  # noqa: E402
-from ppd_audit.spec import ObjectSpec                    # noqa: E402
-from ppd_audit.spec_io import load_object_spec           # noqa: E402
+from ppd_audit.spec import ObjectSpec  # noqa: E402
+from ppd_audit.spec_io import load_object_spec  # noqa: E402
 from ppd_audit.verify.reconcile import run_reconciliation  # noqa: E402
-from ppd_audit.verify.runner import run_verification     # noqa: E402
+from ppd_audit.verify.runner import run_verification  # noqa: E402
+
 
 WATER_ORDER = ["пресная", "агрессивная", "пластовая"]
 
@@ -49,8 +51,13 @@ def object_index() -> list[dict]:
     out = []
     for oid in list_object_ids():
         o = get_object(oid)
-        out.append({"id": oid, "name": o.name, "water": o.water_type.value,
-                    "branch": o.branch.value, "n_agg": len(o.working_aggregates())})
+        out.append({
+            "id": oid,
+            "name": o.name,
+            "water": o.water_type.value,
+            "branch": o.branch.value,
+            "n_agg": len(o.working_aggregates()),
+        })
     return out
 
 
@@ -65,8 +72,12 @@ def get_verification() -> dict:
     """Двусторонняя сверка модель↔xlsx. Возвращает строки как dict."""
     res = run_verification(save_specs=False)
     from ppd_audit.verify.compare import row_to_dict
-    return {"rows": [row_to_dict(r) for r in res["rows"]],
-            "summary": res["summary"], "errors": res["errors"]}
+
+    return {
+        "rows": [row_to_dict(r) for r in res["rows"]],
+        "summary": res["summary"],
+        "errors": res["errors"],
+    }
 
 
 @st.cache_resource(show_spinner=True)
@@ -79,9 +90,13 @@ def _reconciliation():
 def get_reconciliation() -> dict:
     """Трёхсторонняя сверка модель↔xlsx↔отчёт (для экрана «Модель vs Отчёт»)."""
     from dataclasses import asdict
+
     res = _reconciliation()
-    return {"rows": [asdict(r) for r in res["rows"]],
-            "summary": res["summary"], "errors": res["errors"]}
+    return {
+        "rows": [asdict(r) for r in res["rows"]],
+        "summary": res["summary"],
+        "errors": res["errors"],
+    }
 
 
 @st.cache_data(show_spinner=False)
@@ -98,11 +113,22 @@ def get_report_facts(object_id: str) -> dict:
         "quotes": rep.quotes,
         "recommendations": rep.recommendations,
         "teo": rep.teo,
-        "aggregates": {a.id: {"pump_model": a.pump_model,
-                              "claims": [{"metric": c.metric, "min": c.value_min,
-                                          "max": c.value_max, "unit": c.unit, "text": c.text}
-                                         for c in a.claims]}
-                       for a in rep.aggregates},
+        "aggregates": {
+            a.id: {
+                "pump_model": a.pump_model,
+                "claims": [
+                    {
+                        "metric": c.metric,
+                        "min": c.value_min,
+                        "max": c.value_max,
+                        "unit": c.unit,
+                        "text": c.text,
+                    }
+                    for c in a.claims
+                ],
+            }
+            for a in rep.aggregates
+        },
     }
 
 
@@ -119,6 +145,7 @@ def get_topology(object_id: str) -> dict | None:
     топологии не влияет на расчётное ядро и его тесты.
     """
     import yaml
+
     p = _ROOT / "config" / "topology" / f"{object_id}.yaml"
     if not p.exists():
         return None
