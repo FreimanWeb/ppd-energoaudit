@@ -9,14 +9,28 @@
 """
 
 import pytest
+import yaml
 
+from ppd_audit.config import project_root
+from ppd_audit.spec_io import load_object_spec
 from ppd_audit.verify.compare import FAIL
-from ppd_audit.verify.runner import run_verification
+from ppd_audit.verify.runner import load_manifest, run_verification
 
 
 @pytest.fixture(scope="session")
 def verification():
     return run_verification(save_specs=False)
+
+
+def test_verified_and_existing_plant_specs_are_native():
+    root = project_root()
+    for obj in load_manifest()["objects"]:
+        assert (root / "config" / "plants" / f"{obj['id']}.yaml").is_file()
+
+    for path in (root / "config" / "plants").glob("*.yaml"):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        assert "reference_regime" not in raw
+        assert load_object_spec(path.stem).id == path.stem
 
 
 def test_per_cell_trace_present(verification):

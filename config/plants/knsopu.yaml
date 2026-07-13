@@ -25,7 +25,7 @@ aggregates:
     cos_phi: 0.9
     voltage_kv: 6.0
     n_rpm: 3000.0
-  transmission_eff: 1.0
+  transmission_eff: 0.97
   vfd: false
   regime:
     rho: 1123.0

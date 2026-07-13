@@ -2,13 +2,13 @@
 
 Расчётное ядро по эталонному режиму (Табл. 3.1 отчёта, агрегат Н-4, 10.10.2025)
 должно воспроизводить показатели аудита в допусках. Эталонные значения — в
-config/plants/dns7s.yaml → reference_regime.expected.
+config/plants/dns7s.yaml → aggregates[].reference.
 """
 
 import pytest
 
-from ppd_audit.config import load_plant
 from ppd_audit.core.audit import run_pump_audit
+from ppd_audit.spec_io import load_object_spec
 
 
 @pytest.fixture(scope="module")
@@ -18,27 +18,29 @@ def result():
 
 @pytest.fixture(scope="module")
 def expected():
-    return load_plant("dns7s").reference_regime["expected"]
+    reference = load_object_spec("dns7s").working_aggregates()[0].reference
+    assert reference is not None
+    return reference
 
 
 def test_head_and_powers(result, expected):
     g = result.regime
-    assert g.h_fact == pytest.approx(expected["h_fact"], abs=0.5)  # (8)
-    assert g.p_hydraulic == pytest.approx(expected["p_hydraulic"], abs=0.1)  # (11)
-    assert g.p_electric == pytest.approx(expected["p_electric"], abs=0.1)
+    assert g.h_fact == pytest.approx(expected.h_fact, abs=0.5)  # (8)
+    assert g.p_hydraulic == pytest.approx(expected.p_hydraulic, abs=0.1)  # (11)
+    assert g.p_electric == pytest.approx(expected.p_electric, abs=0.1)
 
 
 def test_efficiencies(result, expected):
     g = result.regime
-    assert g.eta_unit == pytest.approx(expected["eta_fact"], abs=0.005)  # (13) η_НА
-    assert g.eta_nom == pytest.approx(expected["eta_nom"], abs=0.001)  # (14) η_ном
-    assert result.eta_motor_real == pytest.approx(expected["eta_motor_calc"], abs=0.002)  # (25-26)
-    assert result.eta_pump == pytest.approx(expected["eta_pump"], abs=0.002)  # (27)
+    assert g.eta_unit == pytest.approx(expected.eta_fact, abs=0.005)  # (13) η_НА
+    assert g.eta_nom == pytest.approx(expected.eta_nom, abs=0.001)  # (14) η_ном
+    assert result.eta_motor_real == pytest.approx(expected.eta_motor_real, abs=0.002)  # (25-26)
+    assert result.eta_pump == pytest.approx(expected.eta_pump, abs=0.002)  # (27)
 
 
 def test_specific_energy(result, expected):
-    assert result.sec_fact == pytest.approx(expected["sec_fact"], abs=0.005)  # (16)
-    assert result.sec_calc == pytest.approx(expected["sec_calc"], abs=0.002)  # (17)
+    assert result.sec_fact == pytest.approx(expected.sec_fact, abs=0.005)  # (16)
+    assert result.sec_calc == pytest.approx(expected.sec_calc, abs=0.002)  # (17)
     # факт превышает расчёт на ~0,101 кВт·ч/м³ (по отчёту)
     assert (result.sec_fact - result.sec_calc) == pytest.approx(0.101, abs=0.005)
 
@@ -51,7 +53,7 @@ def test_load_factor(result, expected):
 
 def test_annual_efficiency_loss(result, expected):
     # ΔW_НА = ΔP_КПД(38)·T_год — ключевой эталон аудита: 53 242,9 кВт·ч/год
-    assert result.dw_efficiency == pytest.approx(expected["dw_efficiency"], rel=0.005)
+    assert result.dw_efficiency == pytest.approx(expected.dw_efficiency, rel=0.005)
 
 
 def test_power_balance_43(result):

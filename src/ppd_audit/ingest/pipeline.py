@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..config import load_plant, project_root
-from ..models import Plant
+from ..config import project_root
+from ..spec_io import load_object_spec
 from . import readers
 
 
@@ -39,8 +39,8 @@ def _sheet_for(prefix: str, agg: str) -> str:
 def ingest_plant(plant_id: str = "dns7s", root: Path | None = None) -> NormalizedDataset:
     """Прочитать и нормализовать всю телеметрию объекта."""
     root = root or project_root()
-    plant: Plant = load_plant(plant_id)
-    tlm = plant.telemetry or {}
+    plant = load_object_spec(plant_id)
+    tlm = plant.telemetry
     src = root / tlm["source_file"]
     trf = root / tlm["transfer_file"]
     sig = tlm["signals"]

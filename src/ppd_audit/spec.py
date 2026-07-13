@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -118,8 +119,11 @@ class ReferenceOutputs(BaseModel):
     load_factor: float | None = None  # K_з
     p_hydraulic: float | None = None  # Р_гидр, кВт
     p_electric: float | None = None  # Р_эл, кВт
+    eta_motor_real: float | None = None  # η_ЭД расчётный, о.е.
+    eta_pump: float | None = None  # η_насоса расчётный, о.е.
     dw_efficiency: float | None = None  # ΔW_кпд, кВт·ч/год
     dw_throttle: float | None = None  # ΔW_дрос, кВт·ч/год
+    dw_hydraulic: float | None = None  # гидравлические потери, кВт·ч/год
     t_year: float | None = None  # T_год, ч
 
 
@@ -151,6 +155,7 @@ class ObjectSpec(BaseModel):
     water_type: WaterType = WaterType.fresh
     branch: Branch = Branch.kns
     source: str = ""  # откуда собран спец (файл/ручной ввод)
+    telemetry: dict[str, Any] = Field(default_factory=dict)
     aggregates: list[AggregateSpec] = Field(default_factory=list)
 
     def aggregate(self, agg_id: str) -> AggregateSpec:

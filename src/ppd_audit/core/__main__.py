@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-from ..config import load_plant
+from ..spec_io import load_object_spec
 from .audit import run_pump_audit
 from .pump import PumpingDecomposition
 
@@ -17,8 +17,9 @@ def main(argv: list[str] | None = None) -> int:
     plant_id = argv[0] if argv else "dns7s"
     agg = argv[1] if len(argv) > 1 else None
 
-    plant = load_plant(plant_id)
-    exp = (plant.reference_regime or {}).get("expected", {})
+    plant = load_object_spec(plant_id)
+    selected = plant.aggregate(agg) if agg else plant.working_aggregates()[0]
+    exp = selected.reference.model_dump(exclude_none=True) if selected.reference else {}
     r = run_pump_audit(plant_id, agg)
     g = r.regime
 
@@ -26,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
         ref_s = fmt.format(ref) if isinstance(ref, (int, float)) else "—"
         print(f"  {label:24s} {fmt.format(val):>12s} {unit:<10s} эталон {ref_s}")
 
-    print(f"=== {plant.meta['name']} · агрегат {r.aggregate_id} · ветка «{r.branch}» ===")
+    print(f"=== {plant.name} · агрегат {r.aggregate_id} · ветка «{r.branch}» ===")
     line("H_ф (8), м", g.h_fact, exp.get("h_fact"), fmt="{:.2f}")
     line("P_гидр (11), кВт", g.p_hydraulic, exp.get("p_hydraulic"), fmt="{:.3f}")
     line("P_эл, кВт", g.p_electric, exp.get("p_electric"), fmt="{:.2f}")
@@ -43,9 +44,8 @@ def main(argv: list[str] | None = None) -> int:
         f"эталон {exp.get('dw_efficiency', '—')}"
     )
     if isinstance(d, PumpingDecomposition):
-        print(
-            f"  Баланс мощностей (43): невязка {d.balance_residual:.2e} кВт, сходится: {d.balance_ok}"
-        )
+        balance = f"невязка {d.balance_residual:.2e} кВт, сходится: {d.balance_ok}"
+        print(f"  Баланс мощностей (43): {balance}")
     return 0
 
 

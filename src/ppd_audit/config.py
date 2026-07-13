@@ -10,7 +10,8 @@ from pathlib import Path
 
 import yaml
 
-from .models import Constraints, FluidProps, Plant
+from .models import Constraints, FluidProps
+from .spec import ObjectSpec
 
 
 def project_root() -> Path:
@@ -37,24 +38,8 @@ def load_fluids() -> dict[str, FluidProps]:
 
 
 @cache
-def load_plant(plant_id: str) -> Plant:
-    """config/plants/<plant_id>.yaml → Plant."""
-    path = project_root() / "config" / "plants" / f"{plant_id}.yaml"
-    if not path.exists():
-        raise FileNotFoundError(f"Паспорт объекта не найден: {path}")
-    return Plant(**_load_yaml(path))
+def load_plant(plant_id: str) -> ObjectSpec:
+    """Совместимый псевдоним нативного загрузчика паспорта объекта."""
+    from .spec_io import load_object_spec
 
-
-def resolve_fluid(plant: Plant) -> FluidProps:
-    """Свойства жидкости объекта: типовые из fluids.yaml, переопределённые паспортом.
-
-    Плотность по замеру в паспорте объекта (поле fluid.rho) имеет приоритет над
-    типовым справочником (Методика: ρ задаётся по замеру, а не константой).
-    """
-    fluids = load_fluids()
-    base = fluids.get(plant.fluid.get("type", "пресная"))
-    rho = plant.fluid.get("rho", base.rho if base else 1000.0)
-    nu = plant.fluid.get("nu", base.nu if base else 1.0)
-    # если плотность взята из паспорта-замера — это уже не «оценка»
-    estimate = "rho" not in plant.fluid
-    return FluidProps(rho=rho, nu=nu, estimate=estimate, note=plant.fluid.get("type", ""))
+    return load_object_spec(plant_id)
