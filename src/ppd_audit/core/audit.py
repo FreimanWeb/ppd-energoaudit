@@ -221,7 +221,12 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
     dw_thr = None
     sec_opt = None
     if rm.p_bg is not None:
-        dw_thr = specific_energy.annual_loss_throttle(regime.p_out, rm.p_bg, eta_nom, q_year)
+        dw_thr = specific_energy.annual_loss_throttle(
+            regime.p_out,
+            rm.p_bg,
+            regime.eta_unit,
+            q_year,
+        )
         sec_opt = specific_energy.sec_optimal(rm.p_bg, rm.p_in, eta_nom)  # p_опт=p_БГ (КНС)
 
     return AuditResult(

@@ -105,9 +105,9 @@ def annual_loss_efficiency_by_power(dp_efficiency_kw: float, t_year: float) -> f
     return dp_efficiency_kw * t_year
 
 
-def annual_loss_throttle(p_out: float, p_bg: float, eta_nom: float, q_year: float) -> float:
-    """ΔW_др (45): (p_вых − p_БГ)/(3.6·η_ном)·Q_год, кВт·ч/год."""
-    return (p_out - p_bg) / (units.HYDRAULIC_POWER_DIVISOR * eta_nom) * q_year
+def annual_loss_throttle(p_out: float, p_bg: float, eta_fact: float, q_year: float) -> float:
+    """ΔW_др (45): (p_вых − p_БГ)/(3.6·η_факт)·Q_год, кВт·ч/год."""
+    return (p_out - p_bg) / (units.HYDRAULIC_POWER_DIVISOR * eta_fact) * q_year
 
 
 def annual_loss_cyclic(p_out: float, p_opt: float, eta_nom: float, q_year: float) -> float:

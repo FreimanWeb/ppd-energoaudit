@@ -83,7 +83,7 @@ P — кВт, W — кВт·ч, УРЭ — кВт·ч/м³; g = 9,81; кгс/с�
 |---|---|---|---|---|
 | (44) | ΔW_кпд = Q_год·(УРЭ_ф−УРЭ_р) | `specific_energy.py::annual_loss_efficiency_by_sec`; в `audit.py` база Q_год = Q_факт·T_год (соглашение инженеров в xlsx, сверено) | `test_core.py::test_annual_losses_44_47`, verification «ΔW КПД» | ✓ |
 | — | ΔW_кпд через мощность (эквивалент при разовом замере) | `annual_loss_efficiency_by_power` = ΔP_КПД(38)·T_год | `test_dns7s.py::test_annual_efficiency_loss` | ✓ (тождественно (44) при УРЭ_ф=P_эл/Q — доказано алгебраически, см. docstring) |
-| (45) | ΔW_др = (p_вых−p_БГ)/(3,6·η_ном)·Q_год | `specific_energy.py::annual_loss_throttle`, `zra.py::throttle_loss` | `test_annual_losses_44_47`, `test_throttle_loss`, verification «ΔW дрос» | ✓ |
+| (45, правило системы) | ΔW_др = (p_вых−p_БГ)/(3,6·η_факт)·Q_год | `specific_energy.py::annual_loss_throttle`, `zra.py::throttle_loss` | `test_annual_losses_44_47`, `test_throttle_loss` | ✓ — решение эксперта для ТЭО фактической экономии |
 | (46) | ΔW_ц = (p_вых−p_опт)/(3,6·η_ном)·Q_год | `specific_energy.py::annual_loss_cyclic` | `test_core.py::test_annual_loss_cyclic` | ✓ формула; **не подключена к оркестратору** — нет объекта с задокументированным цикл. режимом (ДНС-7с работает непрерывно); бэклог findings §Б2 |
 | (47) | ΔW_ндт = Q_год·(УРЭ_ф−УРЭ_опт) | `specific_energy.py::annual_loss_ndt` | `test_annual_losses_44_47` | ✓ формула; в оркестраторе не выводится отдельной строкой (нет η_ндт — см. (18)) |
 

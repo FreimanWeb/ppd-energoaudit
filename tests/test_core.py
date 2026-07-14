@@ -156,9 +156,23 @@ def test_annual_losses_44_47():
     assert specific_energy.annual_loss_efficiency_by_sec(1000.0, 1.29, 1.19) == pytest.approx(100.0)
     # ΔW_ндт (47)
     assert specific_energy.annual_loss_ndt(1000.0, 1.29, 1.0) == pytest.approx(290.0)
-    # ΔW_др (45): (p_вых−p_БГ)/(3.6·η_ном)·Q_год
+    # ΔW_др: (p_вых−p_БГ)/(3.6·η_факт)·Q_год
     w = specific_energy.annual_loss_throttle(2.818, 2.0, 0.564, 446352.0)
     assert w == pytest.approx((2.818 - 2.0) / (3.6 * 0.564) * 446352.0, rel=1e-9)
+
+
+def test_throttle_loss_uses_actual_efficiency():
+    agg = _make_transfer_agg(regime=RegimeMeasurement(
+        rho=1000.0, p_in=0.4, p_out=2.8, p_bg=2.0,
+        q_fact=75.0, p_electric=97.0, t_year=7000.0,
+    ))
+
+    result = audit_aggregate(agg, Branch.kns)
+
+    assert result.dw_throttle == pytest.approx(
+        specific_energy.annual_loss_throttle(2.8, 2.0, result.regime.eta_unit, 75.0 * 7000.0),
+        rel=1e-9,
+    )
 
 
 def test_reynolds_and_viscosity_factors():
