@@ -1,0 +1,28 @@
+# Карта происхождения телеметрии: единицы и scope должны быть явными.
+schema: telemetry_sources.v1
+
+objects:
+  kns97pren:
+    canonical_name: "КНС-97/2 НГДУ Елховнефть"
+    aliases: ["КНС-97 ПР ЕН", "КНС-97/2"]
+    water_type: пресная
+    aggregates:
+      НА-02:
+        pressure_unit: МПа
+        historical_passport: "КНС-97-2 ЕН отчет.pdf"
+        test_dataset: "Информация по КНС для НИР.zip"
+
+  knsopu:
+    canonical_name: "КНС-ОПУ НГДУ Джалильнефть"
+    aliases: ["КНС-ОПУ ДжН", "КНС - ОПУ"]
+    water_type: агрессивная
+    snapshots:
+      "2026-04-09":
+        source: "агрессивная вода/КНС-ОПУ выезд 08.04.2026г/данные КНС-ОПУ"
+        aggregation: "2h"
+        flow_unit: "м³/2ч"
+        limitations: ["pressure samples are from adjacent dates"]
+        aggregates:
+          НА-1: {flow: computed, energy: measured, state: running}
+          НА-2: {flow: computed, energy: measured, state: running}
+          НА-3: {state: "off"}
