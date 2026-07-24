@@ -1,5 +1,6 @@
 id: knsopu
 name: КНС-ОПУ
+ngdu: Джалильнефть
 water_type: агрессивная
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/агрессивная

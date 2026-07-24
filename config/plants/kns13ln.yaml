@@ -1,5 +1,6 @@
 id: kns13ln
 name: КНС-13 ЛН
+ngdu: Лениногорскнефть
 water_type: пресная
 branch: кнс
 source: data/raw/ntu/Пресная вода/КНС 14 АН/для примера/кнс 13 ЛН.xlsx

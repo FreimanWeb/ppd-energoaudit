@@ -1,5 +1,6 @@
 id: kns97pren
 name: КНС-97/2 НГДУ Елховнефть
+ngdu: Елховнефть
 water_type: пресная
 branch: кнс
 source: data/raw/ntu/Пресная вода/КНС-97-2 ЕН отчет.pdf

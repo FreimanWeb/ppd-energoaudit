@@ -6,6 +6,7 @@
 
 id: dns7s
 name: ДНС-7с
+ngdu: Джалильнефть
 water_type: пластовая
 branch: перекачка
 source: config/plants/dns7s.yaml (migrated from legacy)
