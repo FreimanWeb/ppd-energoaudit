@@ -32,8 +32,8 @@ def list_object_ids() -> list[str]:
     ids = []
     for p in sorted((_ROOT / "config" / "plants").glob("*.yaml")):
         try:
-            load_object_spec(p.stem)
-            ids.append(p.stem)
+            if not load_object_spec(p.stem).is_example:
+                ids.append(p.stem)
         except Exception:
             continue
     return ids

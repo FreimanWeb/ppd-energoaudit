@@ -55,6 +55,7 @@ def run_verification(save_specs: bool = True) -> dict:
             parsed = parse_calc_file_with_cells(path, obj["id"], obj["name"])
             apply_t_year_overrides(parsed, obj.get("t_year_overrides", {}))
             spec = parsed.spec
+            spec.is_example = obj.get("is_example", False)
         except Exception as e:
             errors.append(f"{obj['id']}: ошибка парсинга — {e}")
             continue

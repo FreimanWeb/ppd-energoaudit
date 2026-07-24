@@ -154,6 +154,7 @@ class AggregateSpec(BaseModel):
 class ObjectSpec(BaseModel):
     id: str
     name: str
+    is_example: bool = False  # Пример для верификации, не показывать как рабочий объект.
     water_type: WaterType = WaterType.fresh
     branch: Branch = Branch.kns
     source: str = ""  # откуда собран спец (файл/ручной ввод)

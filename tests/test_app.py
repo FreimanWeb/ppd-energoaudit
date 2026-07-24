@@ -21,6 +21,19 @@ def test_default_render():
     assert len(at.metric) >= 8
 
 
+@pytest.mark.parametrize("label_part", ["КНС-129", "КНС-138", "КНС-175"])
+def test_example_objects_are_hidden_from_selector(label_part):
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    assert not any(label_part in option for option in at.selectbox[0].options)
+
+
+@pytest.mark.parametrize("object_id", ["kns129ln", "kns138ln", "kns175"])
+def test_example_objects_are_marked_in_specs(object_id):
+    from ppd_audit.spec import load_object_spec
+
+    assert load_object_spec(object_id).is_example
+
+
 @pytest.mark.parametrize("label_part", ["КНС-ОПУ", "КНС-25", "ДНС-7с"])
 def test_object_render(label_part):
     at = AppTest.from_file(APP, default_timeout=180).run()

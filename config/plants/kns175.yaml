@@ -1,5 +1,6 @@
 id: kns175
 name: КНС-175
+is_example: true
 water_type: пресная
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная

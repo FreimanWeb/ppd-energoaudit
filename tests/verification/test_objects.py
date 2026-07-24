@@ -105,6 +105,11 @@ def test_kns13_uses_excel_annualization_assumption(verification):
     assert aggregate.regime.t_year == 8760.0
 
 
+@pytest.mark.parametrize("object_id", ["kns129ln", "kns138ln", "kns175"])
+def test_example_specs_remain_marked_when_regenerated(verification, object_id):
+    assert verification["specs"][object_id].is_example
+
+
 def test_measured_kpi_reproduced(verification):
     """УРЭ факт и напор факт воспроизводятся ВО ВСЕХ агрегатах. КПД факт — тоже везде,
     кроме разобранного реестра KNOWN_MEASURED_KPI_DEVIATIONS (эталон определяет Q
