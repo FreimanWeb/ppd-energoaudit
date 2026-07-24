@@ -7,8 +7,9 @@ from ppd_audit.config import load_constraints
 from ppd_audit.core import hydraulics, nodes, wells, zra
 from ppd_audit.core.audit import run_pump_audit
 from ppd_audit.core.losses import build_loss_map
+from ppd_audit.core.pump import PumpingDecomposition
 from ppd_audit.core.reservoir import CRMLite, DemoReservoir, ReservoirInput, get_model
-from ppd_audit.measures import suggest_measures
+from ppd_audit.measures import CATALOG, evaluate, suggest_measures
 from ppd_audit.optimize import optimize_setpoint
 
 
@@ -47,12 +48,12 @@ def test_annual_hydraulic_energy():
 
 
 def test_throttle_loss():
-    # Δp_задв = 0,77 МПа на штуцере; проверяем (31)-(32)-(45)
+    # Δp_задв = 0,77 МПа на штуцере; потери считаются по фактическому КПД.
     t = zra.throttle_loss(
         p_before=14.1,
         p_after=13.33,
         q=47.4,
-        eta_nom=0.815,
+        eta_fact=0.815,
         t_year=5411,
         tariff=4.68,
     )
@@ -151,6 +152,27 @@ def test_measures_suggested(audit_kns25):
         assert e.energy_saving_kwh > 0
         if e.capex_krub > 0:
             assert e.payback_years is not None and e.payback_years > 0
+
+
+def test_pumping_measures_use_decomposition_components():
+    audit = run_pump_audit("dns7s", "Н-4")
+    assert isinstance(audit.decomposition, PumpingDecomposition)
+    assert audit.spec is not None and audit.spec.regime is not None
+
+    measures = {measure.id: measure for measure in CATALOG}
+    decomposition = audit.decomposition
+    t_year = audit.spec.regime.t_year
+
+    assert "continuous_mode" not in measures
+    assert evaluate(measures["pump_working_point"], audit).energy_saving_kwh == pytest.approx(
+        round(decomposition.dp_suboptimal * t_year, 1)
+    )
+    assert evaluate(measures["motor_resize"], audit).energy_saving_kwh == pytest.approx(
+        round(decomposition.dp_motor * t_year, 1)
+    )
+    assert evaluate(measures["pump_overhaul"], audit).energy_saving_kwh == pytest.approx(
+        round(decomposition.dp_wear * t_year, 1)
+    )
 
 
 def test_setpoint_optimization(audit_kns25):
