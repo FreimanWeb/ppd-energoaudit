@@ -30,6 +30,14 @@ def test_data_editor_is_available():
     assert "Редактирование данных" in at.radio[0].options
 
 
+def test_telemetry_viewer_uses_a_date_range():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    at.radio[0].set_value("Просмотр телеметрии").run()
+
+    assert at.date_input[0].label == "Период телеметрии"
+    assert any(item.value == "Телеметрия за период" for item in at.subheader)
+
+
 @pytest.mark.parametrize("label_part", ["КНС-129", "КНС-138", "КНС-175"])
 def test_example_objects_are_hidden_from_selector(label_part):
     at = AppTest.from_file(APP, default_timeout=180).run()

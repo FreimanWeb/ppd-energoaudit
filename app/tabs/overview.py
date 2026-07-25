@@ -18,7 +18,12 @@ from tabs.common import Ctx, fmt, loss_components
 
 def _kpi_rows(ctx: Ctx) -> None:
     audit, reg = ctx.audit, ctx.audit.regime
-    if ctx.scope.daily_kpi_is_fact:
+    if not ctx.scope.daily_pressure_coverage_is_complete:
+        ui.provenance(
+            ("Режимный расчёт: снимок давления", "warn"),
+            ("Суточный УРЭ: W / Q_сут", "ok"),
+        )
+    elif ctx.scope.daily_kpi_is_fact:
         ui.provenance(("Суточный факт: W / Q_сут", "ok"), ("Расчёт по Методике", ""))
     else:
         ui.provenance(("УРЭ по режиму, не суточный факт", "warn"), ("Расчёт по Методике", ""))

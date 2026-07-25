@@ -1,4 +1,13 @@
+import sys
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from ppd_audit.db import AuditDatabase
 from ppd_audit.services.telemetry_series import telemetry_series
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+import lib
 
 
 def test_telemetry_series_groups_metrics_by_unit_and_keeps_zero_values():
@@ -58,3 +67,25 @@ def test_telemetry_series_excludes_daily_totals_from_charts():
     ])
 
     assert series == {}
+
+
+def test_telemetry_for_period_includes_both_selected_days(monkeypatch, tmp_path):
+    database = AuditDatabase(tmp_path / "audit.sqlite")
+    database.migrate()
+    database.upsert_plant("kns97", "КНС-97", "Елховнефть", "пресная", "кнс")
+    database.upsert_aggregate("kns97", "НА-02", "работа")
+    start = datetime(2026, 7, 24)
+    database.add_measurement("kns97", "НА-02", start, "power", 200.0, "кВт")
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(days=1), "power", 210.0, "кВт"
+    )
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(days=2), "power", 220.0, "кВт"
+    )
+    monkeypatch.setattr(lib, "database", lambda: database)
+
+    rows = lib.telemetry_for_period(
+        "kns97", "НА-02", date(2026, 7, 24), date(2026, 7, 25)
+    )
+
+    assert [row["value"] for row in rows] == [200.0, 210.0]

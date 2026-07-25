@@ -27,7 +27,7 @@ from ppd_audit.services.telemetry_audit import (  # noqa: E402
     run_telemetry_audit,
     telemetry_date_statuses as _telemetry_date_statuses,
 )
-from ppd_audit.spec import ObjectSpec  # noqa: E402
+from ppd_audit.spec import ObjectSpec, load_object_spec  # noqa: E402
 from ppd_audit.verify.reconcile import run_reconciliation  # noqa: E402
 from ppd_audit.verify.runner import run_verification  # noqa: E402
 
@@ -78,8 +78,22 @@ def open_clarifications(object_id: str) -> list[dict[str, str]]:
     return database().open_clarifications(object_id)
 
 
-def get_audit(object_id: str, aggregate_id: str, start: datetime, end: datetime) -> AuditResult:
-    return run_telemetry_audit(database(), object_id, aggregate_id, start, end)
+def get_audit(
+    object_id: str,
+    aggregate_id: str,
+    start: datetime,
+    end: datetime,
+    *,
+    require_daily_pressure_coverage: bool = True,
+) -> AuditResult:
+    return run_telemetry_audit(
+        database(),
+        object_id,
+        aggregate_id,
+        start,
+        end,
+        require_daily_pressure_coverage=require_daily_pressure_coverage,
+    )
 
 
 def telemetry_dates(object_id: str, aggregate_id: str) -> list[date]:
@@ -104,9 +118,31 @@ def telemetry_for_day(object_id: str, aggregate_id: str, day: date) -> list[dict
     )
 
 
-def result_scope_for(object_id: str, aggregate_id: str, end: datetime, regime) -> ResultScope:
+def telemetry_for_period(
+    object_id: str, aggregate_id: str, start_day: date, end_day: date
+) -> list[dict]:
+    """Сырые точки агрегата и станции за выбранные дни включительно."""
+    start = datetime.combine(start_day, datetime.min.time())
+    end = datetime.combine(end_day + timedelta(days=1), datetime.min.time())
+    return database().measurements_in_window(
+        object_id, aggregate_id, start, end, include_station=True
+    )
+
+
+def result_scope_for(
+    object_id: str,
+    aggregate_id: str,
+    end: datetime,
+    regime,
+    *,
+    daily_pressure_coverage_is_complete: bool = True,
+) -> ResultScope:
     """Статус суточного KPI и годовой оценки для отображения в UI."""
-    return _result_scope(regime, database().annual_runtime(object_id, aggregate_id, end))
+    return _result_scope(
+        regime,
+        database().annual_runtime(object_id, aggregate_id, end),
+        daily_pressure_coverage_is_complete=daily_pressure_coverage_is_complete,
+    )
 
 
 @st.cache_data(show_spinner=True)

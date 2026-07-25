@@ -44,7 +44,7 @@ ui.inject_css()
 # ───────────────────────── Sidebar: выбор объекта ─────────────────────────
 
 st.sidebar.title("⚡ Энергоаудит ППД")
-mode = st.sidebar.radio("Режим", ("Анализ", "Редактирование данных"))
+mode = st.sidebar.radio("Режим", ("Анализ", "Просмотр телеметрии", "Редактирование данных"))
 index = lib.object_index()
 waters = sorted(
     {o["water"] for o in index},
@@ -77,6 +77,19 @@ if not dates:
     st.warning(f"Нет телеметрии для {selected['name']} / {agg_id}.")
     st.stop()
 
+if mode == "Просмотр телеметрии":
+    period = st.sidebar.date_input(
+        "Период телеметрии",
+        value=(min(dates), max(dates)),
+        min_value=min(dates),
+        max_value=max(dates),
+    )
+    if not isinstance(period, tuple) or len(period) != 2:
+        st.info("Выберите начало и конец периода.")
+        st.stop()
+    telemetry.render_period(object_id, agg_id, *period)
+    st.stop()
+
 selected_key = f"telemetry-date-{object_id}-{agg_id}"
 calendar_key = f"{selected_key}-picker"
 selected_date = selected_calendar_date(
@@ -101,24 +114,43 @@ if selected_date not in date_statuses:
     st.stop()
 start = datetime.combine(selected_date, time.min)
 end = start + timedelta(days=1)
-if date_statuses[selected_date] != "ready":
+status = date_statuses[selected_date]
+if status == "insufficient":
     try:
         lib.get_audit(object_id, agg_id, start, end)
-    except (KeyError, ValueError) as exc:
+    except (ArithmeticError, KeyError, ValueError) as exc:
         st.warning(f"Нет пригодного режима за {selected_date}: {exc}")
     else:
         st.warning(f"Нет пригодного режима за {selected_date}: телеметрия недостаточна.")
     telemetry.render_day(object_id, agg_id, selected_date)
     st.stop()
+is_snapshot = status == "snapshot"
+if is_snapshot:
+    st.warning(
+        "Суточного покрытия давлением недостаточно. Показан режимный расчёт по последней "
+        "согласованной паре давлений и положительной мощности за сутки."
+    )
 try:
     obj = lib.get_object(object_id, start, agg_id)
-    audit = lib.get_audit(object_id, agg_id, start, end)
-except (KeyError, ValueError) as exc:
+    audit = lib.get_audit(
+        object_id,
+        agg_id,
+        start,
+        end,
+        require_daily_pressure_coverage=not is_snapshot,
+    )
+except (ArithmeticError, KeyError, ValueError) as exc:
     st.warning(f"Нет пригодного режима за {selected_date}: {exc}")
     telemetry.render_day(object_id, agg_id, selected_date)
     st.stop()
 agg = audit.spec
-scope = lib.result_scope_for(object_id, agg_id, end, audit.spec.regime)
+scope = lib.result_scope_for(
+    object_id,
+    agg_id,
+    end,
+    audit.spec.regime,
+    daily_pressure_coverage_is_complete=not is_snapshot,
+)
 
 clarifications = lib.open_clarifications(object_id)
 if clarifications:

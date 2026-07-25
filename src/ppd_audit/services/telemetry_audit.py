@@ -19,7 +19,9 @@ from ..spec import (
 )
 
 
-_PRESSURE_POWER_MAX_GAP = timedelta(minutes=30)
+_PRESSURE_POWER_MAX_GAP = timedelta(minutes=5)
+_PRESSURE_STABILITY_WINDOW = timedelta(minutes=1)
+_PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND = 0.02
 _MIN_PRESSURE_COVERAGE = 0.8
 
 
@@ -29,6 +31,8 @@ def build_regime(
     aggregate_code: str,
     start: datetime,
     end: datetime,
+    *,
+    require_daily_pressure_coverage: bool = True,
 ) -> RegimeMeasurement:
     """Свести measurements за окно к режиму одного агрегата."""
     rows = database.measurements_in_window(
@@ -45,7 +49,9 @@ def build_regime(
     if any(metric in station_values for metric in ("q_day", "runtime", "energy")):
         raise ValueError("станционный расход, наработка или энергия не распределены по агрегатам")
     plant = database.plant(plant_code)
-    p_in, p_out, p_bg = _operating_pressures(rows)
+    p_in, p_out, p_bg = _operating_pressures(
+        rows, require_daily_pressure_coverage=require_daily_pressure_coverage
+    )
     q_day = _single(aggregate_values, "q_day", required=False)
     runtime = _single(aggregate_values, "runtime", required=False)
     energy = _single(aggregate_values, "energy", required=False)
@@ -68,7 +74,9 @@ def build_regime(
     )
 
 
-def _operating_pressures(rows: list[dict]) -> tuple[float, float, float | None]:
+def _operating_pressures(
+    rows: list[dict], *, require_daily_pressure_coverage: bool
+) -> tuple[float, float, float | None]:
     """Усреднить давления из пар, ближайших к положительной мощности агрегата."""
     power_times: list[datetime] = []
     pressure_by_time: dict[datetime, dict[str, float]] = {}
@@ -95,29 +103,51 @@ def _operating_pressures(rows: list[dict]) -> tuple[float, float, float | None]:
         if not pairs:
             break
         pair = min(pairs, key=lambda candidate: abs(candidate[0] - power_time))
-        if abs(pair[0] - power_time) <= _PRESSURE_POWER_MAX_GAP:
+        if abs(pair[0] - power_time) <= _PRESSURE_POWER_MAX_GAP and _is_stable_pressure_pair(
+            pair, pairs
+        ):
             operating_pairs.append(pair)
     if not operating_pairs:
         raise ValueError(
-            "нет согласованной пары p_вх/p_вых рядом с положительной мощностью "
+            "нет согласованной пары p_вх/p_вых с p_вых > p_вх рядом с положительной мощностью "
             "в выбранном окне"
         )
-    if len(operating_pairs) / len(power_times) < _MIN_PRESSURE_COVERAGE:
+    if (
+        require_daily_pressure_coverage
+        and len(operating_pairs) / len(power_times) < _MIN_PRESSURE_COVERAGE
+    ):
         raise ValueError(
             f"давление покрывает только {len(operating_pairs)} из {len(power_times)} "
             "точек положительной мощности в выбранном окне"
         )
 
+    selected_pairs = operating_pairs if require_daily_pressure_coverage else [operating_pairs[-1]]
     p_bg = []
-    for timestamp, _, _ in operating_pairs:
+    for timestamp, _, _ in selected_pairs:
         if p_bg_points:
             nearest = min(p_bg_points, key=lambda point: abs(point[0] - timestamp))
             if abs(nearest[0] - timestamp) <= _PRESSURE_POWER_MAX_GAP:
                 p_bg.append(nearest[1])
     return (
-        float(mean(pair[1] for pair in operating_pairs)),
-        float(mean(pair[2] for pair in operating_pairs)),
+        float(mean(pair[1] for pair in selected_pairs)),
+        float(mean(pair[2] for pair in selected_pairs)),
         float(mean(p_bg)) if p_bg else None,
+    )
+
+
+def _is_stable_pressure_pair(
+    pair: tuple[datetime, float, float], pairs: list[tuple[datetime, float, float]]
+) -> bool:
+    timestamp, p_in, p_out = pair
+    if p_out <= p_in:
+        return False
+    return not any(
+        candidate != pair
+        and abs(candidate[0] - timestamp) <= _PRESSURE_STABILITY_WINDOW
+        and max(abs(candidate[1] - p_in), abs(candidate[2] - p_out))
+        / abs((candidate[0] - timestamp).total_seconds())
+        > _PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND
+        for candidate in pairs
     )
 
 
@@ -129,6 +159,7 @@ def run_telemetry_audit(
     end: datetime,
     *,
     track_clarifications: bool = True,
+    require_daily_pressure_coverage: bool = True,
 ) -> AuditResult:
     """Провести аудит по паспорту и временному окну без YAML-режима."""
     plant = database.plant(plant_code)
@@ -152,7 +183,14 @@ def run_telemetry_audit(
     spec = _aggregate_spec(
         aggregate,
         passport,
-        regime=build_regime(database, plant_code, aggregate_code, start, end),
+        regime=build_regime(
+            database,
+            plant_code,
+            aggregate_code,
+            start,
+            end,
+            require_daily_pressure_coverage=require_daily_pressure_coverage,
+        ),
     )
     return audit_aggregate(spec, Branch(plant["branch"]))
 
@@ -176,8 +214,21 @@ def telemetry_date_statuses(
                 start + timedelta(days=1),
                 track_clarifications=False,
             )
-        except (KeyError, ValueError):
-            statuses[day] = "insufficient"
+        except (ArithmeticError, KeyError, ValueError):
+            try:
+                run_telemetry_audit(
+                    database,
+                    plant_code,
+                    aggregate_code,
+                    start,
+                    start + timedelta(days=1),
+                    track_clarifications=False,
+                    require_daily_pressure_coverage=False,
+                )
+            except (ArithmeticError, KeyError, ValueError):
+                statuses[day] = "insufficient"
+            else:
+                statuses[day] = "snapshot"
         else:
             statuses[day] = "ready"
     return statuses

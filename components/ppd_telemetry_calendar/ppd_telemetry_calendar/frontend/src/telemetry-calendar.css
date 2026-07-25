@@ -12,6 +12,12 @@
   color: #667585;
 }
 
+.rs-calendar-table-cell.ppd-telemetry-calendar__snapshot .rs-calendar-table-cell-content {
+  background: #fdeecb;
+  border-radius: 5px;
+  color: #8a5b00;
+}
+
 .rs-calendar-table-cell.rs-calendar-table-cell-selected .rs-calendar-table-cell-content {
   outline: 2px solid #1677ff;
   outline-offset: -2px;

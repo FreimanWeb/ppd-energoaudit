@@ -33,3 +33,12 @@ def test_result_scope_does_not_call_power_to_flow_ratio_a_daily_fact():
     scope = result_scope(_regime(q_day=None, energy=None), annual_runtime=7200.0)
 
     assert scope.daily_kpi_is_fact is False
+
+
+def test_result_scope_marks_pressure_snapshot_separately_from_daily_kpi():
+    scope = result_scope(
+        _regime(), annual_runtime=7200.0, daily_pressure_coverage_is_complete=False
+    )
+
+    assert scope.daily_kpi_is_fact is True
+    assert scope.daily_pressure_coverage_is_complete is False
