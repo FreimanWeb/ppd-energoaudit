@@ -9,3 +9,4 @@ font = "sans serif"
 
 [server]
 runOnSave = true
+fileWatcherType = "watchdog"
