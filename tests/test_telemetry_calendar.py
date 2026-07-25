@@ -1,6 +1,6 @@
 from datetime import date
 
-from ppd_telemetry_calendar import calendar_data, selected_calendar_date
+from ppd_telemetry_calendar import calendar_data, selected_calendar_date, visible_calendar_month
 
 
 def test_calendar_data_serializes_telemetry_statuses():
@@ -20,3 +20,12 @@ def test_selected_calendar_date_reads_component_state(monkeypatch):
     )
 
     assert selected_calendar_date(key="calendar", fallback=date(2025, 6, 5)) == date(2025, 6, 4)
+
+
+def test_visible_calendar_month_reads_component_state(monkeypatch):
+    monkeypatch.setattr(
+        "ppd_telemetry_calendar.st.session_state",
+        {"calendar": {"visible_month": "2025-07"}},
+    )
+
+    assert visible_calendar_month(key="calendar", fallback=date(2025, 6, 5)) == (2025, 7)

@@ -36,6 +36,15 @@ def selected_calendar_date(*, key: str, fallback: date) -> date:
         return fallback
 
 
+def visible_calendar_month(*, key: str, fallback: date) -> tuple[int, int]:
+    component_state = st.session_state.get(key, {})
+    try:
+        value = date.fromisoformat(f"{component_state.get('visible_month')}-01")
+    except (AttributeError, TypeError, ValueError):
+        value = fallback
+    return value.year, value.month
+
+
 def render_calendar(
     *,
     selected_day: date,

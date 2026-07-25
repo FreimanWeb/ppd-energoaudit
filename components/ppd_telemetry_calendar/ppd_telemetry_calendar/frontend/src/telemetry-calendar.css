@@ -6,6 +6,8 @@
 }
 
 .rs-calendar-table-cell.ppd-telemetry-calendar__insufficient
+  .rs-calendar-table-cell-content,
+.rs-calendar-table-cell.ppd-telemetry-calendar__snapshot
   .rs-calendar-table-cell-content {
   background: #d9e0e8;
   border-radius: 5px;

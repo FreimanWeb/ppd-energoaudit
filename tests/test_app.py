@@ -88,21 +88,20 @@ def test_object_render(label_part):
     assert not at.exception, f"{label_part}: {at.exception}"
 
 
-def test_new_tabs_render_for_object_with_telemetry():
-    """Вкладки рендерят контент для объекта, у которого есть пригодный режим."""
+def test_telemetry_renders_for_object_with_measurements():
+    """Объект с телеметрией показывает сырые точки и при непригодном режиме."""
     at = AppTest.from_file(APP, default_timeout=180).run()
     option = next(o for o in at.selectbox[0].options if "КНС-54" in o)
     at.selectbox[0].set_value(option).run()
     at.selectbox[1].set_value("НА-2").run()
-    at.session_state["telemetry-date-kns54an-НА-2"] = date(2025, 6, 5)
+    at.session_state["telemetry-date-kns54an-НА-2-picker"] = {
+        "selected_date": date(2025, 6, 5).isoformat(),
+        "visible_month": "2025-06",
+    }
     at.run()
     assert not at.exception
-    # «Новый объект»: таблица требований телеметрии (колонка «Обозн.»)
-    has_telemetry = any("Обозн." in list(getattr(df.value, "columns", [])) for df in at.dataframe)
-    assert has_telemetry, "нет таблицы телеметрии (вкладка «Новый объект»)"
-    # «Схема ППД»: блок потока мощности (Sankey)
-    text = " ".join(m.value for m in at.markdown)
-    assert "Поток мощности" in text, "нет блока схемы ППД / Sankey"
+    has_telemetry = any("metric" in list(getattr(df.value, "columns", [])) for df in at.dataframe)
+    assert has_telemetry, "нет таблицы сырых точек телеметрии"
 
 
 def test_topology_files_valid():

@@ -6,7 +6,10 @@ import ruRU from "rsuite/locales/ru_RU";
 import "rsuite/dist/rsuite-no-reset.min.css";
 import "./telemetry-calendar.css";
 
-export type TelemetryCalendarState = { selected_date: string };
+export type TelemetryCalendarState = {
+  selected_date: string;
+  visible_month: string;
+};
 
 export type TelemetryCalendarData = {
   value: string;
@@ -32,6 +35,10 @@ function isoDate(value: Date): string {
   ].join("-");
 }
 
+function isoMonth(value: Date): string {
+  return isoDate(value).slice(0, 7);
+}
+
 const TelemetryCalendar: FC<Props> = ({ data, setStateValue }): ReactElement => {
   const [selected, setSelected] = useState(() => parseDate(data.value));
   const previousValue = useRef(data.value);
@@ -51,6 +58,11 @@ const TelemetryCalendar: FC<Props> = ({ data, setStateValue }): ReactElement => 
     [data.cellClasses, setStateValue],
   );
 
+  const onMonthChange = useCallback(
+    (next: Date) => setStateValue("visible_month", isoMonth(next)),
+    [setStateValue],
+  );
+
   const cellClassName = useCallback(
     (day: Date) => {
       const status = data.cellClasses[isoDate(day)];
@@ -64,6 +76,7 @@ const TelemetryCalendar: FC<Props> = ({ data, setStateValue }): ReactElement => 
       <Calendar
         value={selected}
         onSelect={onSelect}
+        onMonthChange={onMonthChange}
         isoWeek
         compact
         cellClassName={cellClassName}

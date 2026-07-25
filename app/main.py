@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lib
 import streamlit as st
 import ui
-from ppd_telemetry_calendar import render_calendar, selected_calendar_date
+from ppd_telemetry_calendar import render_calendar, selected_calendar_date, visible_calendar_month
 from tabs import (
     data_edit,
     formulas,
@@ -96,8 +96,9 @@ selected_date = selected_calendar_date(
     key=calendar_key,
     fallback=st.session_state.get(selected_key, max(dates)),
 )
+visible_year, visible_month = visible_calendar_month(key=calendar_key, fallback=selected_date)
 month_dates = [
-    day for day in dates if (day.year, day.month) == (selected_date.year, selected_date.month)
+    day for day in dates if (day.year, day.month) == (visible_year, visible_month)
 ]
 date_statuses = lib.telemetry_date_statuses(object_id, agg_id, month_dates)
 with st.sidebar:
