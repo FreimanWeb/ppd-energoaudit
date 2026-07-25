@@ -6,6 +6,8 @@ duplicating the plant passport schema.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from ..spec import ObjectSpec
@@ -42,3 +44,21 @@ class EnergyAuditResponse(BaseModel):
     pump_kind: str
     metrics: EnergyAuditMetrics
     trace: dict[str, dict]
+
+
+class PlantSummary(BaseModel):
+    code: str
+    name: str
+    ngdu_name: str
+    water_type: str
+    branch: str
+    is_example: bool
+
+
+class TelemetryStored(BaseModel):
+    stored: int
+
+
+class TelemetryAuditWindow(BaseModel):
+    start: datetime
+    end: datetime

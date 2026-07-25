@@ -20,12 +20,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-app = ["streamlit>=1.30", "plotly>=5.18"]
+app = [
+    "streamlit>=1.30",
+    "plotly>=5.18",
+    "ppd-telemetry-calendar",
+]
 api = ["fastapi>=0.115", "uvicorn>=0.30"]
 dev = ["pytest>=7.4", "fastapi>=0.115", "uvicorn>=0.30", "httpx2>=2.5"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+ppd-telemetry-calendar = { path = "components/ppd_telemetry_calendar", editable = true }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

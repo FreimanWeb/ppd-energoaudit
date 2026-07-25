@@ -43,3 +43,20 @@ def test_build_excel_telemetry_extracts_rows(tmp_path):
             "quality": "OK",
         },
     ]
+
+
+def test_build_excel_telemetry_carries_date_to_following_aggregate_rows(tmp_path):
+    path = tmp_path / "daily.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["Дата", "Тех. место", "Расход (м3)"])
+    sheet.append([datetime(2026, 1, 2), "НА 1", 100.0])
+    sheet.append([None, "НА 2", 200.0])
+    workbook.save(path)
+
+    payload = build_excel_telemetry(path, source_root=tmp_path)
+
+    assert [(item["timestamp"], item["tag"], item["value"]) for item in payload["telemetry"]] == [
+        ("2026-01-02T00:00:00", "НА 1", 100.0),
+        ("2026-01-02T00:00:00", "НА 2", 200.0),
+    ]

@@ -54,7 +54,8 @@ aggregates:
       eta_nom: 0.95
       cos_phi: 0.9
       voltage_kv: 6.0
-    transmission_eff: 1.0   # η_ред/ременная передача (у плунжерных СИН ~0,97)
+    transmission:
+      efficiency: 1.0       # η_ред/ременная передача (у плунжерных СИН ~0,97)
     vfd: false              # при ПЧ: true → η_пч=0,97 в (15)/(27)
     regime:                 # из телеметрии / замера
       rho: 1130.0

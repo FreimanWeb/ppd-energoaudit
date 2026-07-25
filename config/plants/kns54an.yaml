@@ -1,0 +1,69 @@
+id: kns54an
+name: КНС-54
+ngdu: Азнакаевскнефть
+water_type: агрессивная
+branch: кнс
+source: Отчет № 33 КНС-54 НГДУ «Азнакаевскнефть».pdf
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: ЦНС 180-1422(-2)
+    kind: центробежный
+    q_nom: 180.0
+    h_nom: 1163.5
+    eta_nom: 0.73
+    power_nom: 781.26
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: 4АРМ-1250/6000 УХЛ4
+    synchronous: false
+    p_nom: 1250.0
+    eta_nom: 0.965
+    cos_phi: 0.90
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission:
+    efficiency: 1.0
+  vfd: false
+  regime:
+    rho: 1138.0
+    p_in: 2.02
+    p_out: 14.60
+    q_fact: 178.55
+    p_electric: 1011.96
+    p_bg: 13.72
+    t_year: 8023.67
+- id: НА-2
+  role: работа
+  pump:
+    model: ЦНС 80-1400(-2)
+    kind: центробежный
+    q_nom: 80.0
+    h_nom: 1184.6
+    eta_nom: 0.62
+    power_nom: 416.26
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: СТДМ-800-2РУХЛ4
+    synchronous: true
+    p_nom: 800.0
+    eta_nom: 0.96
+    cos_phi: 0.99
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission:
+    efficiency: 1.0
+  vfd: false
+  regime:
+    rho: 1138.0
+    p_in: 2.53
+    p_out: 11.37
+    q_fact: 134.60
+    p_electric: 687.96
+    p_bg: 10.88
+    t_year: 842.77

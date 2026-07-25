@@ -102,6 +102,12 @@ def _read_xlsx(path: Path) -> list[dict]:
         wb.close()
 
 
+def _xls_value(cell, datemode: int) -> Any:
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        return xlrd.xldate.xldate_as_datetime(cell.value, datemode)
+    return cell.value
+
+
 def _read_xls(path: Path) -> list[dict]:
     book = xlrd.open_workbook(path, on_demand=True)
     try:
@@ -113,10 +119,7 @@ def _read_xls(path: Path) -> list[dict]:
                 row = []
                 for c in range(sh.ncols):
                     cell = sh.cell(r, c)
-                    if cell.ctype == xlrd.XL_CELL_DATE:
-                        row.append(xlrd.xldate.xldate_as_datetime(cell.value, book.datemode))
-                    else:
-                        row.append(cell.value)
+                    row.append(_xls_value(cell, book.datemode))
                 rows.append(row)
             sheets.append({"name": name, "rows": rows})
         return sheets
@@ -141,6 +144,7 @@ def _table_from_header(sheet_name: str, rows: list[list[Any]], header_index: int
         if parsed_metric:
             metrics.append((i, *parsed_metric))
     telemetry = []
+    last_timestamp = None
     for row_number, row in enumerate(rows[header_index + 1 :], header_index + 2):
         ts = None
         for i in date_cols:
@@ -149,7 +153,10 @@ def _table_from_header(sheet_name: str, rows: list[list[Any]], header_index: int
                 if ts:
                     break
         if not ts:
+            ts = last_timestamp
+        if not ts:
             continue
+        last_timestamp = ts
         tag = next((str(row[i]).strip() for i in tag_cols if i < len(row) and row[i]), sheet_name)
         quality = next(
             (_json_value(row[i]) for i in quality_cols if i < len(row) and row[i] is not None), None

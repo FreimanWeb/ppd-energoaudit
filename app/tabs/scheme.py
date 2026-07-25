@@ -58,7 +58,7 @@ def _node_hover(n, typ, au, rm):
     return "<br>".join(lines)
 
 
-def _topology_figure(topo, object_id, sel_agg, rm):
+def _topology_figure(topo, selected_audit, sel_agg, rm):
     """Интерактивная as-built схема: трубопроводы + узлы с hover и подсветкой.
 
     Насосы подсвечиваются по КПД (зелёный/жёлтый/красный), выбранный агрегат — золотой
@@ -67,13 +67,11 @@ def _topology_figure(topo, object_id, sel_agg, rm):
     nodes = topo.get("nodes", [])
     pos = {n["id"]: (n["x"], n["y"]) for n in nodes}
 
-    pumps = {}  # node_id -> AuditResult (для подсветки/ховера насосов)
-    for n in nodes:
-        if n.get("type") == "pump" and n.get("agg"):
-            try:
-                pumps[n["id"]] = lib.get_audit(object_id, n["agg"])
-            except Exception:
-                pass
+    pumps = {
+        n["id"]: selected_audit
+        for n in nodes
+        if n.get("type") == "pump" and n.get("agg") == sel_agg
+    }
 
     def eta_fill(au):
         r = (au.regime.eta_unit / au.regime.eta_nom) if au.regime.eta_nom else 1.0
@@ -315,7 +313,7 @@ def render(ctx: Ctx) -> None:
             "Золотая рамка — выбранный агрегат · оранжевый пунктир — дросселирование."
         )
         st.plotly_chart(
-            _topology_figure(topo, ctx.object_id, ctx.agg_id, rm_s),
+            _topology_figure(topo, ctx.audit, ctx.agg_id, rm_s),
             width="stretch",
             config={"displayModeBar": False},
         )

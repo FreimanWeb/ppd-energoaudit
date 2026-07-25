@@ -1,5 +1,5 @@
 id: kns13ln
-name: КНС-13 ЛН
+name: КНС-13
 ngdu: Лениногорскнефть
 water_type: пресная
 branch: кнс
@@ -25,7 +25,8 @@ aggregates:
     eta_nom: 0.95
     voltage_kv: 6.0
     n_rpm: 2978.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1073.0

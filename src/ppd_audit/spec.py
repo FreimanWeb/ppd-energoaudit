@@ -1,6 +1,7 @@
 """Универсальное нормализованное описание объекта ППД (источник-независимое).
 
-Иерархия:  ObjectSpec → AggregateSpec → {PumpSpec, MotorSpec, RegimeMeasurement, ReferenceOutputs}
+Иерархия:  ObjectSpec → AggregateSpec → {PumpSpec, MotorSpec, TransmissionSpec,
+RegimeMeasurement, ReferenceOutputs}
 
 Ядро формул (7)-(47) работает с этими структурами и не знает о формате исходников.
 Спец собирается из любого источника: yaml-паспорт объекта, парсер «… расчет.xlsx»
@@ -129,12 +130,20 @@ class ReferenceOutputs(BaseModel):
     t_year: float | None = None  # T_год, ч
 
 
+class TransmissionSpec(BaseModel):
+    """Механическая передача между двигателем и насосом."""
+
+    model: str | None = None
+    ratio: float | None = None
+    efficiency: float = 1.0
+
+
 class AggregateSpec(BaseModel):
     id: str
     role: str = "работа"  # работа | резерв
     pump: PumpSpec = Field(default_factory=lambda: PumpSpec())
     motor: MotorSpec = Field(default_factory=lambda: MotorSpec())
-    transmission_eff: float = 1.0
+    transmission: TransmissionSpec = Field(default_factory=TransmissionSpec)
     vfd: bool = False
     eta_pump_due: float | None = None  # должный КПД насоса при рабочей подаче (с кривой Q-η)
     h_pump_due: float | None = None  # должный напор при рабочей подаче, м (с кривой Q-H)
@@ -145,7 +154,7 @@ class AggregateSpec(BaseModel):
         """η_ном = η_ЭД.ном · η_нас.ном · η_тр · [η_пч] (14)/(15)."""
         if self.pump.eta_nom is None or self.motor.eta_nom is None:
             return None
-        eta = self.motor.eta_nom * self.pump.eta_nom * self.transmission_eff
+        eta = self.motor.eta_nom * self.pump.eta_nom * self.transmission.efficiency
         if self.vfd:
             eta *= eta_vfd
         return eta

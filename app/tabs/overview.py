@@ -17,8 +17,11 @@ from tabs.common import Ctx, fmt, loss_components
 
 
 def _kpi_rows(ctx: Ctx) -> None:
-    audit, reg, tariff = ctx.audit, ctx.audit.regime, ctx.tariff
-    ui.provenance(("Расчёт по Методике", "ok"), ("Тариф и цель — конфиг", ""))
+    audit, reg = ctx.audit, ctx.audit.regime
+    if ctx.scope.daily_kpi_is_fact:
+        ui.provenance(("Суточный факт: W / Q_сут", "ok"), ("Расчёт по Методике", ""))
+    else:
+        ui.provenance(("УРЭ по режиму, не суточный факт", "warn"), ("Расчёт по Методике", ""))
     c = st.columns(4)
     sec_dev = (audit.sec_fact - audit.sec_calc) / audit.sec_calc * 100 if audit.sec_calc else None
     c[0].metric(
@@ -45,7 +48,7 @@ def _kpi_rows(ctx: Ctx) -> None:
         help="Целевой УРЭ системы ППД к 2035 г. (ТЗ).",
     )
 
-    c = st.columns(4)
+    c = st.columns(2)
     c[0].metric(
         "КПД факт",
         fmt(reg.eta_unit, 3),
@@ -56,12 +59,25 @@ def _kpi_rows(ctx: Ctx) -> None:
         fmt(reg.eta_nom, 3),
         help="Паспортный КПД (η_ЭД·η_нас·η_тр, формула 14/15).",
     )
-    c[2].metric(
+
+
+def _annual_kpis(ctx: Ctx) -> None:
+    audit, tariff = ctx.audit, ctx.tariff
+    if ctx.scope.annual_runtime_is_assumed:
+        ui.provenance(("Сценарий: T_год = 8760 ч", "warn"), ("Тариф и цель — конфиг", ""))
+        st.warning("Годовые значения не являются фактом: нет полного года ежедневных моточасов.")
+    else:
+        ui.provenance(
+            (f"Год телеметрии: T_год = {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"),
+            ("Тариф и цель — конфиг", ""),
+        )
+    c = st.columns(2)
+    c[0].metric(
         "ΔW по КПД, кВт·ч/год",
         fmt(audit.dw_efficiency, 0),
         help="Годовые потери из-за снижения КПД (формула 44).",
     )
-    c[3].metric(
+    c[1].metric(
         "ΔW по КПД, тыс. ₽/год",
         fmt(audit.dw_efficiency * tariff / 1000, 1),
         help="Те же потери в деньгах по тарифу.",
@@ -86,7 +102,7 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
             parts = [("Полезная", useful, "#2e9e6b")] + [
                 (lbl, v, c)
                 for (lbl, v), c in zip(
-                    losses, ["#d9534f", "#e0a106", "#e08a6b", "#c48a4a", "#9aa5b1"]
+                    losses, ["#d9534f", "#e0a106", "#e08a6b", "#c48a4a", "#9aa5b1"], strict=False
                 )
             ]
             fig = go.Figure()
@@ -100,16 +116,18 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
                         marker_color=color,
                         text=f"{lbl}<br>{v / p_el * 100:.0f} %",
                         textposition="inside",
-                        hovertemplate=f"{lbl}: {fmt(v, 1)} кВт ({v / p_el * 100:.1f} %)<extra></extra>",
+                        hovertemplate=(
+                            f"{lbl}: {fmt(v, 1)} кВт ({v / p_el * 100:.1f} %)<extra></extra>"
+                        ),
                     )
                 )
             fig.update_layout(
                 barmode="stack",
                 height=110,
                 showlegend=False,
-                margin=dict(t=6, b=6, l=6, r=6),
-                xaxis=dict(title="% от P_эл", range=[0, 100]),
-                yaxis=dict(visible=False),
+                margin={"t": 6, "b": 6, "l": 6, "r": 6},
+                xaxis={"title": "% от P_эл", "range": [0, 100]},
+                yaxis={"visible": False},
                 plot_bgcolor="white",
             )
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
@@ -166,7 +184,7 @@ def _gauge_and_sec_bar(ctx: Ctx) -> None:
                 },
             )
         )
-        gfig.update_layout(height=250, margin=dict(t=40, b=10, l=24, r=24))
+        gfig.update_layout(height=250, margin={"t": 40, "b": 10, "l": 24, "r": 24})
         st.plotly_chart(gfig, width="stretch")
         st.caption(
             "Порог (синяя черта) — номинальный КПД. Зоны: 🔴 <0,78·ном · 🟡 <0,9·ном · 🟢 норма."
@@ -186,12 +204,12 @@ def _gauge_and_sec_bar(ctx: Ctx) -> None:
                 marker_color=["#d9534f", "#2f80ed", "#2e9e6b", "#1f4e79"],
                 text=[fmt(v, 2) for v in vals],
                 textposition="outside",
-                textfont=dict(size=13),
+                textfont={"size": 13},
             )
         )
         bfig.update_layout(
             height=250,
-            margin=dict(t=40, b=10),
+            margin={"t": 40, "b": 10},
             yaxis_title="кВт·ч/м³",
             title={"text": "УРЭ: факт → расчёт → оптимум → цель", "font": {"size": 14}},
             plot_bgcolor="#f7fafd",
@@ -287,12 +305,16 @@ def _report_excerpt(ctx: Ctx) -> None:
 
 
 def render(ctx: Ctx) -> None:
-    st.subheader("Ключевые показатели (KPI)")
+    st.subheader("Суточный KPI")
     _kpi_rows(ctx)
     st.divider()
+    st.subheader("Режимный расчёт")
     _loss_structure_and_measures(ctx)
     st.divider()
     _gauge_and_sec_bar(ctx)
+    st.divider()
+    st.subheader("Годовая оценка")
+    _annual_kpis(ctx)
     st.divider()
     _passport_and_regime(ctx)
     _report_excerpt(ctx)

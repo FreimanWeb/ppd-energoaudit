@@ -27,7 +27,8 @@ aggregates:
     voltage_kv: 0.38
     i_nom: 625.0
     n_rpm: 1488.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1000.0
@@ -72,7 +73,8 @@ aggregates:
     voltage_kv: 6.0
     i_nom: 71.0
     n_rpm: 3000.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1000.0

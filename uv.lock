@@ -928,6 +928,7 @@ api = [
 ]
 app = [
     { name = "plotly" },
+    { name = "ppd-telemetry-calendar" },
     { name = "streamlit" },
 ]
 dev = [
@@ -946,6 +947,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "plotly", marker = "extra == 'app'", specifier = ">=5.18" },
+    { name = "ppd-telemetry-calendar", marker = "extra == 'app'", editable = "components/ppd_telemetry_calendar" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4" },
     { name = "python-docx", specifier = ">=1.1" },
@@ -957,6 +959,17 @@ requires-dist = [
     { name = "xlrd", specifier = ">=2.0" },
 ]
 provides-extras = ["app", "api", "dev"]
+
+[[package]]
+name = "ppd-telemetry-calendar"
+version = "0.0.1"
+source = { editable = "components/ppd_telemetry_calendar" }
+dependencies = [
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "streamlit", specifier = ">=1.30" }]
 
 [[package]]
 name = "protobuf"

@@ -4,6 +4,8 @@
 (включая КНС-ОПУ с расхождениями и ДНС-7с без эталона).
 """
 
+from datetime import date
+
 import pytest
 
 
@@ -17,8 +19,15 @@ APP = "app/main.py"
 def test_default_render():
     at = AppTest.from_file(APP, default_timeout=180).run()
     assert not at.exception
-    assert len(at.tabs) == 9
-    assert len(at.metric) >= 8
+    assert any(item.value == "Телеметрия за сутки" for item in at.subheader)
+    assert at.dataframe
+
+
+def test_data_editor_is_available():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+
+    assert at.radio[0].label == "Режим"
+    assert "Редактирование данных" in at.radio[0].options
 
 
 @pytest.mark.parametrize("label_part", ["КНС-129", "КНС-138", "КНС-175"])
@@ -34,6 +43,35 @@ def test_example_objects_are_marked_in_specs(object_id):
     assert load_object_spec(object_id).is_example
 
 
+def test_object_selector_shows_ngdu():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    assert any(
+        "КНС-25" in option and "Джалильнефть" in option for option in at.selectbox[0].options
+    )
+
+
+def test_ngdu_filter_lists_known_ngdu():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+
+    assert at.multiselect[1].label == "НГДУ"
+    assert "Азнакаевскнефть" in at.multiselect[1].options
+
+
+def test_regime_date_is_selected_with_calendar():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+
+    assert not at.date_input
+    assert not at.exception
+
+
+def test_object_without_telemetry_shows_message():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    option = next(o for o in at.selectbox[0].options if "КНС-25" in o)
+    at.selectbox[0].set_value(option).run()
+
+    assert any("Нет телеметрии" in element.value for element in at.warning)
+
+
 @pytest.mark.parametrize("label_part", ["КНС-ОПУ", "КНС-25", "ДНС-7с"])
 def test_object_render(label_part):
     at = AppTest.from_file(APP, default_timeout=180).run()
@@ -42,19 +80,21 @@ def test_object_render(label_part):
     assert not at.exception, f"{label_part}: {at.exception}"
 
 
-@pytest.mark.parametrize("label_part", ["КНС-25", "КНС-ОПУ", "ДНС-7с", "КНС-14"])
-def test_new_tabs_render(label_part):
-    """Вкладки «Схема ППД» и «Новый объект» рендерят свой контент для любого объекта."""
+def test_new_tabs_render_for_object_with_telemetry():
+    """Вкладки рендерят контент для объекта, у которого есть пригодный режим."""
     at = AppTest.from_file(APP, default_timeout=180).run()
-    option = next(o for o in at.selectbox[0].options if label_part in o)
+    option = next(o for o in at.selectbox[0].options if "КНС-54" in o)
     at.selectbox[0].set_value(option).run()
-    assert not at.exception, f"{label_part}: {at.exception}"
+    at.selectbox[1].set_value("НА-2").run()
+    at.session_state["telemetry-date-kns54an-НА-2"] = date(2025, 6, 5)
+    at.run()
+    assert not at.exception
     # «Новый объект»: таблица требований телеметрии (колонка «Обозн.»)
     has_telemetry = any("Обозн." in list(getattr(df.value, "columns", [])) for df in at.dataframe)
-    assert has_telemetry, f"{label_part}: нет таблицы телеметрии (вкладка «Новый объект»)"
+    assert has_telemetry, "нет таблицы телеметрии (вкладка «Новый объект»)"
     # «Схема ППД»: блок потока мощности (Sankey)
     text = " ".join(m.value for m in at.markdown)
-    assert "Поток мощности" in text, f"{label_part}: нет блока схемы ППД / Sankey"
+    assert "Поток мощности" in text, "нет блока схемы ППД / Sankey"
 
 
 def test_topology_files_valid():
@@ -75,10 +115,21 @@ def test_topology_files_valid():
             assert e["from"] in ids and e["to"] in ids, f"{f.name}: битое ребро {e}"
 
 
-def test_scheme_shows_asbuilt_when_topology_exists():
-    """Объект с топологией (КНС-25) показывает as-built схему по техсхеме."""
+def test_object_with_topology_and_no_telemetry_shows_message():
+    """Топология не разрешает использовать legacy-режим без телеметрии."""
     at = AppTest.from_file(APP, default_timeout=180).run()
     option = next(o for o in at.selectbox[0].options if "КНС-25" in o)
     at.selectbox[0].set_value(option).run()
     assert not at.exception
-    assert "as-built" in " ".join(m.value for m in at.markdown)
+    assert any("Нет телеметрии" in element.value for element in at.warning)
+
+
+def test_object_with_unallocated_station_telemetry_shows_message():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    option = next(o for o in at.selectbox[0].options if "КНС-ОПУ" in o)
+    at.selectbox[0].set_value(option).run()
+
+    at.selectbox[1].set_value("НА-3").run()
+
+    assert any("Нет пригодного режима" in element.value for element in at.warning)
+    assert any(item.value == "Телеметрия за сутки" for item in at.subheader)

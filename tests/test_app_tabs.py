@@ -1,9 +1,6 @@
-"""По-вкладочные AppTest-тесты дашборда (Фаза 3 ревизии, 02.07.2026).
+"""По-вкладочные AppTest-тесты дашборда SQLite-телеметрии."""
 
-Каждая из 9 вкладок рендерит свой ключевой контент без исключений на двух
-контрастных объектах: ДНС-7с (пилот с телеметрией, ветка перекачки, без отчёта)
-и КНС-25 (без телеметрии, инженерный xlsx + текстовый отчёт, есть as-built схема).
-"""
+from datetime import date
 
 import pytest
 
@@ -16,7 +13,8 @@ APP = "app/main.py"
 
 # Вкладка → маркер контента (ищется в subheader/markdown/caption).
 TAB_MARKERS = {
-    "Обзор": ["Ключевые показатели", "Структура потерь", "Топ-мероприятия", "Паспорт и режим"],
+    "Обзор": ["Суточный KPI", "Структура потерь", "Топ-мероприятия", "Паспорт и режим"],
+    "Телеметрия": ["Телеметрия за сутки"],
     "Схема ППД": ["Схема работы ППД", "Поток мощности"],
     "Карта потерь": ["Цифровая карта потерь мощности", "Структура (доли от подведённой мощности"],
     "Рабочая точка": ["Рабочая точка: насос × трубопровод"],
@@ -31,7 +29,11 @@ TAB_MARKERS = {
 def _run_for(label_part: str) -> AppTest:
     at = AppTest.from_file(APP, default_timeout=240).run()
     option = next(o for o in at.selectbox[0].options if label_part in o)
-    return at.selectbox[0].set_value(option).run()
+    at.selectbox[0].set_value(option).run()
+    if label_part == "КНС-54":
+        at.selectbox[1].set_value("НА-2").run()
+        return at.date_input[0].set_value(date(2025, 6, 5)).run()
+    return at
 
 
 def _all_text(at: AppTest) -> str:
@@ -42,48 +44,29 @@ def _all_text(at: AppTest) -> str:
 
 
 @pytest.fixture(scope="module")
-def at_dns7s():
-    return _run_for("ДНС-7с")
-
-
-@pytest.fixture(scope="module")
-def at_kns25():
-    return _run_for("КНС-25")
+def at_kns54():
+    return _run_for("КНС-54")
 
 
 @pytest.mark.parametrize("tab_name", list(TAB_MARKERS))
-def test_tab_renders_dns7s(at_dns7s, tab_name):
-    """ДНС-7с (телеметрия, перекачка): каждая вкладка рендерит свой контент."""
-    assert not at_dns7s.exception, at_dns7s.exception
-    text = _all_text(at_dns7s)
+def test_tab_renders_kns54(at_kns54, tab_name):
+    """КНС-54: каждая вкладка рендерит контент из SQLite-телеметрии."""
+    assert not at_kns54.exception, at_kns54.exception
+    text = _all_text(at_kns54)
     for marker in TAB_MARKERS[tab_name]:
-        assert marker in text, f"ДНС-7с, вкладка «{tab_name}»: нет «{marker}»"
+        assert marker in text, f"КНС-54, вкладка «{tab_name}»: нет «{marker}»"
 
 
-@pytest.mark.parametrize("tab_name", list(TAB_MARKERS))
-def test_tab_renders_kns25(at_kns25, tab_name):
-    """КНС-25 (без телеметрии, с отчётом): каждая вкладка рендерит свой контент."""
-    assert not at_kns25.exception, at_kns25.exception
-    text = _all_text(at_kns25)
-    for marker in TAB_MARKERS[tab_name]:
-        assert marker in text, f"КНС-25, вкладка «{tab_name}»: нет «{marker}»"
+@pytest.mark.parametrize("label_part", ["ДНС-7с", "КНС-25"])
+def test_object_without_telemetry_shows_message(label_part):
+    at = _run_for(label_part)
+    assert not at.exception
+    assert any("Нет телеметрии" in warning.value for warning in at.warning)
 
 
-def test_empty_states_are_friendly(at_dns7s):
-    """Пустые состояния — человеческим языком, без traceback.
-
-    У ДНС-7с нет текстового отчёта → вкладка «Модель vs Отчёт» объясняет почему;
-    у ДНС-7с есть телеметрия → «Качество данных» показывает отчёт качества."""
-    assert not at_dns7s.exception
-    infos = " ".join(i.value for i in at_dns7s.info)
-    assert "нет текстового отчёта" in infos
-    text = _all_text(at_dns7s)
-    assert "Traceback" not in text
-
-
-def test_overview_answers_manager_questions(at_kns25):
+def test_overview_answers_manager_questions(at_kns54):
     """Главная вкладка отвечает руководителю: УРЭ ф/р/опт, потери, топ-мероприятия."""
-    labels = {m.label for m in at_kns25.metric}
+    labels = {m.label for m in at_kns54.metric}
     assert {
         "УРЭ факт, кВт·ч/м³",
         "УРЭ расчётный, кВт·ч/м³",
@@ -92,13 +75,11 @@ def test_overview_answers_manager_questions(at_kns25):
         "ΔW по КПД, кВт·ч/год",
         "ΔW по КПД, тыс. ₽/год",
     } <= labels
-    text = _all_text(at_kns25)
+    text = _all_text(at_kns54)
     assert "Структура потерь" in text and "Топ-мероприятия" in text
 
 
-def test_dashboard_marks_calculated_and_estimated_blocks(at_kns25):
-    text = _all_text(at_kns25)
+def test_dashboard_marks_calculated_blocks(at_kns54):
+    text = _all_text(at_kns54)
     assert "Расчёт по Методике" in text
-    assert "Эвристическая оценка" in text
-    assert "As-built схема" in text
     assert "Паспортная или модельная кривая" in text

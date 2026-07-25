@@ -25,7 +25,8 @@ aggregates:
     eta_nom: 0.95
     voltage_kv: 6.0
     n_rpm: 2975.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1082.0

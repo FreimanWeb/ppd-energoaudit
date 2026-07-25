@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 
 
 WATER_EMOJI = {"пресная": "💧", "агрессивная": "🧪", "пластовая": "🛢️"}
@@ -20,6 +21,8 @@ class Ctx:
     agg: object  # AggregateSpec
     audit: object  # AuditResult
     tariff: float
+    selected_date: date
+    scope: object  # ResultScope
 
 
 def fmt(x, nd: int = 2) -> str:

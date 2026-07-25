@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import streamlit as st
@@ -17,8 +18,16 @@ if str(_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_ROOT / "src"))
 
 from ppd_audit.config import load_constraints  # noqa: E402
-from ppd_audit.core.audit import AuditResult, audit_aggregate  # noqa: E402
-from ppd_audit.spec import ObjectSpec, load_object_spec  # noqa: E402
+from ppd_audit.core.audit import AuditResult  # noqa: E402
+from ppd_audit.db import default_database_path  # noqa: E402
+from ppd_audit.db_seed import bootstrap_database  # noqa: E402
+from ppd_audit.services.result_scope import ResultScope, result_scope as _result_scope  # noqa: E402
+from ppd_audit.services.telemetry_audit import (  # noqa: E402
+    object_from_database,
+    run_telemetry_audit,
+    telemetry_date_statuses as _telemetry_date_statuses,
+)
+from ppd_audit.spec import ObjectSpec  # noqa: E402
 from ppd_audit.verify.reconcile import run_reconciliation  # noqa: E402
 from ppd_audit.verify.runner import run_verification  # noqa: E402
 
@@ -26,7 +35,10 @@ from ppd_audit.verify.runner import run_verification  # noqa: E402
 WATER_ORDER = ["пресная", "агрессивная", "пластовая"]
 
 
-@st.cache_data(show_spinner=False)
+def database():
+    return bootstrap_database(default_database_path(), _ROOT / "config" / "plants")
+
+
 def list_object_ids() -> list[str]:
     """Все объекты из config/plants/*.yaml, для которых грузится спец."""
     ids = []
@@ -39,31 +51,62 @@ def list_object_ids() -> list[str]:
     return ids
 
 
-@st.cache_data(show_spinner=False)
-def get_object(object_id: str) -> ObjectSpec:
-    return load_object_spec(object_id)
+def get_object(object_id: str, at: datetime, aggregate_id: str | None = None) -> ObjectSpec:
+    return object_from_database(database(), object_id, at, aggregate_code=aggregate_id)
 
 
-@st.cache_data(show_spinner=False)
 def object_index() -> list[dict]:
     """Список объектов с метаданными для выбора/фильтра."""
     out = []
-    for oid in list_object_ids():
-        o = get_object(oid)
+    for record in database().plants():
+        oid = record["code"]
+        aggregates = database().aggregates(oid)
         out.append({
             "id": oid,
-            "name": o.name,
-            "water": o.water_type.value,
-            "branch": o.branch.value,
-            "n_agg": len(o.working_aggregates()),
+            "name": record["name"],
+            "water": record["water_type"],
+            "branch": record["branch"],
+            "n_agg": len(aggregates),
+            "aggregate_ids": [aggregate["code"] for aggregate in aggregates],
+            "ngdu": record["ngdu_name"],
         })
     return out
 
 
-@st.cache_data(show_spinner=False)
-def get_audit(object_id: str, aggregate_id: str) -> AuditResult:
-    obj = get_object(object_id)
-    return audit_aggregate(obj.aggregate(aggregate_id), obj.branch)
+def open_clarifications(object_id: str) -> list[dict[str, str]]:
+    """Временные паспортные значения выбранного объекта."""
+    return database().open_clarifications(object_id)
+
+
+def get_audit(object_id: str, aggregate_id: str, start: datetime, end: datetime) -> AuditResult:
+    return run_telemetry_audit(database(), object_id, aggregate_id, start, end)
+
+
+def telemetry_dates(object_id: str, aggregate_id: str) -> list[date]:
+    return database().telemetry_dates(object_id, aggregate_id)
+
+
+def telemetry_date_statuses(
+    object_id: str, aggregate_id: str, dates: list[date]
+) -> dict[date, str]:
+    return _telemetry_date_statuses(database(), object_id, aggregate_id, dates)
+
+
+def telemetry_for_day(object_id: str, aggregate_id: str, day: date) -> list[dict]:
+    """Сырые точки агрегата и станции за сутки — для графиков без эвристик."""
+    start = datetime.combine(day, datetime.min.time())
+    return database().measurements_in_window(
+        object_id,
+        aggregate_id,
+        start,
+        start + timedelta(days=1),
+        include_station=True,
+    )
+
+
+def result_scope_for(object_id: str, aggregate_id: str, end: datetime, regime) -> ResultScope:
+    """Статус суточного KPI и годовой оценки для отображения в UI."""
+    return _result_scope(regime, database().annual_runtime(object_id, aggregate_id, end))
 
 
 @st.cache_data(show_spinner=True)

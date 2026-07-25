@@ -15,6 +15,16 @@ def render(ctx: Ctx) -> None:
 
     st.subheader("Реестр мероприятий с ТЭО")
     ui.provenance(("Эвристическая оценка", "warn"), ("CAPEX — типовой", ""))
+    if ctx.scope.annual_runtime_is_assumed:
+        st.caption(
+            "Экономия за год — сценарий при T_год = 8760 ч; "
+            "фактическая наработка требует уточнения."
+        )
+    else:
+        st.caption(
+            "Экономия за год рассчитана по T_год = "
+            f"{fmt(ctx.scope.annual_runtime_hours, 1)} ч из телеметрии."
+        )
     evals = suggest_measures(ctx.audit, ctx.tariff)
     if evals:
         st.dataframe(

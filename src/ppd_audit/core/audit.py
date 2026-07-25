@@ -72,7 +72,7 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
         tr,
         "14",
         "η_ном = η_ЭД.ном·η_нас.ном·η_тр",
-        f"{agg.motor.eta_nom}·{agg.pump.eta_nom}·{agg.transmission_eff}",
+        f"{agg.motor.eta_nom}·{agg.pump.eta_nom}·{agg.transmission.efficiency}",
         round(eta_nom, 4),
     )
 
@@ -116,7 +116,7 @@ def audit_aggregate(agg: AggregateSpec, branch: Branch = Branch.kns) -> AuditRes
 
     # --- ЭД (24)-(27); η_пч/η_ред из спеца агрегата — формулы (15), (27)
     eta_vfd = ETA_VFD_DEFAULT if agg.vfd else 1.0
-    eta_gear = agg.transmission_eff
+    eta_gear = agg.transmission.efficiency
     kz = motor.load_factor(regime.p_electric, motor_p_nom, motor_eta_nom)
     eta_mr = motor.motor_efficiency(kz, motor_eta_nom, agg.motor.alpha)
     eta_pump = motor.pump_efficiency(regime.eta_unit, eta_mr, eta_vfd, eta_gear)

@@ -1,5 +1,5 @@
 id: kns14an
-name: КНС-14 АН
+name: КНС-14
 ngdu: Альметьевнефть
 water_type: пресная
 branch: кнс
@@ -27,7 +27,8 @@ aggregates:
     voltage_kv: 6.0
     i_nom: 52.0
     n_rpm: 2978.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1000.0
@@ -69,7 +70,8 @@ aggregates:
     voltage_kv: 0.38
     i_nom: 889.0
     n_rpm: 1500.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1000.0

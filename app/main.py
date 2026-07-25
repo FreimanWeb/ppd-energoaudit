@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, time, timedelta
 
 
 # каталог app/ для import lib/ui/tabs
@@ -20,7 +21,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lib
 import streamlit as st
 import ui
+from ppd_telemetry_calendar import render_calendar, selected_calendar_date
 from tabs import (
+    data_edit,
     formulas,
     losses,
     measures,
@@ -29,6 +32,7 @@ from tabs import (
     quality,
     reconcile,
     scheme,
+    telemetry,
     working_point,
 )
 from tabs.common import WATER_EMOJI, Ctx, fmt
@@ -40,40 +44,119 @@ ui.inject_css()
 # ───────────────────────── Sidebar: выбор объекта ─────────────────────────
 
 st.sidebar.title("⚡ Энергоаудит ППД")
+mode = st.sidebar.radio("Режим", ("Анализ", "Редактирование данных"))
 index = lib.object_index()
 waters = sorted(
     {o["water"] for o in index},
     key=lambda w: lib.WATER_ORDER.index(w) if w in lib.WATER_ORDER else 9,
 )
 sel_waters = st.sidebar.multiselect("Тип воды", waters, default=waters)
-flt = [o for o in index if o["water"] in sel_waters] or index
+ngdus = sorted({o["ngdu"] for o in index})
+sel_ngdus = st.sidebar.multiselect("НГДУ", ngdus, default=ngdus)
+flt = [o for o in index if o["water"] in sel_waters and o["ngdu"] in sel_ngdus] or index
 
 obj_labels = {
-    f"{o['name']}  ·  {WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"] for o in flt
+    f"{o['name']} · {o['ngdu']}  ·  {WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"]
+    for o in flt
 }
-obj_choice = st.sidebar.selectbox("Объект", list(obj_labels))
+object_options = list(obj_labels)
+default_object_index = next(
+    (index for index, label in enumerate(object_options) if "КНС-54" in label), 0
+)
+obj_choice = st.sidebar.selectbox("Объект", object_options, index=default_object_index)
 object_id = obj_labels[obj_choice]
-obj = lib.get_object(object_id)
+selected = next(o for o in index if o["id"] == object_id)
 
-agg_ids = [a.id for a in obj.working_aggregates()]
+agg_ids = selected["aggregate_ids"]
 agg_id = st.sidebar.selectbox("Агрегат", agg_ids)
-agg = obj.aggregate(agg_id)
-audit = lib.get_audit(object_id, agg_id)
+if mode == "Редактирование данных":
+    data_edit.render(object_id, agg_id)
+    st.stop()
+dates = lib.telemetry_dates(object_id, agg_id)
+if not dates:
+    st.warning(f"Нет телеметрии для {selected['name']} / {agg_id}.")
+    st.stop()
 
-ctx = Ctx(object_id=object_id, agg_id=agg_id, obj=obj, agg=agg, audit=audit, tariff=lib.tariff())
+selected_key = f"telemetry-date-{object_id}-{agg_id}"
+calendar_key = f"{selected_key}-picker"
+selected_date = selected_calendar_date(
+    key=calendar_key,
+    fallback=st.session_state.get(selected_key, max(dates)),
+)
+month_dates = [
+    day for day in dates if (day.year, day.month) == (selected_date.year, selected_date.month)
+]
+date_statuses = lib.telemetry_date_statuses(object_id, agg_id, month_dates)
+with st.sidebar:
+    selected_date = render_calendar(
+        selected_day=selected_date,
+        statuses=date_statuses,
+        min_day=min(dates),
+        max_day=max(dates),
+        key=calendar_key,
+    )
+st.session_state[selected_key] = selected_date
+if selected_date not in date_statuses:
+    st.warning(f"Нет телеметрии за {selected_date} для {selected['name']} / {agg_id}.")
+    st.stop()
+start = datetime.combine(selected_date, time.min)
+end = start + timedelta(days=1)
+if date_statuses[selected_date] != "ready":
+    try:
+        lib.get_audit(object_id, agg_id, start, end)
+    except (KeyError, ValueError) as exc:
+        st.warning(f"Нет пригодного режима за {selected_date}: {exc}")
+    else:
+        st.warning(f"Нет пригодного режима за {selected_date}: телеметрия недостаточна.")
+    telemetry.render_day(object_id, agg_id, selected_date)
+    st.stop()
+try:
+    obj = lib.get_object(object_id, start, agg_id)
+    audit = lib.get_audit(object_id, agg_id, start, end)
+except (KeyError, ValueError) as exc:
+    st.warning(f"Нет пригодного режима за {selected_date}: {exc}")
+    telemetry.render_day(object_id, agg_id, selected_date)
+    st.stop()
+agg = audit.spec
+scope = lib.result_scope_for(object_id, agg_id, end, audit.spec.regime)
+
+clarifications = lib.open_clarifications(object_id)
+if clarifications:
+    with st.sidebar.expander(f"Требуют уточнения ({len(clarifications)})"):
+        for item in clarifications:
+            field = {"t_year": "T_год", "transmission_eff": "КПД трансмиссии"}.get(
+                item["field"], item["field"]
+            )
+            st.caption(
+                f"{item['plant_name']} · {item['aggregate_code']}: "
+                f"{field} = {item['provisional_value']}"
+            )
+            st.caption(item["reason"])
+
+ctx = Ctx(
+    object_id=object_id,
+    agg_id=agg_id,
+    obj=obj,
+    agg=agg,
+    audit=audit,
+    tariff=lib.tariff(),
+    selected_date=selected_date,
+    scope=scope,
+)
 
 st.sidebar.markdown("---")
+st.sidebar.caption(f"НГДУ: **{selected['ngdu']}**")
 st.sidebar.caption(f"Ветка расчёта: **{obj.branch.value}**")
 st.sidebar.caption(f"Тип насоса: **{audit.pump_kind}**")
-st.sidebar.caption(f"Источник: {obj.source.split('/')[-1]}")
+st.sidebar.caption(f"Суточный режим: **{selected_date}**")
 
 # ───────────────────────── Hero-хедер ─────────────────────────
 
 _eta_ratio = (audit.regime.eta_unit / audit.regime.eta_nom) if audit.regime.eta_nom else 1.0
 _eta_tone = "ok" if _eta_ratio >= 0.9 else ("warn" if _eta_ratio >= 0.78 else "bad")
 ui.hero(
-    f"{obj.name} · {agg_id}",
-    f"Цифровой энергоаудит ППД · источник: {obj.source.split('/')[-1]}",
+    f"{obj.name} · {agg_id} · НГДУ {selected['ngdu']}",
+    f"Цифровой энергоаудит ППД · SQLite · сутки: {selected_date}",
     [
         (f"{WATER_EMOJI.get(obj.water_type.value, '')} {obj.water_type.value} вода", ""),
         (f"ветка: {obj.branch.value}", ""),
@@ -87,6 +170,7 @@ ui.hero(
 
 TABS = [
     ("📋 Обзор", overview),
+    ("📊 Телеметрия", telemetry),
     ("🗺️ Схема ППД", scheme),
     ("📉 Карта потерь", losses),
     ("📈 Рабочая точка", working_point),
@@ -97,6 +181,6 @@ TABS = [
     ("✅ Качество данных", quality),
 ]
 
-for tab, (_, module) in zip(st.tabs([t for t, _ in TABS]), TABS):
+for tab, (_, module) in zip(st.tabs([t for t, _ in TABS]), TABS, strict=True):
     with tab:
         module.render(ctx)

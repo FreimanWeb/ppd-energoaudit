@@ -5,6 +5,7 @@
 
 import pytest
 
+from ppd_audit import spec as spec_module
 from ppd_audit.core import curves, motor, specific_energy
 from ppd_audit.core.audit import audit_aggregate
 from ppd_audit.core.pump import (
@@ -43,9 +44,24 @@ def test_formula_15_with_vfd_and_gear():
         pump=PumpSpec(eta_nom=0.60),
         motor=MotorSpec(eta_nom=0.94),
         vfd=True,
-        transmission_eff=0.98,
+        transmission=spec_module.TransmissionSpec(efficiency=0.98),
     )
     assert agg.nominal_efficiency() == pytest.approx(0.97 * 0.94 * 0.98 * 0.60, abs=1e-12)
+
+
+def test_aggregate_embeds_transmission_spec():
+    agg = AggregateSpec(
+        id="т",
+        pump=PumpSpec(eta_nom=0.60),
+        motor=MotorSpec(eta_nom=0.94),
+        transmission=spec_module.TransmissionSpec(
+            model="СТ-А Ц-1-280-4,55-12-1", ratio=4.55, efficiency=0.98
+        ),
+    )
+
+    assert agg.transmission.model == "СТ-А Ц-1-280-4,55-12-1"
+    assert agg.transmission.ratio == pytest.approx(4.55)
+    assert agg.nominal_efficiency() == pytest.approx(0.94 * 0.98 * 0.60, abs=1e-12)
 
 
 def test_audit_requires_specific_passport_efficiencies():
@@ -213,14 +229,14 @@ def test_annual_loss_cyclic():
 
 def _make_transfer_agg(**kw) -> AggregateSpec:
     """Центробежный агрегат перекачки с измеренным режимом (синтетика)."""
-    d = dict(
-        id="Т-1",
-        pump=PumpSpec(model="ЦНС 60-250", eta_nom=0.60, q_nom=60.0, h_nom=250.0),
-        motor=MotorSpec(model="ВАО", p_nom=160.0, eta_nom=0.94),
-        regime=RegimeMeasurement(
+    d = {
+        "id": "Т-1",
+        "pump": PumpSpec(model="ЦНС 60-250", eta_nom=0.60, q_nom=60.0, h_nom=250.0),
+        "motor": MotorSpec(model="ВАО", p_nom=160.0, eta_nom=0.94),
+        "regime": RegimeMeasurement(
             rho=1000.0, p_in=0.4, p_out=2.8, q_fact=75.0, p_electric=97.0, t_year=7000.0
         ),
-    )
+    }
     d.update(kw)
     return AggregateSpec(**d)
 
@@ -228,7 +244,7 @@ def _make_transfer_agg(**kw) -> AggregateSpec:
 def test_formula_27_with_vfd_gear():
     """(27): η_нас = η_НА/(η_эд.р·η_пч·η_ред) — η_пч и η_ред учитываются;
     баланс (43) остаётся сведённым при ПЧ/редукторе."""
-    agg = _make_transfer_agg(vfd=True, transmission_eff=0.98)
+    agg = _make_transfer_agg(vfd=True, transmission=spec_module.TransmissionSpec(efficiency=0.98))
     res = audit_aggregate(agg, Branch.transfer)
     eta_na = res.regime.eta_unit
     expected = eta_na / (res.eta_motor_real * 0.97 * 0.98)

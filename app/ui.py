@@ -47,21 +47,26 @@ _CSS = """
 .pp-badges{ display:flex; gap:8px; flex-wrap:wrap; }
 .pp-badge{
   display:inline-block; padding:4px 12px; border-radius:999px; font-size:.78rem;
-  font-weight:700; background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.35);
+  font-weight:700; background:rgba(255,255,255,.18); color:#fff;
+  border:1px solid rgba(255,255,255,.35);
 }
 .pp-badge.ok{ background:rgba(46,158,107,.95); border-color:transparent; }
 .pp-badge.warn{ background:rgba(224,161,6,.95); border-color:transparent; }
 .pp-badge.bad{ background:rgba(217,83,79,.95); border-color:transparent; }
 .pp-provenance{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 8px; }
 .pp-provenance .pp-badge{ color:var(--pri); background:#e7eef8; border-color:#c9d9eb; }
-.pp-provenance .pp-badge.ok,.pp-provenance .pp-badge.warn{ color:var(--ink); border-color:transparent; }
+.pp-provenance .pp-badge.ok,.pp-provenance .pp-badge.warn{
+  color:var(--ink); border-color:transparent;
+}
 
 /* ── KPI (st.metric → карточки) ── */
 div[data-testid="stMetric"]{
   background:var(--card); border:1px solid var(--line); border-left:4px solid var(--acc);
   border-radius:14px; padding:14px 18px 12px; box-shadow:0 2px 8px rgba(20,40,60,.05);
 }
-div[data-testid="stMetricValue"]{ font-size:1.85rem; font-weight:800; color:var(--ink); line-height:1.1; }
+div[data-testid="stMetricValue"]{
+  font-size:1.85rem; font-weight:800; color:var(--ink); line-height:1.1;
+}
 div[data-testid="stMetricLabel"] p{ font-size:.8rem; color:var(--muted); font-weight:700;
   text-transform:uppercase; letter-spacing:.3px; }
 div[data-testid="stMetricDelta"]{ font-weight:700; }
@@ -92,6 +97,7 @@ section[data-testid="stSidebar"] .block-container{ padding-top:1.4rem; }
 /* ── Инфо-плашки ── */
 .pp-note{ background:#f3f8ff; border:1px solid #d7e6fb; border-left:4px solid var(--acc);
   border-radius:10px; padding:10px 14px; color:var(--ink); font-size:.9rem; }
+
 </style>
 """
 
