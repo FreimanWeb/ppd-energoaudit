@@ -183,6 +183,33 @@ def _snapshot_candidates(
     return snapshots
 
 
+def _annual_runtime(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    end: datetime,
+    *,
+    track_clarifications: bool,
+) -> float | None:
+    annual_runtime = database.annual_runtime(plant_code, aggregate_code, end)
+    if not track_clarifications:
+        return annual_runtime
+    if annual_runtime is None:
+        database.upsert_clarification(
+            plant_code,
+            aggregate_code,
+            field="t_year",
+            provisional_value="8760",
+            reason=(
+                "Нет полного непрерывного года ежедневных моточасов; "
+                "T_год временно принят равным 8760 ч."
+            ),
+        )
+    else:
+        database.resolve_clarification(plant_code, aggregate_code, field="t_year")
+    return annual_runtime
+
+
 def run_snapshot_audit(
     database: AuditDatabase,
     plant_code: str,
@@ -190,6 +217,8 @@ def run_snapshot_audit(
     start: datetime,
     end: datetime,
     timestamp: datetime,
+    *,
+    track_clarifications: bool = True,
 ) -> SnapshotAudit:
     """Рассчитать выбранный снимок, явно используя доступные суточные итоги."""
     snapshot = next(
@@ -223,7 +252,13 @@ def run_snapshot_audit(
     q_fact = _median(aggregate_values, "flow_rate", required=False)
     uses_daily_flow = q_fact is None and q_day is not None and runtime is not None
     uses_daily_power = energy is not None and runtime is not None
-    annual_runtime = database.annual_runtime(plant_code, aggregate_code, end)
+    annual_runtime = _annual_runtime(
+        database,
+        plant_code,
+        aggregate_code,
+        end,
+        track_clarifications=track_clarifications,
+    )
     regime = RegimeMeasurement(
         rho=_median(aggregate_values, "density", required=False)
         or _required_plant_value(plant, "default_density", "density"),
@@ -355,21 +390,13 @@ def run_telemetry_audit(
     plant = database.plant(plant_code)
     aggregate = database.aggregate(plant_code, aggregate_code)
     passport = database.active_passport(plant_code, aggregate_code, start)
-    annual_runtime = database.annual_runtime(plant_code, aggregate_code, end)
-    if track_clarifications:
-        if annual_runtime is None:
-            database.upsert_clarification(
-                plant_code,
-                aggregate_code,
-                field="t_year",
-                provisional_value="8760",
-                reason=(
-                    "Нет полного непрерывного года ежедневных моточасов; "
-                    "T_год временно принят равным 8760 ч."
-                ),
-            )
-        else:
-            database.resolve_clarification(plant_code, aggregate_code, field="t_year")
+    _annual_runtime(
+        database,
+        plant_code,
+        aggregate_code,
+        end,
+        track_clarifications=track_clarifications,
+    )
     spec = _aggregate_spec(
         aggregate,
         passport,
@@ -415,6 +442,7 @@ def telemetry_day_status(
                 start,
                 end,
                 snapshots[-1].timestamp,
+                track_clarifications=False,
             )
         except (ArithmeticError, KeyError, ValueError):
             return "insufficient"

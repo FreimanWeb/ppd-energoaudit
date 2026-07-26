@@ -340,6 +340,37 @@ def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
     assert snapshot.annual_runtime_is_assumed is True
 
 
+def test_snapshot_audit_resolves_t_year_clarification_with_complete_runtime(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    end = start + timedelta(days=1)
+    database.upsert_clarification(
+        "kns97",
+        "НА-02",
+        field="t_year",
+        provisional_value="8760",
+        reason="Нет полного года моточасов",
+    )
+    for day in range(365):
+        database.add_measurement(
+            "kns97", "НА-02", end - timedelta(days=365 - day), "runtime", 20.0, "ч"
+        )
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+        ("power", 210.0, "кВт"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 48.0, "м³/сут"),
+        ("energy", 420.0, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    snapshot = run_snapshot_audit(database, "kns97", "НА-02", start, end, start)
+
+    assert snapshot.annual_runtime_is_assumed is False
+    assert database.clarifications("kns97", "НА-02") == []
+
+
 def test_date_statuses_marks_snapshot_when_daily_coverage_is_incomplete(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
