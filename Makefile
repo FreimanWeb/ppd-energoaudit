@@ -16,7 +16,7 @@ help: ## Показать доступные команды
 	@echo "  verify        сверить модель с xlsx и отчётами"
 	@echo "  app           запустить Streamlit-дашборд"
 	@echo "  api           запустить FastAPI"
-	@echo "  ingest        нормализовать телеметрию ДНС-7с"
+	@echo "  ingest        legacy ДНС-7с (требует отсутствующие исходные Excel)"
 	@echo "  reports       пересобрать кэш .docx-отчётов"
 	@echo "  clean-reports удалить кэш конвертированных отчётов"
 
