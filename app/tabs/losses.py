@@ -78,7 +78,9 @@ def _power_flow(ctx: Ctx) -> None:
 def render(ctx: Ctx) -> None:
     st.subheader("Цифровая карта потерь мощности")
     audit, tariff = ctx.audit, ctx.tariff
-    if ctx.scope.annual_runtime_is_assumed:
+    if ctx.source == "field_trip" and not ctx.scope.annual_runtime_is_assumed:
+        ui.provenance((f"T_год из YAML: {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"))
+    elif ctx.scope.annual_runtime_is_assumed:
         ui.provenance(("Сценарий: T_год = 8760 ч", "warn"))
         st.warning(
             "Годовые суммы — сценарий непрерывной работы: фактическая T_год не подтверждена."
@@ -143,5 +145,9 @@ def render(ctx: Ctx) -> None:
             width="stretch",
             hide_index=True,
         )
-    qualifier = "сценарий" if ctx.scope.annual_runtime_is_assumed else "оценка по телеметрии"
+    qualifier = (
+        "сценарий"
+        if ctx.scope.annual_runtime_is_assumed
+        else "выездная оценка" if ctx.source == "field_trip" else "оценка по телеметрии"
+    )
     st.caption(f"₽/год — {qualifier}: T_год {fmt(t_year, 0)} ч, тариф {fmt(tariff, 2)} ₽/кВт·ч.")

@@ -21,6 +21,7 @@ from ppd_audit.config import load_constraints  # noqa: E402
 from ppd_audit.core.audit import AuditResult  # noqa: E402
 from ppd_audit.db import default_database_path  # noqa: E402
 from ppd_audit.db_seed import bootstrap_database  # noqa: E402
+from ppd_audit.services.audit import run_energy_audit  # noqa: E402
 from ppd_audit.services.result_scope import ResultScope, result_scope as _result_scope  # noqa: E402
 from ppd_audit.services.telemetry_audit import (  # noqa: E402
     excluded_snapshots_by_manifold_pressure as _excluded_snapshots_by_manifold_pressure,
@@ -57,6 +58,17 @@ def list_object_ids() -> list[str]:
 
 def get_object(object_id: str, at: datetime, aggregate_id: str | None = None) -> ObjectSpec:
     return object_from_database(database(), object_id, at, aggregate_code=aggregate_id)
+
+
+def get_field_trip_audit(object_id: str, aggregate_id: str) -> tuple[ObjectSpec, AuditResult]:
+    """Рассчитать выездной замер исключительно по YAML-паспорту объекта."""
+    obj = load_object_spec(object_id)
+    return obj, run_energy_audit(obj, aggregate_id)
+
+
+def field_trip_scope(regime) -> ResultScope:
+    """Статус годовой оценки для выездного замера из YAML."""
+    return _result_scope(regime, regime.t_year)
 
 
 def object_index() -> list[dict]:

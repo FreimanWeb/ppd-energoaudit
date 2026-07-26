@@ -35,6 +35,25 @@ def test_data_editor_is_available():
     assert "Редактирование данных" in at.radio[0].options
 
 
+def test_field_trip_mode_audits_yaml_object_without_telemetry():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    at.radio[0].set_value("Выезд").run()
+    option = next(option for option in at.selectbox[0].options if "ДНС-7с" in option)
+    at.selectbox[0].set_value(option).run()
+
+    assert not at.exception
+    assert any("Выездной аудит · YAML-паспорт" in item.value for item in at.markdown)
+    assert not any("Телеметрия" in tab.label for tab in at.tabs)
+    assert not any("Режимный снимок" in tab.label for tab in at.tabs)
+
+
+def test_field_trip_object_selector_omits_telemetry_markers():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    at.radio[0].set_value("Выезд").run()
+
+    assert all(not option.startswith(("🟢", "⚪")) for option in at.selectbox[0].options)
+
+
 def test_object_selector_marks_objects_without_telemetry():
     at = AppTest.from_file(APP, default_timeout=180).run()
     kns54 = next(option for option in at.selectbox[0].options if "КНС-54" in option)

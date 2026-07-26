@@ -18,7 +18,9 @@ from tabs.common import Ctx, fmt, loss_components
 
 def _kpi_rows(ctx: Ctx) -> None:
     audit, reg = ctx.audit, ctx.audit.regime
-    if not ctx.scope.daily_pressure_coverage_is_complete:
+    if ctx.source == "field_trip":
+        ui.provenance(("Выездной замер из YAML", "warn"), ("Расчёт по Методике", ""))
+    elif not ctx.scope.daily_pressure_coverage_is_complete:
         ui.provenance(
             ("Режимный расчёт: снимок давления", "warn"),
             ("Суточный УРЭ: W / Q_сут", "ok"),
@@ -68,7 +70,12 @@ def _kpi_rows(ctx: Ctx) -> None:
 
 def _annual_kpis(ctx: Ctx) -> None:
     audit, tariff = ctx.audit, ctx.tariff
-    if ctx.scope.annual_runtime_is_assumed:
+    if ctx.source == "field_trip" and not ctx.scope.annual_runtime_is_assumed:
+        ui.provenance(
+            (f"T_год из YAML: {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"),
+            ("Тариф и цель — конфиг", ""),
+        )
+    elif ctx.scope.annual_runtime_is_assumed:
         ui.provenance(("Сценарий: T_год = 8760 ч", "warn"), ("Тариф и цель — конфиг", ""))
         st.warning("Годовые значения не являются фактом: нет полного года ежедневных моточасов.")
     else:
@@ -274,15 +281,18 @@ def _passport_and_regime(ctx: Ctx) -> None:
         )
     col1, col2 = st.columns(2)
     with col1:
+        snapshot_rows = {
+            "Источник": "Выездной замер (YAML)",
+            "p_вх, МПа": rm.p_in,
+            "p_вых, МПа": rm.p_out,
+            "p_БГ, МПа": rm.p_bg,
+            "Δp, МПа": rm.p_out - rm.p_in,
+        }
+        if ctx.source != "field_trip":
+            snapshot_rows["Время снимка"] = ctx.snapshot_timestamp.strftime("%d.%m.%Y %H:%M:%S")
         table(
-            "Режимный снимок",
-            {
-                "Время снимка": ctx.snapshot_timestamp.strftime("%d.%m.%Y %H:%M:%S"),
-                "p_вх, МПа": rm.p_in,
-                "p_вых, МПа": rm.p_out,
-                "p_БГ, МПа": rm.p_bg,
-                "Δp, МПа": rm.p_out - rm.p_in,
-            },
+            "Выездной замер" if ctx.source == "field_trip" else "Режимный снимок",
+            snapshot_rows,
         )
     with col2:
         table(
@@ -327,7 +337,7 @@ def _report_excerpt(ctx: Ctx) -> None:
 
 
 def render(ctx: Ctx) -> None:
-    st.subheader("Суточный KPI")
+    st.subheader("КПИ выездного замера" if ctx.source == "field_trip" else "Суточный KPI")
     _kpi_rows(ctx)
     st.divider()
     st.subheader("Режимный расчёт")

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 
 # каталог app/ для import lib/ui/tabs
@@ -44,7 +44,7 @@ ui.inject_css()
 
 st.sidebar.title("⚡ Энергоаудит ППД")
 mode = st.sidebar.radio(
-    "Режим", ("Анализ", "Просмотр телеметрии", "Редактирование данных")
+    "Режим", ("Анализ", "Выезд", "Просмотр телеметрии", "Редактирование данных")
 )
 index = lib.object_index()
 waters = sorted(
@@ -57,7 +57,8 @@ sel_ngdus = st.sidebar.multiselect("НГДУ", ngdus, default=ngdus)
 flt = [o for o in index if o["water"] in sel_waters and o["ngdu"] in sel_ngdus] or index
 
 obj_labels = {
-    f"{'🟢' if o['has_telemetry'] else '⚪'} {o['name']} · {o['ngdu']}  ·  "
+    f"{'' if mode == 'Выезд' else ('🟢 ' if o['has_telemetry'] else '⚪ ')}"
+    f"{o['name']} · {o['ngdu']}  ·  "
     f"{WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"]
     for o in flt
 }
@@ -73,6 +74,50 @@ agg_ids = selected["aggregate_ids"]
 agg_id = st.sidebar.selectbox("Агрегат", agg_ids)
 if mode == "Редактирование данных":
     data_edit.render(object_id, agg_id)
+    st.stop()
+if mode == "Выезд":
+    try:
+        obj, audit = lib.get_field_trip_audit(object_id, agg_id)
+    except (ArithmeticError, KeyError, ValueError) as exc:
+        st.warning(f"Невозможно рассчитать выезд для {selected['name']} / {agg_id}: {exc}")
+        st.stop()
+    eta_ratio = audit.regime.eta_unit / audit.regime.eta_nom if audit.regime.eta_nom else 1.0
+    eta_tone = "ok" if eta_ratio >= 0.9 else ("warn" if eta_ratio >= 0.78 else "bad")
+    ctx = Ctx(
+        object_id=object_id,
+        agg_id=agg_id,
+        obj=obj,
+        agg=audit.spec,
+        audit=audit,
+        tariff=lib.tariff(),
+        selected_date=date.min,
+        snapshot_timestamp=datetime.min,
+        scope=lib.field_trip_scope(audit.spec.regime),
+        source="field_trip",
+    )
+    ui.hero(
+        f"{obj.name} · {agg_id} · НГДУ {selected['ngdu']}",
+        "Выездной аудит · YAML-паспорт",
+        [
+            (f"{WATER_EMOJI.get(obj.water_type.value, '')} {obj.water_type.value} вода", ""),
+            (f"ветка: {obj.branch.value}", ""),
+            (f"насос: {audit.pump_kind}", ""),
+            (f"КПД {fmt(audit.regime.eta_unit, 3)} / ном {fmt(audit.regime.eta_nom, 3)}", eta_tone),
+            (f"УРЭ {fmt(audit.sec_fact, 2)} кВт·ч/м³", ""),
+        ],
+    )
+    field_trip_tabs = [
+        ("📋 Обзор", overview),
+        ("📉 Карта потерь", losses),
+        ("📈 Рабочая точка", working_point),
+        ("💡 Мероприятия", measures),
+        ("🧮 Формулы", formulas),
+    ]
+    for tab, (_, module) in zip(
+        st.tabs([item[0] for item in field_trip_tabs]), field_trip_tabs, strict=True
+    ):
+        with tab:
+            module.render(ctx)
     st.stop()
 dates = lib.telemetry_dates(object_id, agg_id)
 if not dates:

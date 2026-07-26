@@ -18,7 +18,12 @@ def render(ctx: Ctx) -> None:
     st.caption(
         "Сценарные оценки — потенциал после диагностики; CAPEX и окупаемость для них не заданы."
     )
-    if ctx.scope.annual_runtime_is_assumed:
+    if ctx.source == "field_trip" and not ctx.scope.annual_runtime_is_assumed:
+        st.caption(
+            "Экономия за год рассчитана по T_год = "
+            f"{fmt(ctx.scope.annual_runtime_hours, 1)} ч из YAML-паспорта."
+        )
+    elif ctx.scope.annual_runtime_is_assumed:
         st.caption(
             "Экономия за год — сценарий при T_год = 8760 ч; "
             "фактическая наработка требует уточнения."

@@ -24,6 +24,7 @@ class Ctx:
     selected_date: date
     snapshot_timestamp: datetime
     scope: object  # ResultScope
+    source: str = "telemetry"
 
 
 def fmt(x, nd: int = 2) -> str:
