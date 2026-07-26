@@ -57,7 +57,8 @@ sel_ngdus = st.sidebar.multiselect("НГДУ", ngdus, default=ngdus)
 flt = [o for o in index if o["water"] in sel_waters and o["ngdu"] in sel_ngdus] or index
 
 obj_labels = {
-    f"{o['name']} · {o['ngdu']}  ·  {WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"]
+    f"{'🟢' if o['has_telemetry'] else '⚪'} {o['name']} · {o['ngdu']}  ·  "
+    f"{WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"]
     for o in flt
 }
 object_options = list(obj_labels)
@@ -177,7 +178,7 @@ scope = lib.result_scope_for(
     daily_pressure_coverage_is_complete=False,
 )
 
-clarifications = lib.open_clarifications(object_id)
+clarifications = lib.open_clarifications(object_id, agg_id)
 if clarifications:
     with st.sidebar.expander(f"Требуют уточнения ({len(clarifications)})"):
         for item in clarifications:
@@ -188,7 +189,6 @@ if clarifications:
                 "motor_eta_nom": "КПД ЭД",
             }.get(item["field"], item["field"])
             st.caption(
-                f"{item['plant_name']} · {item['aggregate_code']}: "
                 f"{field} = {item['provisional_value']}"
             )
             st.caption(item["reason"])

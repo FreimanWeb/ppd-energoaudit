@@ -35,6 +35,15 @@ def test_data_editor_is_available():
     assert "Редактирование данных" in at.radio[0].options
 
 
+def test_object_selector_marks_objects_without_telemetry():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    kns54 = next(option for option in at.selectbox[0].options if "КНС-54" in option)
+    dns7 = next(option for option in at.selectbox[0].options if "ДНС-7с" in option)
+
+    assert kns54.startswith("🟢")
+    assert dns7.startswith("⚪")
+
+
 def test_telemetry_viewer_uses_a_date_range():
     at = AppTest.from_file(APP, default_timeout=180).run()
     at.radio[0].set_value("Просмотр телеметрии").run()
@@ -110,6 +119,14 @@ def test_overview_separates_snapshot_and_daily_regime_data():
     assert '"Режимный снимок"' in source
     assert '"Суточные данные"' in source
     assert '"Режим (замер)"' not in source
+
+
+def test_clarifications_are_scoped_to_selected_aggregate():
+    main = Path(APP).read_text(encoding="utf-8")
+    lib = Path("app/lib.py").read_text(encoding="utf-8")
+
+    assert "lib.open_clarifications(object_id, agg_id)" in main
+    assert "database().clarifications(object_id, aggregate_id)" in lib
 
 
 def test_missing_snapshot_still_renders_telemetry():

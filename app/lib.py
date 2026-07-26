@@ -61,10 +61,11 @@ def get_object(object_id: str, at: datetime, aggregate_id: str | None = None) ->
 
 def object_index() -> list[dict]:
     """Список объектов с метаданными для выбора/фильтра."""
+    db = database()
     out = []
-    for record in database().plants():
+    for record in db.plants():
         oid = record["code"]
-        aggregates = database().aggregates(oid)
+        aggregates = db.aggregates(oid)
         out.append({
             "id": oid,
             "name": record["name"],
@@ -73,13 +74,16 @@ def object_index() -> list[dict]:
             "n_agg": len(aggregates),
             "aggregate_ids": [aggregate["code"] for aggregate in aggregates],
             "ngdu": record["ngdu_name"],
+            "has_telemetry": any(
+                db.telemetry_dates(oid, aggregate["code"]) for aggregate in aggregates
+            ),
         })
     return out
 
 
-def open_clarifications(object_id: str) -> list[dict[str, str]]:
-    """Временные паспортные значения выбранного объекта."""
-    return database().open_clarifications(object_id)
+def open_clarifications(object_id: str, aggregate_id: str) -> list[dict[str, str]]:
+    """Временные паспортные значения выбранного агрегата."""
+    return database().clarifications(object_id, aggregate_id)
 
 
 def get_audit(
