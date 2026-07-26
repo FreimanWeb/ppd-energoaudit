@@ -108,6 +108,35 @@ def telemetry_snapshots(
     end: datetime,
 ) -> list[TelemetrySnapshot]:
     """Вернуть точные физически допустимые пары давления выбранного окна."""
+    return [
+        snapshot
+        for snapshot in _snapshot_candidates(database, plant_code, aggregate_code, start, end)
+        if _is_usable_snapshot(snapshot)
+    ]
+
+
+def excluded_snapshots_by_manifold_pressure(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    start: datetime,
+    end: datetime,
+) -> int:
+    """Количество снимков, исключённых из расчёта НА из-за p_вых ≤ p_БГ."""
+    return sum(
+        snapshot.p_bg_mpa is not None and snapshot.p_out_mpa <= snapshot.p_bg_mpa
+        for snapshot in _snapshot_candidates(database, plant_code, aggregate_code, start, end)
+    )
+
+
+def _snapshot_candidates(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    start: datetime,
+    end: datetime,
+) -> list[TelemetrySnapshot]:
+    """Вернуть все пары p_вх/p_вых; фильтры пригодности применяет публичная функция."""
     rows = database.measurements_in_window(
         plant_code, aggregate_code, start, end, include_station=True
     )
@@ -148,7 +177,7 @@ def telemetry_snapshots(
                 p_bg_gap=abs(nearest_bg[0] - timestamp) if nearest_bg else None,
                 power_kw=nearest_power[1] if nearest_power else None,
                 power_gap=abs(nearest_power[0] - timestamp) if nearest_power else None,
-                is_stable=_is_stable_pressure_pair(pair, pairs),
+                is_stable=_is_stable_pressure_pair(pair, pressure_by_time),
             )
         )
     return snapshots
@@ -253,7 +282,7 @@ def _operating_pressures(
             break
         pair = min(pairs, key=lambda candidate: abs(candidate[0] - power_time))
         if abs(pair[0] - power_time) <= _PRESSURE_POWER_MAX_GAP and _is_stable_pressure_pair(
-            pair, pairs
+            pair, pressure_by_time
         ):
             operating_pairs.append(pair)
     if not operating_pairs:
@@ -285,18 +314,30 @@ def _operating_pressures(
 
 
 def _is_stable_pressure_pair(
-    pair: tuple[datetime, float, float], pairs: list[tuple[datetime, float, float]]
+    pair: tuple[datetime, float, float], pressure_by_time: dict[datetime, dict[str, float]]
 ) -> bool:
     timestamp, p_in, p_out = pair
     if p_out <= p_in:
         return False
     return not any(
-        candidate != pair
-        and abs(candidate[0] - timestamp) <= _PRESSURE_STABILITY_WINDOW
-        and max(abs(candidate[1] - p_in), abs(candidate[2] - p_out))
-        / abs((candidate[0] - timestamp).total_seconds())
+        candidate_timestamp != timestamp
+        and abs(candidate_timestamp - timestamp) <= _PRESSURE_STABILITY_WINDOW
+        and abs(candidate_value - value) / abs((candidate_timestamp - timestamp).total_seconds())
         > _PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND
-        for candidate in pairs
+        for metric, value in (("p_in", p_in), ("p_out", p_out))
+        for candidate_timestamp, candidate_values in pressure_by_time.items()
+        if (candidate_value := candidate_values.get(metric)) is not None
+    )
+
+
+def _is_usable_snapshot(snapshot: TelemetrySnapshot) -> bool:
+    return (
+        snapshot.is_stable
+        and snapshot.power_kw is not None
+        and snapshot.power_kw > 0
+        and snapshot.power_gap is not None
+        and snapshot.power_gap <= _PRESSURE_POWER_MAX_GAP
+        and (snapshot.p_bg_mpa is None or snapshot.p_out_mpa > snapshot.p_bg_mpa)
     )
 
 
@@ -344,43 +385,54 @@ def run_telemetry_audit(
     return audit_aggregate(spec, Branch(plant["branch"]))
 
 
+def telemetry_day_status(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    day: date,
+) -> str:
+    """Вернуть единый статус пригодности суток для календаря и экрана анализа."""
+    start = datetime.combine(day, time.min)
+    end = start + timedelta(days=1)
+    snapshots = telemetry_snapshots(database, plant_code, aggregate_code, start, end)
+    if not snapshots:
+        return "insufficient"
+    try:
+        run_telemetry_audit(
+            database,
+            plant_code,
+            aggregate_code,
+            start,
+            end,
+            track_clarifications=False,
+        )
+    except (ArithmeticError, KeyError, ValueError):
+        try:
+            run_snapshot_audit(
+                database,
+                plant_code,
+                aggregate_code,
+                start,
+                end,
+                snapshots[-1].timestamp,
+            )
+        except (ArithmeticError, KeyError, ValueError):
+            return "insufficient"
+        return "snapshot"
+    return "ready"
+
+
 def telemetry_date_statuses(
     database: AuditDatabase,
     plant_code: str,
     aggregate_code: str,
     dates: list[date],
 ) -> dict[date, str]:
-    """Вернуть пригодность дней телеметрии для расчёта агрегата."""
-    statuses = {}
-    for day in dates:
-        start = datetime.combine(day, time.min)
-        try:
-            run_telemetry_audit(
-                database,
-                plant_code,
-                aggregate_code,
-                start,
-                start + timedelta(days=1),
-                track_clarifications=False,
-            )
-        except (ArithmeticError, KeyError, ValueError):
-            try:
-                run_telemetry_audit(
-                    database,
-                    plant_code,
-                    aggregate_code,
-                    start,
-                    start + timedelta(days=1),
-                    track_clarifications=False,
-                    require_daily_pressure_coverage=False,
-                )
-            except (ArithmeticError, KeyError, ValueError):
-                statuses[day] = "insufficient"
-            else:
-                statuses[day] = "snapshot"
-        else:
-            statuses[day] = "ready"
-    return statuses
+    """Вернуть статусы дней телеметрии через единый расчёт пригодности суток."""
+    return {
+        day: telemetry_day_status(database, plant_code, aggregate_code, day)
+        for day in dates
+    }
 
 
 def object_from_database(

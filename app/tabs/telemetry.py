@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 import altair as alt
 import lib
@@ -13,24 +13,40 @@ from ppd_audit.services.telemetry_series import telemetry_series
 from tabs.common import Ctx
 
 
-def _line_chart(frame):
+def _line_chart(frame, *, day: date | None = None):
+    x = alt.X(
+        "Время:T",
+        title=None,
+        axis=alt.Axis(format="%H:%M" if day else "%d.%m %H:%M"),
+    )
+    if day:
+        x = x.scale(
+            domain=[
+                datetime.combine(day, time.min),
+                datetime.combine(day + timedelta(days=1), time.min),
+            ]
+        )
     return (
         alt.Chart(frame)
         .mark_line(point=True)
         .encode(
-            x=alt.X("Время:T", title=None),
+            x=x,
             y=alt.Y("Значение:Q"),
             color=alt.Color("Показатель:N"),
-            tooltip=["Время:T", "Показатель:N", "Значение:Q"],
+            tooltip=[
+                alt.Tooltip("Время:T", format="%d.%m.%Y %H:%M:%S"),
+                "Показатель:N",
+                "Значение:Q",
+            ],
         )
         .properties(height=260)
     )
 
 
-def _render_charts(rows: list[dict]) -> None:
+def _render_charts(rows: list[dict], *, day: date | None = None) -> None:
     for unit, frame in telemetry_series(rows).items():
         st.markdown(f"**{unit}**")
-        st.altair_chart(_line_chart(frame), width="stretch")
+        st.altair_chart(_line_chart(frame, day=day), width="stretch")
 
 
 def render_day(object_id: str, aggregate_id: str, selected_date: date) -> None:
@@ -43,12 +59,9 @@ def render_day(object_id: str, aggregate_id: str, selected_date: date) -> None:
 
     st.caption(
         "На графиках только измеряемые сигналы. Пропуски не заменяются нулями; "
-        "показатели станции отмечены отдельно. Q_сут, моточасы и W — в таблице ниже."
+        "показатели станции отмечены отдельно. Q_сут, моточасы и W отдельно не строятся."
     )
-    _render_charts(rows)
-
-    st.markdown("**Сырые точки**")
-    st.dataframe(rows, hide_index=True)
+    _render_charts(rows, day=selected_date)
 
 
 def render_period(object_id: str, aggregate_id: str, start_date: date, end_date: date) -> None:

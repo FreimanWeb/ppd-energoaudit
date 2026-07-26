@@ -116,7 +116,7 @@ if selected_date not in date_statuses:
     st.stop()
 start = datetime.combine(selected_date, time.min)
 end = start + timedelta(days=1)
-status = date_statuses[selected_date]
+status = lib.telemetry_day_status(object_id, agg_id, selected_date)
 if status == "insufficient":
     try:
         lib.get_audit(object_id, agg_id, start, end)
@@ -133,8 +133,20 @@ if is_snapshot:
         "Поэтому показатели по давлению рассчитаны как режимный снимок, а не за сутки."
     )
 snapshots = lib.telemetry_snapshots(object_id, agg_id, start, end)
+excluded_by_manifold = lib.excluded_snapshots_by_manifold_pressure(
+    object_id, agg_id, start, end
+)
+if excluded_by_manifold:
+    st.warning(
+        f"Исключено снимков из расчёта НА: {excluded_by_manifold}. "
+        "Причина: p_вых ≤ p_БГ."
+    )
 if not snapshots:
-    st.warning(f"Нет физически допустимых пар p_вх/p_вых за {selected_date}.")
+    st.warning(
+        f"Нет пригодного режимного снимка за {selected_date}: нужна устойчивая пара "
+        "p_вх/p_вых и положительная мощность не дальше 5 минут."
+    )
+    telemetry.render_day(object_id, agg_id, selected_date)
     st.stop()
 snapshot_key = lib.snapshot_selection_key(object_id, agg_id, selected_date)
 snapshot_by_timestamp = {snapshot.timestamp.isoformat(): snapshot for snapshot in snapshots}

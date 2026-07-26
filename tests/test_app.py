@@ -17,11 +17,15 @@ from streamlit.testing.v1 import AppTest
 APP = "app/main.py"
 
 
+def _has_telemetry_chart(at: AppTest) -> bool:
+    return any(getattr(element, "type", None) == "vega_lite_chart" for element in at.main)
+
+
 def test_default_render():
     at = AppTest.from_file(APP, default_timeout=180).run()
     assert not at.exception
     assert any(item.value == "Телеметрия за сутки" for item in at.subheader)
-    assert at.dataframe
+    assert _has_telemetry_chart(at)
 
 
 def test_data_editor_is_available():
@@ -94,6 +98,28 @@ def test_snapshot_warning_explains_what_pressure_coverage_is_needed_for():
     assert "показатели по давлению рассчитаны как режимный снимок, а не за сутки" in source
 
 
+def test_snapshot_filter_explains_manifold_pressure_rejection():
+    source = Path(APP).read_text(encoding="utf-8")
+
+    assert "p_вых ≤ p_БГ" in source
+
+
+def test_overview_separates_snapshot_and_daily_regime_data():
+    source = Path("app/tabs/overview.py").read_text(encoding="utf-8")
+
+    assert '"Режимный снимок"' in source
+    assert '"Суточные данные"' in source
+    assert '"Режим (замер)"' not in source
+
+
+def test_missing_snapshot_still_renders_telemetry():
+    source = Path(APP).read_text(encoding="utf-8")
+    no_snapshot = source.split("if not snapshots:", maxsplit=1)[1]
+    no_snapshot = no_snapshot.split("snapshot_key =", maxsplit=1)[0]
+
+    assert "telemetry.render_day(object_id, agg_id, selected_date)" in no_snapshot
+
+
 @pytest.mark.parametrize("label_part", ["КНС-129", "КНС-138", "КНС-175"])
 def test_example_objects_are_hidden_from_selector(label_part):
     at = AppTest.from_file(APP, default_timeout=180).run()
@@ -145,7 +171,7 @@ def test_object_render(label_part):
 
 
 def test_telemetry_renders_for_object_with_measurements():
-    """Объект с телеметрией показывает сырые точки и при непригодном режиме."""
+    """Объект с телеметрией показывает графики и при непригодном режиме."""
     at = AppTest.from_file(APP, default_timeout=180).run()
     option = next(o for o in at.selectbox[0].options if "КНС-54" in o)
     at.selectbox[0].set_value(option).run()
@@ -156,8 +182,7 @@ def test_telemetry_renders_for_object_with_measurements():
     }
     at.run()
     assert not at.exception
-    has_telemetry = any("metric" in list(getattr(df.value, "columns", [])) for df in at.dataframe)
-    assert has_telemetry, "нет таблицы сырых точек телеметрии"
+    assert _has_telemetry_chart(at), "нет графика телеметрии"
 
 
 def test_topology_files_valid():

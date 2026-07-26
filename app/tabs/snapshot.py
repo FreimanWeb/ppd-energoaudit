@@ -38,7 +38,10 @@ def render(ctx: Ctx) -> None:
     )
     snapshots = lib.telemetry_snapshots(object_id, aggregate_id, start, end)
     if not snapshots:
-        st.warning("Нет физически допустимых пар p_вх/p_вых за выбранные сутки.")
+        st.warning(
+            "Нет пригодного режимного снимка: нужна устойчивая пара p_вх/p_вых "
+            "и положительная мощность не дальше 5 минут."
+        )
         return
 
     snapshot_key = lib.snapshot_selection_key(object_id, aggregate_id, selected_date)

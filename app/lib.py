@@ -23,10 +23,12 @@ from ppd_audit.db import default_database_path  # noqa: E402
 from ppd_audit.db_seed import bootstrap_database  # noqa: E402
 from ppd_audit.services.result_scope import ResultScope, result_scope as _result_scope  # noqa: E402
 from ppd_audit.services.telemetry_audit import (  # noqa: E402
+    excluded_snapshots_by_manifold_pressure as _excluded_snapshots_by_manifold_pressure,
     object_from_database,
     run_snapshot_audit,
     run_telemetry_audit,
     telemetry_date_statuses as _telemetry_date_statuses,
+    telemetry_day_status as _telemetry_day_status,
     telemetry_snapshots as _telemetry_snapshots,
 )
 from ppd_audit.spec import ObjectSpec, load_object_spec  # noqa: E402
@@ -104,6 +106,14 @@ def telemetry_snapshots(
     return _telemetry_snapshots(database(), object_id, aggregate_id, start, end)
 
 
+def excluded_snapshots_by_manifold_pressure(
+    object_id: str, aggregate_id: str, start: datetime, end: datetime
+) -> int:
+    return _excluded_snapshots_by_manifold_pressure(
+        database(), object_id, aggregate_id, start, end
+    )
+
+
 def snapshot_selection_key(object_id: str, aggregate_id: str, day: date) -> str:
     """Ключ выбранного снимка: один для вкладок «Анализ» и «Режимный снимок»."""
     return f"snapshot-{object_id}-{aggregate_id}-{day.isoformat()}"
@@ -127,6 +137,10 @@ def telemetry_date_statuses(
     object_id: str, aggregate_id: str, dates: list[date]
 ) -> dict[date, str]:
     return _telemetry_date_statuses(database(), object_id, aggregate_id, dates)
+
+
+def telemetry_day_status(object_id: str, aggregate_id: str, day: date) -> str:
+    return _telemetry_day_status(database(), object_id, aggregate_id, day)
 
 
 def telemetry_for_day(object_id: str, aggregate_id: str, day: date) -> list[dict]:

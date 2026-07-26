@@ -9,6 +9,7 @@ from ppd_audit.services.telemetry_audit import (
     run_snapshot_audit,
     run_telemetry_audit,
     telemetry_date_statuses,
+    telemetry_day_status,
     telemetry_snapshots,
 )
 
@@ -264,6 +265,56 @@ def test_telemetry_snapshots_keep_measurement_timestamps_and_gaps(tmp_path):
     assert snapshots[0].p_bg_gap == timedelta(minutes=2)
 
 
+def test_telemetry_snapshots_exclude_pair_when_discharge_is_not_above_manifold(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
+    database.add_measurement("kns97", "НА-02", start, "p_out", 8.0, "МПа")
+    database.add_measurement("kns97", "НА-02", start, "power", 210.0, "кВт")
+    database.add_measurement("kns97", None, start, "p_bg", 8.0, "МПа")
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(days=1)
+    )
+
+    assert snapshots == []
+
+
+def test_telemetry_snapshots_exclude_fast_change_of_individual_pressure(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
+    database.add_measurement("kns97", "НА-02", start, "p_out", 10.4, "МПа")
+    database.add_measurement("kns97", "НА-02", start, "power", 210.0, "кВт")
+    database.add_measurement("kns97", None, start, "p_bg", 9.8, "МПа")
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(seconds=10), "p_out", 10.7, "МПа"
+    )
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(days=1)
+    )
+
+    assert snapshots == []
+
+
+def test_telemetry_snapshots_exclude_pressure_pair_far_from_positive_power(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
+    database.add_measurement("kns97", "НА-02", start, "p_out", 10.4, "МПа")
+    database.add_measurement("kns97", None, start, "p_bg", 9.8, "МПа")
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(minutes=6), "power", 210.0, "кВт"
+    )
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(days=1)
+    )
+
+    assert snapshots == []
+
+
 def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
@@ -309,6 +360,21 @@ def test_date_statuses_marks_snapshot_when_daily_coverage_is_incomplete(tmp_path
     statuses = telemetry_date_statuses(database, "kns97", "НА-02", [start.date()])
 
     assert statuses == {start.date(): "snapshot"}
+
+
+def test_telemetry_day_status_is_insufficient_when_snapshot_has_no_flow(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+        ("power", 210.0, "кВт"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    status = telemetry_day_status(database, "kns97", "НА-02", start.date())
+
+    assert status == "insufficient"
 
 
 def test_telemetry_audit_uses_passport_and_reduced_regime(tmp_path):
@@ -434,3 +500,38 @@ def test_telemetry_date_statuses_marks_ready_and_insufficient_days(tmp_path):
     )
 
     assert statuses == {date(2026, 7, 24): "ready", date(2026, 7, 25): "insufficient"}
+
+
+def test_telemetry_date_statuses_marks_day_insufficient_without_usable_snapshot(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+        ("power", 210.0, "кВт"),
+        ("q_day", 2400.0, "м³/сут"),
+        ("runtime", 24.0, "ч"),
+        ("density", 1000.0, "кг/м³"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    database.add_measurement("kns97", None, start, "p_bg", 10.4, "МПа")
+
+    statuses = telemetry_date_statuses(database, "kns97", "НА-02", [start.date()])
+
+    assert statuses == {start.date(): "insufficient"}
+
+
+def test_telemetry_day_status_is_the_single_source_for_calendar_status(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+        ("power", 210.0, "кВт"),
+        ("q_day", 2400.0, "м³/сут"),
+        ("runtime", 24.0, "ч"),
+        ("density", 1000.0, "кг/м³"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    assert telemetry_day_status(database, "kns97", "НА-02", start.date()) == "ready"

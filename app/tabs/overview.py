@@ -232,7 +232,7 @@ def _gauge_and_sec_bar(ctx: Ctx) -> None:
 def _passport_and_regime(ctx: Ctx) -> None:
     p, m, rm = ctx.agg.pump, ctx.agg.motor, ctx.agg.regime
     st.subheader("Паспорт и режим")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     def table(title: str, rows: dict) -> None:
         st.markdown(f"**{title}**")
@@ -272,17 +272,27 @@ def _passport_and_regime(ctx: Ctx) -> None:
                 "U, кВ": m.voltage_kv,
             },
         )
-    with col3:
+    col1, col2 = st.columns(2)
+    with col1:
         table(
-            "Режим (замер)",
+            "Режимный снимок",
             {
-                "ρ, кг/м³": rm.rho,
+                "Время снимка": ctx.snapshot_timestamp.strftime("%d.%m.%Y %H:%M:%S"),
                 "p_вх, МПа": rm.p_in,
                 "p_вых, МПа": rm.p_out,
                 "p_БГ, МПа": rm.p_bg,
+                "Δp, МПа": rm.p_out - rm.p_in,
+            },
+        )
+    with col2:
+        table(
+            "Суточные данные",
+            {
+                "ρ, кг/м³": rm.rho,
                 "Q_сут, м³": rm.q_day,
-                "T, ч/сут": rm.t,
-                "W, кВт·ч/сут": rm.w,
+                "Моточасы, ч": rm.t,
+                "W, кВт·ч": rm.w,
+                "P_эл средняя, кВт": rm.p_electric,
                 "T_год, ч": rm.t_year,
             },
         )

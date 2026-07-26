@@ -115,6 +115,34 @@ def test_telemetry_chart_marks_each_measurement_point():
     assert _line_chart(frame).to_dict()["mark"]["point"] is True
 
 
+def test_daily_telemetry_chart_uses_24_hour_axis_and_day_bounds():
+    frame = telemetry_series([
+        {
+            "timestamp": "2026-07-24T10:00:00",
+            "metric": "power",
+            "value": 250.0,
+            "unit": "кВт",
+            "is_station": 0,
+        }
+    ])["кВт"]
+
+    x = _line_chart(frame, day=date(2026, 7, 24)).to_dict()["encoding"]["x"]
+
+    assert x["axis"]["format"] == "%H:%M"
+    assert x["scale"]["domain"] == [
+        {"year": 2026, "month": 7, "date": 24},
+        {"year": 2026, "month": 7, "date": 25},
+    ]
+
+
+def test_daily_telemetry_view_does_not_render_raw_points_table():
+    source = (Path(__file__).resolve().parents[1] / "app" / "tabs" / "telemetry.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'st.markdown("**Сырые точки**")' not in source
+
+
 def test_telemetry_for_period_includes_both_selected_days(monkeypatch, tmp_path):
     database = AuditDatabase(tmp_path / "audit.sqlite")
     database.migrate()
