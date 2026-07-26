@@ -2,7 +2,7 @@
 
 Читает все сигналы объекта по карте telemetry из паспорта (config/plants/<id>.yaml),
 приводит к единому виду [timestamp, value, ...] и сохраняет в data/generated/<id>/.
-Формат — CSV (без внешних зависимостей вроде pyarrow).
+Формат — parquet (если доступен pyarrow), иначе CSV.
 """
 
 from __future__ import annotations
@@ -12,22 +12,23 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..config import load_plant, project_root
-from ..models import Plant
+from ..config import project_root
+from ..spec import load_object_spec
 from . import readers
 
 
 @dataclass
 class NormalizedDataset:
     """Нормализованные ряды объекта (в памяти)."""
+
     plant_id: str
-    pressure_in: dict[str, pd.DataFrame] = field(default_factory=dict)   # agg → [ts, value]
+    pressure_in: dict[str, pd.DataFrame] = field(default_factory=dict)  # agg → [ts, value]
     pressure_out: dict[str, pd.DataFrame] = field(default_factory=dict)
     flow: pd.DataFrame | None = None
     levels: dict[str, pd.DataFrame] = field(default_factory=dict)
-    journals: dict[str, pd.DataFrame] = field(default_factory=dict)      # agg → [ts, state]
-    energy: dict[str, pd.DataFrame] = field(default_factory=dict)        # agg → [ts, kwh, quality]
-    transfer: pd.DataFrame | None = None                                 # [date, plan, fact, counter]
+    journals: dict[str, pd.DataFrame] = field(default_factory=dict)  # agg → [ts, state]
+    energy: dict[str, pd.DataFrame] = field(default_factory=dict)  # agg → [ts, kwh, quality]
+    transfer: pd.DataFrame | None = None  # [date, plan, fact, counter]
 
 
 def _sheet_for(prefix: str, agg: str) -> str:
@@ -38,8 +39,8 @@ def _sheet_for(prefix: str, agg: str) -> str:
 def ingest_plant(plant_id: str = "dns7s", root: Path | None = None) -> NormalizedDataset:
     """Прочитать и нормализовать всю телеметрию объекта."""
     root = root or project_root()
-    plant: Plant = load_plant(plant_id)
-    tlm = plant.telemetry or {}
+    plant = load_object_spec(plant_id)
+    tlm = plant.telemetry
     src = root / tlm["source_file"]
     trf = root / tlm["transfer_file"]
     sig = tlm["signals"]
@@ -48,8 +49,12 @@ def ingest_plant(plant_id: str = "dns7s", root: Path | None = None) -> Normalize
     ds = NormalizedDataset(plant_id=plant_id)
 
     for agg in aggs:
-        ds.pressure_in[agg] = readers.read_timeseries(src, _sheet_for(sig["p_in"]["sheet_prefix"], agg))
-        ds.pressure_out[agg] = readers.read_timeseries(src, _sheet_for(sig["p_out"]["sheet_prefix"], agg))
+        ds.pressure_in[agg] = readers.read_timeseries(
+            src, _sheet_for(sig["p_in"]["sheet_prefix"], agg)
+        )
+        ds.pressure_out[agg] = readers.read_timeseries(
+            src, _sheet_for(sig["p_out"]["sheet_prefix"], agg)
+        )
         ds.journals[agg] = readers.read_journal(src, _sheet_for(sig["state"]["sheet_prefix"], agg))
         ds.energy[agg] = readers.read_energy(src, _sheet_for(sig["energy"]["sheet_prefix"], agg))
 
@@ -64,9 +69,23 @@ def ingest_plant(plant_id: str = "dns7s", root: Path | None = None) -> Normalize
 
 # --- Сохранение -----------------------------------------------------------
 
+
+def _has_parquet() -> bool:
+    try:
+        import pyarrow  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 def _save_df(df: pd.DataFrame, path_no_ext: Path) -> Path:
-    p = path_no_ext.with_suffix(".csv")
-    df.to_csv(p, index=False)
+    if _has_parquet():
+        p = path_no_ext.with_suffix(".parquet")
+        df.to_parquet(p, index=False)
+    else:
+        p = path_no_ext.with_suffix(".csv")
+        df.to_csv(p, index=False)
     return p
 
 

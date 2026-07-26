@@ -1,0 +1,145 @@
+{
+  "object_id": "kns10bn",
+  "object_name": "КНС-10 БН",
+  "template": "2024",
+  "water_type": "пресная",
+  "aggregates": {
+    "НА-1": {
+      "pump_model": "ЦНС 40-1000",
+      "sec_fact": 6.939,
+      "sec_calc": 4.501,
+      "eta_fact": 0.324,
+      "eta_nom": 0.499,
+      "load_factor": 0.507,
+      "h_fact": 949.0,
+      "dw_efficiency": 423844.0,
+      "ranges": {
+        "h_fact": [
+          949.0,
+          949.0
+        ],
+        "p_hydraulic": [
+          107.67,
+          107.67
+        ],
+        "p_electric": [
+          332.83,
+          332.83
+        ],
+        "eta_fact": [
+          0.324,
+          0.324
+        ],
+        "eta_nom": [
+          0.499,
+          0.499
+        ],
+        "sec_fact": [
+          6.939,
+          6.939
+        ],
+        "sec_calc": [
+          4.501,
+          4.501
+        ],
+        "load_factor": [
+          0.507,
+          0.507
+        ],
+        "t_year": [
+          3625.27,
+          3625.27
+        ],
+        "dw_efficiency": [
+          423844.0,
+          423844.0
+        ]
+      },
+      "claims": {
+        "head_drop_m": [
+          253.0,
+          253.0
+        ],
+        "head_drop_pct": [
+          26.47,
+          26.47
+        ],
+        "eta_reduction_pp": [
+          17.517,
+          17.517
+        ],
+        "sec_over_calc": [
+          2.437,
+          2.437
+        ]
+      }
+    },
+    "НА-2": {
+      "pump_model": "ЦНС 63-1400(-3)",
+      "sec_fact": 6.23,
+      "sec_calc": 5.91,
+      "eta_fact": 0.528,
+      "eta_nom": 0.556,
+      "load_factor": 0.696,
+      "h_fact": 1030.0,
+      "dw_efficiency": 7044.0,
+      "ranges": {
+        "h_fact": [
+          1030.0,
+          1030.0
+        ],
+        "p_hydraulic": [
+          241.34,
+          241.34
+        ],
+        "p_electric": [
+          457.1,
+          457.1
+        ],
+        "eta_fact": [
+          0.528,
+          0.528
+        ],
+        "eta_nom": [
+          0.556,
+          0.556
+        ],
+        "sec_fact": [
+          6.23,
+          6.23
+        ],
+        "sec_calc": [
+          5.91,
+          5.91
+        ],
+        "load_factor": [
+          0.696,
+          0.696
+        ],
+        "t_year": [
+          303.4,
+          303.4
+        ],
+        "dw_efficiency": [
+          7044.0,
+          7044.0
+        ]
+      },
+      "claims": {
+        "eta_reduction_pp": [
+          2.825,
+          2.825
+        ],
+        "sec_over_calc": [
+          0.316,
+          0.316
+        ]
+      }
+    }
+  },
+  "teo": {
+    "total_loss_kwh": 430888.0,
+    "total_loss_krub": 1637.37
+  },
+  "recommendations_count": 0
+}

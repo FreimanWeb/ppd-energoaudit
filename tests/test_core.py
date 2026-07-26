@@ -3,16 +3,29 @@
 негативные тесты самопроверок (аудит ядра 02.07.2026).
 """
 
-import math
-
 import pytest
 
+from ppd_audit import spec as spec_module
 from ppd_audit.core import curves, motor, specific_energy
 from ppd_audit.core.audit import audit_aggregate
-from ppd_audit.core.pump import (RegimeResult, compute_regime, decompose_kns,
-                                 decompose_pumping, nominal_efficiency)
-from ppd_audit.spec import (AggregateSpec, Branch, MotorSpec, PumpSpec,
-                            RegimeMeasurement)
+from ppd_audit.core.pump import (
+    RegimeResult,
+    compute_regime,
+    decompose_kns,
+    decompose_pumping,
+    nominal_efficiency,
+)
+from ppd_audit.core.pump_profiles import profile_for
+from ppd_audit.spec import (
+    AggregateSpec,
+    Branch,
+    MotorSpec,
+    PumpKind,
+    PumpSpec,
+    ReferenceOutputs,
+    RegimeMeasurement,
+    load_object_spec,
+)
 
 
 def test_nominal_efficiency_14():
@@ -22,12 +35,79 @@ def test_nominal_efficiency_14():
 
 def test_formula_15_with_vfd_and_gear():
     # η_ном = η_пч·η_ЭД.ном·η_тр·η_нас.ном (15)
-    assert nominal_efficiency(0.94, 0.60, eta_vfd=0.97, eta_gear=0.98) == \
-        pytest.approx(0.97 * 0.94 * 0.98 * 0.60, abs=1e-12)
+    assert nominal_efficiency(0.94, 0.60, eta_vfd=0.97, eta_gear=0.98) == pytest.approx(
+        0.97 * 0.94 * 0.98 * 0.60, abs=1e-12
+    )
     # и через спец агрегата (vfd → η_пч=0,97)
-    agg = AggregateSpec(id="т", pump=PumpSpec(eta_nom=0.60),
-                        motor=MotorSpec(eta_nom=0.94), vfd=True, transmission_eff=0.98)
+    agg = AggregateSpec(
+        id="т",
+        pump=PumpSpec(eta_nom=0.60),
+        motor=MotorSpec(eta_nom=0.94),
+        vfd=True,
+        transmission=spec_module.TransmissionSpec(efficiency=0.98),
+    )
     assert agg.nominal_efficiency() == pytest.approx(0.97 * 0.94 * 0.98 * 0.60, abs=1e-12)
+
+
+def test_aggregate_embeds_transmission_spec():
+    agg = AggregateSpec(
+        id="т",
+        pump=PumpSpec(eta_nom=0.60),
+        motor=MotorSpec(eta_nom=0.94),
+        transmission=spec_module.TransmissionSpec(
+            model="СТ-А Ц-1-280-4,55-12-1", ratio=4.55, efficiency=0.98
+        ),
+    )
+
+    assert agg.transmission.model == "СТ-А Ц-1-280-4,55-12-1"
+    assert agg.transmission.ratio == pytest.approx(4.55)
+    assert agg.nominal_efficiency() == pytest.approx(0.94 * 0.98 * 0.60, abs=1e-12)
+
+
+def test_audit_requires_specific_passport_efficiencies():
+    """η_ном из Excel — только эталон для сверки, не вход расчёта."""
+    agg = _make_transfer_agg(
+        pump=PumpSpec(model="ЦНС", eta_nom=None),
+        motor=MotorSpec(model="СТД", p_nom=160.0, eta_nom=None),
+        reference=ReferenceOutputs(eta_nom=0.5766),
+    )
+
+    with pytest.raises(ValueError, match="паспорт"):
+        audit_aggregate(agg, Branch.transfer)
+
+
+def test_kns_opu_uses_each_aggregate_passport_efficiency():
+    obj = load_object_spec("knsopu")
+
+    assert obj.aggregate("НА-1").nominal_efficiency() == pytest.approx(0.559302)
+    assert obj.aggregate("НА-2").nominal_efficiency() == pytest.approx(0.60543)
+    assert obj.aggregate("НА-3").nominal_efficiency() == pytest.approx(0.73644)
+
+
+def test_positive_displacement_profile_excludes_curve_diagnostics():
+    profile = profile_for(PumpKind.positive_displacement)
+
+    assert profile.name == "positive_displacement"
+    assert profile.uses_qh_curve is False
+    assert profile.uses_qeta_curve is False
+
+
+def test_positive_displacement_audit_marks_qh_diagnostic_not_applicable():
+    agg = _make_transfer_agg(
+        pump=PumpSpec(
+            model="СТ-А НПЖ",
+            kind=PumpKind.positive_displacement,
+            eta_nom=0.60,
+            curve_qh=[[40.0, 280.0], [60.0, 250.0], [80.0, 200.0]],
+        )
+    )
+
+    result = audit_aggregate(agg, Branch.transfer)
+
+    assert result.audit_profile == "positive_displacement"
+    assert result.h_due is None
+    assert result.trace["29"]["value"] is None
+    assert "неприменима" in result.trace["29"]["subst"]
 
 
 def test_motor_efficiency_branches():
@@ -41,6 +121,7 @@ def test_motor_efficiency_branches():
 def test_synchronous_motor_alpha():
     """(26): синхронный ЭД (СТД/СДН) → α=2; определяется по серии двигателя."""
     from ppd_audit.spec import infer_motor_synchronous
+
     assert infer_motor_synchronous("СТД -800-2РУХЛ4")
     assert infer_motor_synchronous("СДН-14-59-10")
     assert not infer_motor_synchronous("5АИ 355 S4Y2")
@@ -55,8 +136,15 @@ def test_synchronous_motor_alpha():
 
 def test_kns_decomposition_sums_to_electric():
     # 5-частная диаграмма КНС должна в сумме давать P_эл (контроль баланса 31-36)
-    reg = compute_regime(q=100.0, rho=1000.0, p_in=0.2, p_out=10.0,
-                         eta_nom=0.6, p_electric=600.0, p_bg=9.0)
+    reg = compute_regime(
+        q=100.0,
+        rho=1000.0,
+        p_in=0.2,
+        p_out=10.0,
+        eta_nom=0.6,
+        p_electric=600.0,
+        p_bg=9.0,
+    )
     d = decompose_kns(reg)
     assert sum(d.components.values()) == pytest.approx(reg.p_electric, abs=1e-6)
     # ΔP_гидр + ΔP_НАдр = ΔP_др (32)
@@ -66,7 +154,14 @@ def test_kns_decomposition_sums_to_electric():
 def test_pipe_characteristic_and_optimal_pressure():
     # H_т = H_с + K_т·Q² монотонно растёт; p_опт по (22)-(23)
     pipe = specific_energy.pipe_characteristic(
-        h_fact=225.0, q=75.0, rho=1094.2, p_pp=0.5, p_in=0.398, h_pp=20.0, h_geo=5.0)
+        h_fact=225.0,
+        q=75.0,
+        rho=1094.2,
+        p_pp=0.5,
+        p_in=0.398,
+        h_pp=20.0,
+        h_geo=5.0,
+    )
     assert pipe.head(60.0) < pipe.head(75.0)
     p_opt = specific_energy.optimal_pressure(q_day=1240.0, rho=1094.2, pipe=pipe)
     assert p_opt > 0
@@ -77,14 +172,28 @@ def test_annual_losses_44_47():
     assert specific_energy.annual_loss_efficiency_by_sec(1000.0, 1.29, 1.19) == pytest.approx(100.0)
     # ΔW_ндт (47)
     assert specific_energy.annual_loss_ndt(1000.0, 1.29, 1.0) == pytest.approx(290.0)
-    # ΔW_др (45): (p_вых−p_БГ)/(3.6·η_ном)·Q_год
+    # ΔW_др: (p_вых−p_БГ)/(3.6·η_факт)·Q_год
     w = specific_energy.annual_loss_throttle(2.818, 2.0, 0.564, 446352.0)
     assert w == pytest.approx((2.818 - 2.0) / (3.6 * 0.564) * 446352.0, rel=1e-9)
 
 
+def test_throttle_loss_uses_actual_efficiency():
+    agg = _make_transfer_agg(regime=RegimeMeasurement(
+        rho=1000.0, p_in=0.4, p_out=2.8, p_bg=2.0,
+        q_fact=75.0, p_electric=97.0, t_year=7000.0,
+    ))
+
+    result = audit_aggregate(agg, Branch.kns)
+
+    assert result.dw_throttle == pytest.approx(
+        specific_energy.annual_loss_throttle(2.8, 2.0, result.regime.eta_unit, 75.0 * 7000.0),
+        rel=1e-9,
+    )
+
+
 def test_reynolds_and_viscosity_factors():
     re = curves.reynolds(q_nom=60.0, nu=1.05, d_outer_mm=150.0, wall_mm=8.0)
-    assert re > 1.0e5                       # маловязкая среда
+    assert re > 1.0e5  # маловязкая среда
     vf = curves.viscosity_factors(re)
     assert vf.k_eta == 1.0 and vf.k_h == 1.0  # пересчёт не нужен
 
@@ -97,6 +206,7 @@ def test_parabola_fit():
 
 # ---------- (18): УРЭ оптимальный ----------
 
+
 def test_sec_optimal_uses_ndt():
     # УРЭ_опт = (p_опт − p_вх)/(3.6·η_ндт) (18); для КНС p_опт = p_БГ
     sec = specific_energy.sec_optimal(9.0, 0.2, 0.7)
@@ -104,6 +214,7 @@ def test_sec_optimal_uses_ndt():
 
 
 # ---------- (46): годовые потери на циклический режим ----------
+
 
 def test_annual_loss_cyclic():
     # ΔW_ц = (p_вых − p_опт)/(3.6·η_ном)·Q_год (46)
@@ -115,16 +226,17 @@ def test_annual_loss_cyclic():
 
 # ---------- Синтетический агрегат для сквозных проверок оркестратора ----------
 
+
 def _make_transfer_agg(**kw) -> AggregateSpec:
     """Центробежный агрегат перекачки с измеренным режимом (синтетика)."""
-    d = dict(
-        id="Т-1",
-        pump=PumpSpec(model="ЦНС 60-250", eta_nom=0.60,
-                      q_nom=60.0, h_nom=250.0),
-        motor=MotorSpec(model="ВАО", p_nom=160.0, eta_nom=0.94),
-        regime=RegimeMeasurement(rho=1000.0, p_in=0.4, p_out=2.8,
-                                 q_fact=75.0, p_electric=97.0, t_year=7000.0),
-    )
+    d = {
+        "id": "Т-1",
+        "pump": PumpSpec(model="ЦНС 60-250", eta_nom=0.60, q_nom=60.0, h_nom=250.0),
+        "motor": MotorSpec(model="ВАО", p_nom=160.0, eta_nom=0.94),
+        "regime": RegimeMeasurement(
+            rho=1000.0, p_in=0.4, p_out=2.8, q_fact=75.0, p_electric=97.0, t_year=7000.0
+        ),
+    }
     d.update(kw)
     return AggregateSpec(**d)
 
@@ -132,7 +244,7 @@ def _make_transfer_agg(**kw) -> AggregateSpec:
 def test_formula_27_with_vfd_gear():
     """(27): η_нас = η_НА/(η_эд.р·η_пч·η_ред) — η_пч и η_ред учитываются;
     баланс (43) остаётся сведённым при ПЧ/редукторе."""
-    agg = _make_transfer_agg(vfd=True, transmission_eff=0.98)
+    agg = _make_transfer_agg(vfd=True, transmission=spec_module.TransmissionSpec(efficiency=0.98))
     res = audit_aggregate(agg, Branch.transfer)
     eta_na = res.regime.eta_unit
     expected = eta_na / (res.eta_motor_real * 0.97 * 0.98)
@@ -145,8 +257,7 @@ def test_formula_27_with_vfd_gear():
 def test_head_due_from_curve():
     """(29): H_д по паспортной кривой Q-H подключён к оркестратору."""
     curve = [[40.0, 280.0], [60.0, 250.0], [80.0, 200.0]]  # парабола через 3 точки
-    agg = _make_transfer_agg(pump=PumpSpec(model="ЦНС 60-250", eta_nom=0.60,
-                                           curve_qh=curve))
+    agg = _make_transfer_agg(pump=PumpSpec(model="ЦНС 60-250", eta_nom=0.60, curve_qh=curve))
     res = audit_aggregate(agg, Branch.transfer)
     assert res.h_due == pytest.approx(curves.head_due(75.0, curve), rel=1e-9)
     assert "29" in res.trace
@@ -155,8 +266,7 @@ def test_head_due_from_curve():
 def test_eta_due_from_curve():
     """(30): η_д по паспортной кривой Q-η приоритетнее η_ном; фикс. η из отчёта — вторая."""
     curve = [[40.0, 0.50], [60.0, 0.60], [80.0, 0.55]]
-    agg = _make_transfer_agg(pump=PumpSpec(model="ЦНС 60-250", eta_nom=0.60,
-                                           curve_qeta=curve))
+    agg = _make_transfer_agg(pump=PumpSpec(model="ЦНС 60-250", eta_nom=0.60, curve_qeta=curve))
     res = audit_aggregate(agg, Branch.transfer)
     assert res.trace["30"]["value"] == pytest.approx(curves.eta_due(75.0, curve), abs=5e-5)
     # без кривой, но с eta_pump_due — берётся он
@@ -167,21 +277,31 @@ def test_eta_due_from_curve():
 
 # ---------- Негативные тесты самопроверок ----------
 
+
 def test_balance_43_detects_inconsistency():
     """Баланс (43) ловит рассогласованные входы: η_НА, не равный P_гидр/P_эл,
     даёт ненулевую невязку и balance_ok=False."""
-    reg = RegimeResult(q=75.0, rho=1000.0, p_in=0.4, p_out=2.8, eta_nom=0.564,
-                       h_fact=244.6, p_hydraulic=50.0, p_electric=97.0,
-                       eta_unit=0.62)   # согласованное значение было бы 50/97=0.515
+    reg = RegimeResult(
+        q=75.0,
+        rho=1000.0,
+        p_in=0.4,
+        p_out=2.8,
+        eta_nom=0.564,
+        h_fact=244.6,
+        p_hydraulic=50.0,
+        p_electric=97.0,
+        eta_unit=0.62,
+    )  # согласованное значение было бы 50/97=0.515
     d = decompose_pumping(reg, eta_motor_nom=0.94, eta_motor_real=0.93, eta_due=0.576)
     assert not d.balance_ok
-    assert abs(d.balance_residual) > 1.0   # кВт — невязка заметная
+    assert abs(d.balance_residual) > 1.0  # кВт — невязка заметная
 
 
 def test_kns_decomposition_negative_no_pbg():
     """Декомпозиция КНС без p_БГ невозможна — понятная ошибка, а не мусор."""
-    reg = compute_regime(q=100.0, rho=1000.0, p_in=0.2, p_out=10.0,
-                         eta_nom=0.6, p_electric=600.0)   # p_bg не задан
+    reg = compute_regime(
+        q=100.0, rho=1000.0, p_in=0.2, p_out=10.0, eta_nom=0.6, p_electric=600.0
+    )  # p_bg не задан
     with pytest.raises(ValueError, match="БГ|bg"):
         decompose_kns(reg)
 

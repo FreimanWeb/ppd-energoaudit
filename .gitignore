@@ -3,5 +3,16 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+
 data/generated/
+telemetry.sqlite
+# кэш .docx-отчётов (конвертируется из .doc LibreOffice'ом — пересобирается)
+data/reports/
 *.egg-info/
+
+# Local tool indexes
+.codegraph/
+
+data/json
+data/review
+components/ppd_telemetry_calendar/ppd_telemetry_calendar/frontend/node_modules/

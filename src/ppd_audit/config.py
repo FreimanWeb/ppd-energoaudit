@@ -5,12 +5,33 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import yaml
+from pydantic import BaseModel, Field
 
-from .models import Constraints, FluidProps, Plant
+from .spec import ObjectSpec
+
+
+class FluidProps(BaseModel):
+    """Свойства жидкости из config/fluids.yaml."""
+
+    rho: float = Field(..., description="плотность, кг/м³")
+    nu: float = Field(..., description="кинематическая вязкость, сСт")
+    estimate: bool = False
+    note: str = ""
+
+
+class Constraints(BaseModel):
+    """Технологические ограничения из config/constraints.yaml."""
+
+    pressure_limits: dict = Field(default_factory=dict)
+    vfd: dict = Field(default_factory=dict)
+    operation: dict = Field(default_factory=dict)
+    wells: dict = Field(default_factory=dict)
+    kpi: dict = Field(default_factory=dict)
+    economics: dict = Field(default_factory=dict)
 
 
 def project_root() -> Path:
@@ -23,39 +44,22 @@ def _load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_constraints() -> Constraints:
     """config/constraints.yaml → Constraints."""
     return Constraints(**_load_yaml(project_root() / "config" / "constraints.yaml"))
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_fluids() -> dict[str, FluidProps]:
     """config/fluids.yaml → {тип воды: FluidProps}."""
     raw = _load_yaml(project_root() / "config" / "fluids.yaml")
     return {name: FluidProps(**props) for name, props in raw["fluids"].items()}
 
 
-@lru_cache(maxsize=None)
-def load_plant(plant_id: str) -> Plant:
-    """config/plants/<plant_id>.yaml → Plant."""
-    path = project_root() / "config" / "plants" / f"{plant_id}.yaml"
-    if not path.exists():
-        raise FileNotFoundError(f"Паспорт объекта не найден: {path}")
-    return Plant(**_load_yaml(path))
+@cache
+def load_plant(plant_id: str) -> ObjectSpec:
+    """Совместимый псевдоним нативного загрузчика паспорта объекта."""
+    from .spec import load_object_spec
 
-
-def resolve_fluid(plant: Plant) -> FluidProps:
-    """Свойства жидкости объекта: типовые из fluids.yaml, переопределённые паспортом.
-
-    Плотность по замеру в паспорте объекта (поле fluid.rho) имеет приоритет над
-    типовым справочником (Методика: ρ задаётся по замеру, а не константой).
-    """
-    fluids = load_fluids()
-    base = fluids.get(plant.fluid.get("type", "пресная"))
-    rho = plant.fluid.get("rho", base.rho if base else 1000.0)
-    nu = plant.fluid.get("nu", base.nu if base else 1.0)
-    # если плотность взята из паспорта-замера — это уже не «оценка»
-    estimate = "rho" not in plant.fluid
-    return FluidProps(rho=rho, nu=nu, estimate=estimate,
-                      note=plant.fluid.get("type", ""))
+    return load_object_spec(plant_id)

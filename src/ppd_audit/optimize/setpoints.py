@@ -8,30 +8,34 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from ..core.audit import AuditResult
 
 
 @dataclass
 class SetpointOptimization:
-    current_p_out: float            # текущее давление выкида, МПа
-    optimal_p_out: float            # целевое давление выкида, МПа
-    sec_current: float              # текущий УРЭ
-    sec_optimal: float              # УРЭ при оптимальной уставке
-    saving_kwh_year: float          # экономия, кВт·ч/год
-    vfd_freq_hz: Optional[float]    # требуемая частота ПЧ (если применимо)
+    current_p_out: float  # текущее давление выкида, МПа
+    optimal_p_out: float  # целевое давление выкида, МПа
+    sec_current: float  # текущий УРЭ
+    sec_optimal: float  # УРЭ при оптимальной уставке
+    saving_kwh_year: float  # экономия, кВт·ч/год
+    vfd_freq_hz: float | None  # требуемая частота ПЧ (если применимо)
     within_constraints: bool
     notes: list[str]
 
 
-def optimize_setpoint(audit: AuditResult, constraints, t_year: Optional[float] = None
-                      ) -> SetpointOptimization:
+def optimize_setpoint(
+    audit: AuditResult,
+    constraints,
+    t_year: float | None = None,
+) -> SetpointOptimization:
     """Оптимизация уставки давления: устранить дросселирование (p_вых → p_БГ).
 
     Экономия ≈ ΔW_дрос (45). Проверяет предельные давления и диапазон ПЧ.
     """
     reg = audit.regime
+    if audit.spec is None or audit.spec.regime is None:
+        raise ValueError("для оптимизации нужен измеренный режим агрегата")
     rm = audit.spec.regime
     notes: list[str] = []
     t_year = t_year or (rm.t_year or 8760.0)
@@ -51,7 +55,7 @@ def optimize_setpoint(audit: AuditResult, constraints, t_year: Optional[float] =
         ratio = max(0.0, (optimal_p - rm.p_in) / (reg.p_out - rm.p_in))
         f_max = vfd_cfg.get("freq_max_hz", 50.0)
         f_min = vfd_cfg.get("freq_min_hz", 35.0)
-        freq = round(f_max * ratio ** 0.5, 1)
+        freq = round(f_max * ratio**0.5, 1)
         if freq < f_min:
             notes.append(f"требуемая частота {freq} Гц ниже минимума {f_min} Гц")
             freq = f_min
@@ -64,7 +68,12 @@ def optimize_setpoint(audit: AuditResult, constraints, t_year: Optional[float] =
         notes.append("уставка в пределах ограничений")
 
     return SetpointOptimization(
-        current_p_out=reg.p_out, optimal_p_out=round(optimal_p, 3),
-        sec_current=audit.sec_fact, sec_optimal=round(sec_optimal, 3),
-        saving_kwh_year=round(saving, 1), vfd_freq_hz=freq,
-        within_constraints=within, notes=notes)
+        current_p_out=reg.p_out,
+        optimal_p_out=round(optimal_p, 3),
+        sec_current=audit.sec_fact,
+        sec_optimal=round(sec_optimal, 3),
+        saving_kwh_year=round(saving, 1),
+        vfd_freq_hz=freq,
+        within_constraints=within,
+        notes=notes,
+    )

@@ -6,14 +6,15 @@
 
 import pytest
 
-from ppd_audit.config import load_plant, project_root
+from ppd_audit.config import project_root
 from ppd_audit.ingest.pipeline import ingest_plant
 from ppd_audit.quality.report import build_quality_report
+from ppd_audit.spec import load_object_spec
 
 
 @pytest.fixture(scope="module")
 def report():
-    plant = load_plant("dns7s")
+    plant = load_object_spec("dns7s")
     src = project_root() / plant.telemetry["source_file"]
     if not src.exists():
         pytest.skip(f"нет исходных данных: {src}")

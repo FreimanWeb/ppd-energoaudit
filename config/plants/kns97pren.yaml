@@ -1,0 +1,86 @@
+id: kns97pren
+name: КНС-97
+ngdu: Елховнефть
+water_type: пресная
+branch: кнс
+source: data/raw/ntu/Пресная вода/КНС-97-2 ЕН отчет.pdf
+telemetry: {}
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: СТ-А НПЖ 1-62,5-15-УХЛ3
+    kind: объёмный
+    q_nom: 62.5
+    h_nom: 1500.0
+    power_nom: 340.0
+    n_rpm: 300.0
+  motor:
+    model: A355SMC4У3
+    synchronous: false
+    p_nom: 355.0
+    eta_nom: 0.959
+    cos_phi: 0.86
+    voltage_kv: 0.38
+    n_rpm: 1488.0
+  transmission:
+    model: СТ-А Ц-1-280-4,55-12-1
+    ratio: 4.55
+    efficiency: 1.0
+  clarifications:
+  - field: transmission_eff
+    value: 1.0
+    reason: КПД редуктора временно принят равным 1,0; нужен паспорт изготовителя.
+- id: НА-2 ПР
+  role: работа
+  pump:
+    model: ЦНС 40-1000(-2)
+    kind: центробежный
+    q_nom: 40.0
+    h_nom: 800.0
+    eta_nom: 0.52
+    power_nom: 192.75
+    n_rpm: 3000.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: ВАО2-450LB-2У2
+    synchronous: false
+    p_nom: 400.0
+    eta_nom: 0.949
+    cos_phi: 0.91
+    voltage_kv: 6.0
+    n_rpm: 3000.0
+  transmission:
+    efficiency: 1.0
+  vfd: false
+  regime:
+    rho: 1000.0
+    p_in: 1.96
+    p_out: 9.6
+    q_day: 470.9
+    t: 11.8
+    q_fact: 40.25
+    p_electric: 189.0
+    p_bg: 4.6
+    t_year: 5749.63
+  reference:
+    h_fact: 768.6
+    eta_fact: 0.452
+    eta_nom: 0.493
+    sec_fact: 4.696
+    sec_calc: 4.301
+    load_factor: 0.448
+    p_hydraulic: 85.4
+    dw_efficiency: 91441.8
+- id: НА-3
+  role: работа
+  pump:
+    model: ГНУ-1000-1100
+    q_nom: 41.6667
+    h_nom: 1100.0
+  motor:
+    model: REDA-1000
+    synchronous: false
+    p_nom: 500.0
+    n_rpm: 3000.0

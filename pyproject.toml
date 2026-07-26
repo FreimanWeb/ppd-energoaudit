@@ -4,24 +4,35 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ppd-energoaudit"
-version = "0.10.0"
+version = "0.1.0"
 description = "Цифровая модель энергоаудита системы ППД (ПАО «Татнефть», Этап 1)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.0",
     "numpy>=1.24",
+    "scipy>=1.10",
     "openpyxl>=3.1",
+    "xlrd>=2.0", # для парсинга старых форматов Excel (.xls)
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "python-docx>=1.1",   # парсинг текстовых отчётов энергоаудита (.docx)
 ]
 
 [project.optional-dependencies]
-app = ["streamlit>=1.30", "plotly>=5.18"]
-dev = ["pytest>=7.4"]
+app = [
+    "streamlit>=1.30",
+    "plotly>=5.18",
+    "ppd-telemetry-calendar",
+]
+api = ["fastapi>=0.115", "uvicorn>=0.30"]
+dev = ["pytest>=7.4", "fastapi>=0.115", "uvicorn>=0.30", "httpx2>=2.5", "ruff>=0.16"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+ppd-telemetry-calendar = { path = "components/ppd_telemetry_calendar", editable = true }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -29,3 +40,60 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
+target-version = "py314"
+preview = true
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+]
+
+# Настройки для форматирования
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+
+# Включаем автоматические исправления для ruff
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "RET"]
+extend-select = [
+    "RUF100",
+    "PLR1702",
+    "C4",
+    "TC004",
+    "TC005",
+]
+ignore = [
+    "E266",
+    "RET504",
+    "RET505",
+    "RET507",
+    "RET508",
+    "UP035",
+    "UP034",
+    "UP037",
+    "UP041",
+]
+
+fixable = ["ALL"]  # Автоматически исправлять ошибки, где это возможно
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["worker"]
+combine-as-imports = true
+lines-after-imports = 2
+
+[tool.ruff.lint.pylint]
+max-nested-blocks = 4
+
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["docx", "docx.*", "openpyxl", "openpyxl.*", "pandas", "pandas.*", "xlrd", "yaml"]
+ignore_missing_imports = true

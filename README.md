@@ -4,6 +4,7 @@
 давления (ПАО «Татнефть», ТЗ Приложение 1 ред. 18.06.2026, Этап 1). Считает то же, что
 инженеры сейчас вручную в Excel по выездным замерам, — **автоматически по телеметрии**.
 
+Пилотный объект: **ДНС-7с** (ЦДНГ-5, НГДУ «Джалильнефть»).
 
 ## Принципы
 
@@ -28,26 +29,32 @@ src/ppd_audit/
   core/        РАСЧЁТНОЕ ЯДРО по Методике (Спринт 2+):
                pump.py 7–16,31–43 · motor.py 24–27 · curves.py 28–30 ·
                specific_energy.py 16–18,44–47 · hydraulics.py · nodes.py · wells.py · reservoir/
-  measures/    реестр мероприятий + ТЭО · optimize/ уставки
+  measures/    реестр мероприятий + ТЭО · optimize/ уставки · report/ формы
 app/           Streamlit-дашборды
 tests/         pytest, в т.ч. кейс ДНС-7с (сверка с аудитом №31)
 ```
 
-## Запуск
+## Запуск (VS Code, локально)
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e ".[app,api,dev]"
 python -m ppd_audit.ingest dns7s     # нормализация телеметрии + отчёт качества
 python -m ppd_audit.core dns7s       # воспроизведение аудита агрегата (сверка с эталоном)
-python -m ppd_audit.verify           # верификация: модель↔xlsx по манифесту
-pytest -q                            # тесты (units, ingest, ядро, ДНС-7с, верификация, UI)
+python -m ppd_audit.verify           # верификация: модель↔xlsx + трёхсторонняя сверка с отчётами
+pytest -q                            # тесты (units, ingest, ядро, ДНС-7с, верификация, UI, отчёты)
+uvicorn ppd_audit.api.main:app --reload  # backend API
 streamlit run app/main.py            # дашборды
 ```
 
-Через `make` (где доступен): `make verify` · `make test` · `make app` · `make ingest`.
+Через `make`: `make help` · `make lint` · `make test` · `make verify` · `make api` · `make app`.
 
-`ingest` кладёт результаты в `data/generated/<объект>/` (ряды `series/*.csv`
+Парсинг текстовых отчётов требует `python-docx` (в зависимостях). Бинарные `.doc`
+конвертируются внешним **LibreOffice** (`soffice`): macOS — `brew install --cask libreoffice`,
+Linux — `apt install libreoffice`. Без него сверка с `.docx`-отчётами работает,
+а `.doc`-объекты пропускаются с понятным сообщением.
+
+`ingest` кладёт результаты в `data/generated/<объект>/` (ряды `series/*.parquet`
 и `quality_report.json`).
 
 ## Универсальный спец объекта
@@ -67,21 +74,30 @@ streamlit run app/main.py            # дашборды
   запустить `python -m ppd_audit.verify` (создаст `config/plants/<id>.yaml`).
 - Нет файла → скопировать любой `config/plants/<id>.yaml`, заполнить паспорт/режим, `run_pump_audit(id)`.
 - Телеметрия (как ДНС-7с) → задать карту `telemetry` и `python -m ppd_audit.ingest <id>`.
+- **Текстовый отчёт** → добавить в запись объекта поле `report:` (путь к самой поздней
+  итерации `.doc`/`.docx` относительно `data/raw/ntu`). `verify` сам сконвертирует `.doc`
+  в `data/reports/<id>.docx` и подключит его третьим источником сверки.
 
-## Верификация
+## Верификация: два уровня
 
-`python -m ppd_audit.verify` сверяет модель с числовым эталоном инженера
-(«… расчет.xlsx» из `config/verification.yaml`) и пишет `verification_report.{csv,json}`
-в `data/generated/`.
+`python -m ppd_audit.verify` выполняет обе сверки и пишет артефакты в `data/generated/`:
 
-Эталоны — папка `НТУ цифровая платформа/` (ссылка `data/raw/ntu`).
-Полный разбор — `docs/verification.md`; реестр расхождений — в тестах
-`tests/verification/`.
+1. **Модель ↔ `… расчет.xlsx`** (числовой эталон инженера) → `verification_report.{csv,json}`.
+2. **Трёхсторонняя: модель ↔ xlsx ↔ текстовый отчёт** (`.doc`/`.docx`) →
+   `reconciliation_reports.{csv,md}`. Третий источник — независимый «человеческий» эталон:
+   парсер `ingest/report_doc.py` берёт **и таблицы, и прозу**, включая относительные
+   утверждения («КПД снижен на X п.п.», «УРЭ выше расчётного на X», «рабочая точка ниже
+   на N м (Z %)»). Отчёты 2026 многодатовые → значение сверяется как диапазон по датам.
+
+Эталоны — папка `НТУ цифровая платформа/` (ссылка `data/raw/ntu`). Где источники
+расходятся между собой (xlsx ≠ отчёт) — это отдельный флаг с разбором причины.
+Полный разбор — `docs/verification.md`; реестры расхождений — в тестах
+`tests/verification/` и `tests/reports/`.
 
 **Соответствие методике** (аудит 02.07.2026): карта «формула (7–47) → функция → тест» —
 `docs/formula_map.md`; находки, допущения и бэклог — `docs/audit_findings.md`
-(в т.ч. системное расхождение §В2: инженерные xlsx считают ΔW_дрос через η_факт,
-методика — через η_ном; модель следует методике).
+(в т.ч. правило §В2: ΔW_дрос считается через η_факт по подтверждённому решению эксперта;
+исторические xlsx неоднородны).
 
 ## Как подключить модель отклика пласта
 
@@ -92,16 +108,28 @@ CRM/регрессии — как подключаемая реализация 
 ## Дашборды (Streamlit)
 
 `streamlit run app/main.py` — выбор объекта/агрегата в сайдбаре (фильтр по типу воды),
-8 экранов: Обзор (паспорт/режим/KPI) · **Схема ППД** — as-built
+9 экранов: Обзор (паспорт/режим/KPI + выдержка из отчёта) · **Схема ППД** — as-built
 схема по техсхеме (`config/topology/<id>.yaml`: оборудование+трубопроводы) либо типовая
 цепочка приём→КНС→выкид→БГ→ЗРА→скважины→пласт + Sankey потока мощности · Карта потерь
-(waterfall) · Рабочая точка (Q-H, Q-η) · Мероприятия (ТЭО) · **Новый объект** — требуемая
-телеметрия, ручной ввод, чек готовности, YAML-шаблоны · Формулы (drill-down) ·
-Качество данных.
+(waterfall) · Рабочая точка (Q-H, Q-η) · **Модель vs Отчёт** —
+трёхсторонняя таблица **модель | расчет.xlsx | отчёт .doc** с подсветкой ✓/⚠/✗ и цитатами
+прозы (главный экран проверки) · Мероприятия (ТЭО) · **Новый объект** — требуемая телеметрия,
+ручной ввод, чек готовности, YAML-шаблоны · Формулы (drill-down) · Качество данных.
 Подписи и числа — ru-RU.
 
-UI-тесты `tests/test_app_tabs.py` (AppTest) подтверждают, что дашборд
+UI-тесты `tests/reports/test_app_values.py` (AppTest) подтверждают, что дашборд
 **показывает числа, совпадающие с моделью** (а не только стартует).
+
+## Backend API
+
+FastAPI-слой — тонкий adapter над `ppd_audit.services`: математическое ядро остаётся в
+`core/`, Streamlit остаётся demo/verification UI. Первый контракт:
+
+- `POST /energy/audit` — вход `EnergyAuditRequest` (`ObjectSpec` + optional `aggregate_id`),
+  выход `EnergyAuditResponse` с KPI, потерями и trace формул.
+- `POST /telemetry/validate` — вход `TelemetrySubmission`: только raw telemetry с контекстом
+  объекта/техместа/периода; выход — quality-report и нормализованные входы по агрегатам.
+- `GET /health` — healthcheck.
 
 ## Соответствие ТЗ
 
@@ -109,7 +137,7 @@ UI-тесты `tests/test_app_tabs.py` (AppTest) подтверждают, чт�
 - треб. 3, 6 (классификация и декомпозиция потерь) → `core/decomposition.py`
 - треб. 4 (дашборды) → `app/`
 - треб. 5 (реестр мероприятий с эффектом) → `measures/`
-- треб. 7 (отчёты) → `quality/report.py`, `verify/runner.py` (CSV/JSON в `data/generated/`)
+- треб. 7 (отчёты) → `report/`
 - критерий точности УРЭ ≥80 % → балансы `quality/` + коммерческий учёт
 
 См. также `CHANGELOG.md`.

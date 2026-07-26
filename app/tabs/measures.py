@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import streamlit as st
-
 import lib
+import streamlit as st
+import ui
+
 from tabs.common import Ctx, fmt
 
 
@@ -13,22 +14,58 @@ def render(ctx: Ctx) -> None:
     from ppd_audit.optimize import optimize_setpoint
 
     st.subheader("Реестр мероприятий с ТЭО")
+    ui.provenance(("Эвристическая оценка", "warn"), ("CAPEX — типовой", ""))
+    st.caption(
+        "Сценарные оценки — потенциал после диагностики; CAPEX и окупаемость для них не заданы."
+    )
+    if ctx.source == "field_trip" and not ctx.scope.annual_runtime_is_assumed:
+        st.caption(
+            "Экономия за год рассчитана по T_год = "
+            f"{fmt(ctx.scope.annual_runtime_hours, 1)} ч из YAML-паспорта."
+        )
+    elif ctx.scope.annual_runtime_is_assumed:
+        st.caption(
+            "Экономия за год — сценарий при T_год = 8760 ч; "
+            "фактическая наработка требует уточнения."
+        )
+    else:
+        st.caption(
+            "Экономия за год рассчитана по T_год = "
+            f"{fmt(ctx.scope.annual_runtime_hours, 1)} ч из телеметрии."
+        )
     evals = suggest_measures(ctx.audit, ctx.tariff)
     if evals:
         st.dataframe(
-            {"Мероприятие": [e.name for e in evals],
-             "Класс": [e.cls for e in evals],
-             "Экономия, кВт·ч/год": [fmt(e.energy_saving_kwh, 0) for e in evals],
-             "Экономия, тыс. ₽/год": [fmt(e.money_saving_krub, 1) for e in evals],
-             "CAPEX, тыс. ₽": [fmt(e.capex_krub, 0) for e in evals],
-             "Окупаемость, лет": [fmt(e.payback_years, 2) if e.payback_years else "—"
-                                  for e in evals]},
-            width="stretch", hide_index=True)
+            {
+                "Мероприятие": [e.name for e in evals],
+                "Класс": [e.cls for e in evals],
+                "Экономия, кВт·ч/год": [fmt(e.energy_saving_kwh, 0) for e in evals],
+                "Экономия, тыс. ₽/год": [fmt(e.money_saving_krub, 1) for e in evals],
+                "CAPEX, тыс. ₽": [
+                    "требует оценки" if e.cls == "сценарная оценка" else fmt(e.capex_krub, 0)
+                    for e in evals
+                ],
+                "Окупаемость, лет": [
+                    (
+                        "требует оценки"
+                        if e.cls == "сценарная оценка"
+                        else fmt(e.payback_years, 2) if e.payback_years else "—"
+                    )
+                    for e in evals
+                ],
+            },
+            width="stretch",
+            hide_index=True,
+        )
     else:
-        st.info("Применимых мероприятий не выявлено (потери в пределах нормы).")
+        st.info(
+            "В текущем каталоге нет применимого мероприятия. "
+            "Это не означает, что потери в норме."
+        )
 
     st.markdown("---")
     st.subheader("Оптимизация уставки (с ограничениями)")
+    ui.provenance(("Расчётная оценка", "warn"), ("Ограничения — конфиг", ""))
     opt = optimize_setpoint(ctx.audit, lib.constraints())
     cc = st.columns(4)
     cc[0].metric("p_вых текущее, МПа", fmt(opt.current_p_out, 2))

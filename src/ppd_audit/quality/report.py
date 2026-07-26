@@ -46,8 +46,13 @@ def _derive_flags(rep: dict) -> list[str]:
         elif q.get("zero_fraction", 0) > 0.5:
             flags.append(f"{name}: доля нулей {q['zero_fraction']:.0%} (вероятно резерв/простой)")
     vol = rep["balances"].get("volume", {})
-    if isinstance(vol.get("residual_pct_median"), (int, float)) and abs(vol["residual_pct_median"]) > 10:
-        flags.append(f"объёмный баланс: медианная невязка УУЖ↔перекачка {vol['residual_pct_median']}%")
+    if (
+        isinstance(vol.get("residual_pct_median"), (int, float))
+        and abs(vol["residual_pct_median"]) > 10
+    ):
+        flags.append(
+            f"объёмный баланс: медианная невязка УУЖ↔перекачка {vol['residual_pct_median']}%"
+        )
     return flags
 
 

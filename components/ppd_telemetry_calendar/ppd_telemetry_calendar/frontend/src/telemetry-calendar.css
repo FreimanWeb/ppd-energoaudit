@@ -1,0 +1,26 @@
+.rs-calendar-table-cell.ppd-telemetry-calendar__ready
+  .rs-calendar-table-cell-content {
+  background: #bfe8d3;
+  border-radius: 5px;
+  color: #176443;
+}
+
+.rs-calendar-table-cell.ppd-telemetry-calendar__insufficient
+  .rs-calendar-table-cell-content,
+.rs-calendar-table-cell.ppd-telemetry-calendar__snapshot
+  .rs-calendar-table-cell-content {
+  background: #d9e0e8;
+  border-radius: 5px;
+  color: #667585;
+}
+
+.rs-calendar-table-cell.ppd-telemetry-calendar__snapshot .rs-calendar-table-cell-content {
+  background: #fdeecb;
+  border-radius: 5px;
+  color: #8a5b00;
+}
+
+.rs-calendar-table-cell.rs-calendar-table-cell-selected .rs-calendar-table-cell-content {
+  outline: 2px solid #1677ff;
+  outline-offset: -2px;
+}

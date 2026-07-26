@@ -91,7 +91,7 @@ def read_journal(path: Path, sheet: str) -> pd.DataFrame:
             continue
         if a is None:
             continue
-        state = (str(b).strip().rstrip(".") if b is not None else "")
+        state = str(b).strip().rstrip(".") if b is not None else ""
         state = {"ВКЛ": "ВКЛ", "ОТКЛ": "ОТКЛ"}.get(state, state)
         ts = _to_datetime(c)
         if ts is pd.NaT:

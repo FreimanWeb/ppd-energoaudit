@@ -49,7 +49,7 @@ P — кВт, W — кВт·ч, УРЭ — кВт·ч/м³; g = 9,81; кгс/с�
 
 | № | Формула | Реализация | Тест | Соответствие |
 |---|---|---|---|---|
-| (28) | Re = Q_ном·10⁷/(9π·ν·(D−d)) | `core/curves.py::reynolds` | `test_core.py::test_reynolds_and_viscosity_factors` | ⚠ **отступление от буквы PDF**: код использует внутренний диаметр D−2d (d — толщина стенки, внутренний диаметр = D−2d физически); PDF пишет (D−d). Влияние — только на нефтеперекачку с вязкой жидкостью (в текущей верификации таких нет). Вопрос заказчику — findings §В1 |
+| (28) | Re = Q_ном·10⁷/(9π·ν·(D−2d)) | `core/curves.py::reynolds` | `test_core.py::test_reynolds_and_viscosity_factors` | ✓ PDF и код используют внутренний диаметр D−2d; d — толщина стенки |
 | — | K_Q, K_H, K_η по номограмме рис. 8.4.1 | `core/curves.py::viscosity_factors` — **заглушка** (K=1 при Re≥10⁵, грубая оценка ниже) | `test_reynolds_and_viscosity_factors` (только ветка K=1) | ⚠ номограмма НЕ оцифрована; калибровочная точка PDF: Re=400 → K_Q=0,72, K_H=0,815, K_η=0,385 — заглушка даёт (1,0/0,81/0,76). Для воды ППД (Re≥10⁵) корректно K=1. Бэклог — findings §Б1 |
 | (29) | H_д = aQ²+bQ+c | `core/curves.py::fit_parabola`+`head_due`; подключено в `audit.py` при наличии `curve_qh` | `test_core.py::test_parabola_fit`, `test_head_due_from_curve` | ✓ (подключено к оркестратору 02.07.2026 — ранее функция была, но не вызывалась) |
 | (30) | η_д = uQ²+vQ+w | `core/curves.py::eta_due`; в `audit.py` при наличии `curve_qeta`, иначе `eta_pump_due` из паспорта/отчёта, иначе η_нас.ном | `test_parabola_fit`, `test_eta_due_from_curve`; ДНС-7с: η_д=0,576 из отчёта №31 | ✓ (та же оговорка) |
@@ -83,7 +83,7 @@ P — кВт, W — кВт·ч, УРЭ — кВт·ч/м³; g = 9,81; кгс/с�
 |---|---|---|---|---|
 | (44) | ΔW_кпд = Q_год·(УРЭ_ф−УРЭ_р) | `specific_energy.py::annual_loss_efficiency_by_sec`; в `audit.py` база Q_год = Q_факт·T_год (соглашение инженеров в xlsx, сверено) | `test_core.py::test_annual_losses_44_47`, verification «ΔW КПД» | ✓ |
 | — | ΔW_кпд через мощность (эквивалент при разовом замере) | `annual_loss_efficiency_by_power` = ΔP_КПД(38)·T_год | `test_dns7s.py::test_annual_efficiency_loss` | ✓ (тождественно (44) при УРЭ_ф=P_эл/Q — доказано алгебраически, см. docstring) |
-| (45) | ΔW_др = (p_вых−p_БГ)/(3,6·η_ном)·Q_год | `specific_energy.py::annual_loss_throttle`, `zra.py::throttle_loss` | `test_annual_losses_44_47`, `test_throttle_loss`, verification «ΔW дрос» | ✓ |
+| (45, правило системы) | ΔW_др = (p_вых−p_БГ)/(3,6·η_факт)·Q_год | `specific_energy.py::annual_loss_throttle`, `zra.py::throttle_loss` | `test_annual_losses_44_47`, `test_throttle_loss` | ✓ — решение эксперта для ТЭО фактической экономии |
 | (46) | ΔW_ц = (p_вых−p_опт)/(3,6·η_ном)·Q_год | `specific_energy.py::annual_loss_cyclic` | `test_core.py::test_annual_loss_cyclic` | ✓ формула; **не подключена к оркестратору** — нет объекта с задокументированным цикл. режимом (ДНС-7с работает непрерывно); бэклог findings §Б2 |
 | (47) | ΔW_ндт = Q_год·(УРЭ_ф−УРЭ_опт) | `specific_energy.py::annual_loss_ndt` | `test_annual_losses_44_47` | ✓ формула; в оркестраторе не выводится отдельной строкой (нет η_ндт — см. (18)) |
 

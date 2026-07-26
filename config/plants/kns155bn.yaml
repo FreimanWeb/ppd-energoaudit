@@ -1,5 +1,6 @@
 id: kns155bn
-name: КНС-155 БН
+name: КНС-155
+ngdu: Бавлынефть
 water_type: пластовая
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/пластовая
@@ -26,7 +27,8 @@ aggregates:
     voltage_kv: 6.0
     i_nom: 90.0
     n_rpm: 3000.0
-  transmission_eff: 1.0
+  transmission:
+    efficiency: 1.0
   vfd: false
   regime:
     rho: 1115.0

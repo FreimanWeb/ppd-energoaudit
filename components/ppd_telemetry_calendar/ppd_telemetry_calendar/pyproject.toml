@@ -1,0 +1,7 @@
+[project]
+name = "ppd-telemetry-calendar"
+version = "0.0.1"
+
+[[tool.streamlit.component.components]]
+name = "telemetry_calendar"
+asset_dir = "frontend/build"

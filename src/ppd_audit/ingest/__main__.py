@@ -36,21 +36,29 @@ def _print_summary(rep: dict) -> None:
         if q.get("n", 0) == 0:
             print(f"  {name:14s}: нет данных")
         else:
-            print(f"  {name:14s}: n={q['n']:>6}  нулей={q['zero_fraction']:.0%}  "
-                  f"медиана={q['value_median']}  период {q['period'][0][:10]}…{q['period'][1][:10]}")
+            print(
+                f"  {name:14s}: n={q['n']:>6}  нулей={q['zero_fraction']:.0%}  "
+                f"медиана={q['value_median']}  период {q['period'][0][:10]}…{q['period'][1][:10]}"
+            )
     print("Журналы (наработка):")
     for agg, j in rep["journals"].items():
-        print(f"  {agg}: события {j['events_raw']}→{j['events_dedup']} (дублей {j.get('duplicates_removed',0)}), "
-              f"наработка {j['runtime_hours']} ч, пусков {j['starts']}")
+        print(
+            f"  {agg}: события {j['events_raw']}→{j['events_dedup']} (дублей {j.get('duplicates_removed', 0)}), "
+            f"наработка {j['runtime_hours']} ч, пусков {j['starts']}"
+        )
     if "transfer_gaps" in rep:
         g = rep["transfer_gaps"]
-        print(f"Перекачка: {g['n']} сут, пропусков дат {g['missing_dates']} ({g.get('missing_fraction',0):.1%})")
+        print(
+            f"Перекачка: {g['n']} сут, пропусков дат {g['missing_dates']} ({g.get('missing_fraction', 0):.1%})"
+        )
     e = rep["balances"]["energy"]
     print(f"Энергобаланс: доли по агрегатам {e['shares']}")
     sf = rep["balances"]["sec_fact"]
     if "sec_fact_by_transfer" in sf:
-        print(f"УРЭ факт (по перекачке): {sf['sec_fact_by_transfer']} кВт·ч/м³  "
-              f"(по УУЖ: {sf.get('sec_fact_by_uuj','—')})")
+        print(
+            f"УРЭ факт (по перекачке): {sf['sec_fact_by_transfer']} кВт·ч/м³  "
+            f"(по УУЖ: {sf.get('sec_fact_by_uuj', '—')})"
+        )
     v = rep["balances"]["volume"]
     if "residual_pct_median" in v:
         print(f"Объёмный баланс УУЖ↔перекачка: медианная невязка {v['residual_pct_median']}%")

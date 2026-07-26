@@ -1,0 +1,50 @@
+id: kns13ln
+name: КНС-13
+ngdu: Лениногорскнефть
+water_type: пресная
+branch: кнс
+source: data/raw/ntu/Пресная вода/КНС 14 АН/для примера/кнс 13 ЛН.xlsx
+telemetry: {}
+aggregates:
+- id: НА-1
+  role: работа
+  pump:
+    model: REDA 1500-1500
+    kind: центробежный
+    q_nom: 62.5
+    h_nom: 1500.0
+    eta_nom: 0.68
+    power_nom: 337.91
+    n_rpm: 4165.0
+    curve_qh: []
+    curve_qeta: []
+  motor:
+    model: VAQ
+    synchronous: false
+    p_nom: 441.3
+    eta_nom: 0.95
+    voltage_kv: 6.0
+    n_rpm: 2978.0
+  transmission:
+    efficiency: 1.0
+  vfd: false
+  regime:
+    rho: 1073.0
+    p_in: 1.18
+    p_out: 14.0
+    q_day: 829.0
+    t: 24.0
+    q_fact: 33.5
+    p_electric: 189.0
+    p_bg: 12.258750000000001
+    t_year: 8760.0
+  reference:
+    h_fact: 1217.92149631441
+    eta_fact: 0.6312022339800119
+    eta_nom: 0.646
+    sec_fact: 5.641791044776119
+    sec_calc: 5.512555899552803
+    load_factor: 0.40686607749830045
+    p_hydraulic: 119.29722222222223
+    dw_efficiency: 37925.34571723403
+    dw_throttle: 224873.88065522604
