@@ -24,8 +24,10 @@ from ppd_audit.db_seed import bootstrap_database  # noqa: E402
 from ppd_audit.services.result_scope import ResultScope, result_scope as _result_scope  # noqa: E402
 from ppd_audit.services.telemetry_audit import (  # noqa: E402
     object_from_database,
+    run_snapshot_audit,
     run_telemetry_audit,
     telemetry_date_statuses as _telemetry_date_statuses,
+    telemetry_snapshots as _telemetry_snapshots,
 )
 from ppd_audit.spec import ObjectSpec, load_object_spec  # noqa: E402
 from ppd_audit.verify.reconcile import run_reconciliation  # noqa: E402
@@ -94,6 +96,27 @@ def get_audit(
         end,
         require_daily_pressure_coverage=require_daily_pressure_coverage,
     )
+
+
+def telemetry_snapshots(
+    object_id: str, aggregate_id: str, start: datetime, end: datetime,
+):
+    return _telemetry_snapshots(database(), object_id, aggregate_id, start, end)
+
+
+def snapshot_selection_key(object_id: str, aggregate_id: str, day: date) -> str:
+    """Ключ выбранного снимка: один для вкладок «Анализ» и «Режимный снимок»."""
+    return f"snapshot-{object_id}-{aggregate_id}-{day.isoformat()}"
+
+
+def get_snapshot_audit(
+    object_id: str,
+    aggregate_id: str,
+    start: datetime,
+    end: datetime,
+    timestamp: datetime,
+):
+    return run_snapshot_audit(database(), object_id, aggregate_id, start, end, timestamp)
 
 
 def telemetry_dates(object_id: str, aggregate_id: str) -> list[date]:

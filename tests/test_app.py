@@ -5,6 +5,7 @@
 """
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -36,6 +37,61 @@ def test_telemetry_viewer_uses_a_date_range():
 
     assert at.date_input[0].label == "Период телеметрии"
     assert any(item.value == "Телеметрия за период" for item in at.subheader)
+
+
+def test_snapshot_is_not_a_sidebar_mode():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+
+    assert "Режимный снимок" not in at.radio[0].options
+
+
+def test_snapshot_is_single_page_without_telemetry_fallback():
+    source = Path("app/tabs/snapshot.py").read_text(encoding="utf-8")
+
+    assert "st.tabs(" not in source
+    assert "telemetry.render_day" not in source
+
+
+def test_analysis_and_snapshot_share_the_latest_pressure_snapshot():
+    main = Path(APP).read_text(encoding="utf-8")
+    snapshot = Path("app/tabs/snapshot.py").read_text(encoding="utf-8")
+
+    assert "st.session_state.setdefault(snapshot_key, snapshots[-1].timestamp.isoformat())" in main
+    assert "lib.get_snapshot_audit(" in main
+    assert "snapshot_key = lib.snapshot_selection_key(" in snapshot
+
+
+def test_fallback_scheme_draws_each_aggregate_as_a_parallel_branch():
+    source = Path("app/tabs/scheme.py").read_text(encoding="utf-8")
+
+    assert "aggregates = ctx.obj.aggregates" in source
+    assert "параллельные ветви НА" in source
+
+
+def test_clarifications_have_human_readable_efficiency_labels():
+    source = Path(APP).read_text(encoding="utf-8")
+
+    assert '"pump_eta_nom": "КПД насоса"' in source
+    assert '"motor_eta_nom": "КПД ЭД"' in source
+
+
+def test_data_quality_is_not_an_analysis_tab():
+    source = Path(APP).read_text(encoding="utf-8")
+
+    assert '"✅ Качество данных"' not in source
+
+
+def test_reconciliation_is_not_an_analysis_tab():
+    source = Path(APP).read_text(encoding="utf-8")
+
+    assert '"🔬 Модель vs Отчёт"' not in source
+
+
+def test_snapshot_warning_explains_what_pressure_coverage_is_needed_for():
+    source = Path(APP).read_text(encoding="utf-8")
+
+    assert "Давления синхронны с работающим агрегатом менее чем для 80% точек" in source
+    assert "показатели по давлению рассчитаны как режимный снимок, а не за сутки" in source
 
 
 @pytest.mark.parametrize("label_part", ["КНС-129", "КНС-138", "КНС-175"])

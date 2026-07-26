@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from statistics import mean, median
 
@@ -23,6 +24,31 @@ _PRESSURE_POWER_MAX_GAP = timedelta(minutes=5)
 _PRESSURE_STABILITY_WINDOW = timedelta(minutes=1)
 _PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND = 0.02
 _MIN_PRESSURE_COVERAGE = 0.8
+
+
+@dataclass(frozen=True)
+class TelemetrySnapshot:
+    """Один снимок режима с исходными временны́ми рассогласованиями."""
+
+    timestamp: datetime
+    p_in_mpa: float
+    p_out_mpa: float
+    p_bg_mpa: float | None
+    p_bg_gap: timedelta | None
+    power_kw: float | None
+    power_gap: timedelta | None
+    is_stable: bool
+
+
+@dataclass(frozen=True)
+class SnapshotAudit:
+    """Расчёт по выбранному снимку и явно зафиксированные допущения."""
+
+    audit: AuditResult
+    snapshot: TelemetrySnapshot
+    uses_daily_flow: bool
+    uses_daily_power: bool
+    annual_runtime_is_assumed: bool
 
 
 def build_regime(
@@ -71,6 +97,129 @@ def build_regime(
         nu=_median(aggregate_values, "viscosity", required=False) or plant["default_viscosity"],
         p_bg=p_bg,
         t_year=database.annual_runtime(plant_code, aggregate_code, end) or 8760.0,
+    )
+
+
+def telemetry_snapshots(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    start: datetime,
+    end: datetime,
+) -> list[TelemetrySnapshot]:
+    """Вернуть точные физически допустимые пары давления выбранного окна."""
+    rows = database.measurements_in_window(
+        plant_code, aggregate_code, start, end, include_station=True
+    )
+    pressure_by_time: dict[datetime, dict[str, float]] = {}
+    p_bg_points: list[tuple[datetime, float]] = []
+    power_points: list[tuple[datetime, float]] = []
+    for row in rows:
+        timestamp = datetime.fromisoformat(row["timestamp"])
+        value = float(row["value"])
+        if row["is_station"]:
+            if row["metric"] == "p_bg":
+                p_bg_points.append((timestamp, value))
+            continue
+        if row["metric"] in {"p_in", "p_out"}:
+            pressure_by_time.setdefault(timestamp, {})[row["metric"]] = value
+        elif row["metric"] == "power":
+            power_points.append((timestamp, value))
+
+    pairs = sorted(
+        (
+            (timestamp, values["p_in"], values["p_out"])
+            for timestamp, values in pressure_by_time.items()
+            if {"p_in", "p_out"} <= values.keys() and values["p_out"] > values["p_in"]
+        ),
+        key=lambda pair: pair[0],
+    )
+    snapshots = []
+    for pair in pairs:
+        timestamp, p_in, p_out = pair
+        nearest_power = min(power_points, key=lambda point: abs(point[0] - timestamp), default=None)
+        nearest_bg = min(p_bg_points, key=lambda point: abs(point[0] - timestamp), default=None)
+        snapshots.append(
+            TelemetrySnapshot(
+                timestamp=timestamp,
+                p_in_mpa=p_in,
+                p_out_mpa=p_out,
+                p_bg_mpa=nearest_bg[1] if nearest_bg else None,
+                p_bg_gap=abs(nearest_bg[0] - timestamp) if nearest_bg else None,
+                power_kw=nearest_power[1] if nearest_power else None,
+                power_gap=abs(nearest_power[0] - timestamp) if nearest_power else None,
+                is_stable=_is_stable_pressure_pair(pair, pairs),
+            )
+        )
+    return snapshots
+
+
+def run_snapshot_audit(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    start: datetime,
+    end: datetime,
+    timestamp: datetime,
+) -> SnapshotAudit:
+    """Рассчитать выбранный снимок, явно используя доступные суточные итоги."""
+    snapshot = next(
+        (
+            candidate
+            for candidate in telemetry_snapshots(database, plant_code, aggregate_code, start, end)
+            if candidate.timestamp == timestamp
+        ),
+        None,
+    )
+    if snapshot is None:
+        raise ValueError(f"нет физически допустимой пары давления в {timestamp.isoformat()}")
+
+    rows = database.measurements_in_window(
+        plant_code, aggregate_code, start, end, include_station=True
+    )
+    aggregate_values: dict[str, list[float]] = {}
+    station_values: dict[str, list[float]] = {}
+    for row in rows:
+        if row["value"] == 0:
+            continue
+        target = station_values if row["is_station"] else aggregate_values
+        target.setdefault(row["metric"], []).append(float(row["value"]))
+    if any(metric in station_values for metric in ("q_day", "runtime", "energy")):
+        raise ValueError("станционный расход, наработка или энергия не распределены по агрегатам")
+
+    plant = database.plant(plant_code)
+    q_day = _single(aggregate_values, "q_day", required=False)
+    runtime = _single(aggregate_values, "runtime", required=False)
+    energy = _single(aggregate_values, "energy", required=False)
+    q_fact = _median(aggregate_values, "flow_rate", required=False)
+    uses_daily_flow = q_fact is None and q_day is not None and runtime is not None
+    uses_daily_power = energy is not None and runtime is not None
+    annual_runtime = database.annual_runtime(plant_code, aggregate_code, end)
+    regime = RegimeMeasurement(
+        rho=_median(aggregate_values, "density", required=False)
+        or _required_plant_value(plant, "default_density", "density"),
+        p_in=snapshot.p_in_mpa,
+        p_out=snapshot.p_out_mpa,
+        q_day=q_day,
+        t=runtime,
+        w=energy,
+        q_fact=q_fact,
+        p_electric=energy / runtime if uses_daily_power else snapshot.power_kw,
+        nu=_median(aggregate_values, "viscosity", required=False) or plant["default_viscosity"],
+        p_bg=snapshot.p_bg_mpa,
+        t_year=annual_runtime or 8760.0,
+    )
+    aggregate = database.aggregate(plant_code, aggregate_code)
+    passport = database.active_passport(plant_code, aggregate_code, start)
+    audit = audit_aggregate(
+        _aggregate_spec(aggregate, passport, regime=regime), Branch(plant["branch"])
+    )
+    return SnapshotAudit(
+        audit=audit,
+        snapshot=snapshot,
+        uses_daily_flow=uses_daily_flow,
+        uses_daily_power=uses_daily_power,
+        annual_runtime_is_assumed=annual_runtime is None,
     )
 
 

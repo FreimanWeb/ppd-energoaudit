@@ -6,8 +6,10 @@ from ppd_audit.db import AuditDatabase
 from ppd_audit.services.telemetry_audit import (
     build_regime,
     object_from_database,
+    run_snapshot_audit,
     run_telemetry_audit,
     telemetry_date_statuses,
+    telemetry_snapshots,
 )
 
 
@@ -240,6 +242,51 @@ def test_snapshot_rejects_fast_pressure_transition(tmp_path):
             start + timedelta(days=1),
             require_daily_pressure_coverage=False,
         )
+
+
+def test_telemetry_snapshots_keep_measurement_timestamps_and_gaps(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
+    database.add_measurement("kns97", "НА-02", start, "p_out", 10.4, "МПа")
+    database.add_measurement("kns97", "НА-02", start + timedelta(minutes=4), "power", 210.0, "кВт")
+    database.add_measurement("kns97", None, start + timedelta(minutes=2), "p_bg", 9.8, "МПа")
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(days=1)
+    )
+
+    assert len(snapshots) == 1
+    assert snapshots[0].timestamp == start
+    assert snapshots[0].power_kw == pytest.approx(210.0)
+    assert snapshots[0].power_gap == timedelta(minutes=4)
+    assert snapshots[0].p_bg_mpa == pytest.approx(9.8)
+    assert snapshots[0].p_bg_gap == timedelta(minutes=2)
+
+
+def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 48.0, "м³/сут"),
+        ("runtime", 2.0, "ч"),
+        ("energy", 420.0, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    database.add_measurement("kns97", "НА-02", start + timedelta(minutes=4), "power", 210.0, "кВт")
+
+    snapshot = run_snapshot_audit(
+        database, "kns97", "НА-02", start, start + timedelta(days=1), start
+    )
+
+    assert snapshot.audit.regime.p_in == pytest.approx(1.2)
+    assert snapshot.audit.regime.p_out == pytest.approx(10.4)
+    assert snapshot.uses_daily_flow is True
+    assert snapshot.uses_daily_power is True
+    assert snapshot.annual_runtime_is_assumed is True
 
 
 def test_date_statuses_marks_snapshot_when_daily_coverage_is_incomplete(tmp_path):

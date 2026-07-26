@@ -18,6 +18,7 @@ from ..core.pump import PumpingDecomposition
 class MeasureClass(StrEnum):
     quick_win = "быстрая победа"  # режимные/организационные, без CAPEX
     conditional = "условно-окупаемое"  # требует CAPEX
+    scenario = "сценарная оценка"  # эффект требует диагностики и оценки CAPEX
 
 
 @dataclass
@@ -48,6 +49,10 @@ def _throttle_saving(a: AuditResult) -> float:
     return a.dw_throttle or 0.0
 
 
+def _efficiency_recovery_saving(audit: AuditResult) -> float:
+    return max(audit.dw_efficiency or 0.0, 0.0)
+
+
 def _pumping_component_saving(
     audit: AuditResult, component: Callable[[PumpingDecomposition], float]
 ) -> float:
@@ -72,6 +77,14 @@ def _wear_saving(audit: AuditResult) -> float:
 
 # Библиотека типовых мероприятий (растёт по ходу).
 CATALOG: list[Measure] = [
+    Measure(
+        "efficiency_recovery_scenario",
+        "Сценарий: восстановление КПД насосного агрегата",
+        MeasureClass.scenario,
+        "ΔW_кпд (44)",
+        saving_fn=_efficiency_recovery_saving,
+        applicable_fn=lambda a: _efficiency_recovery_saving(a) > 0,
+    ),
     Measure(
         "throttle_down",
         "Снижение дросселирования (открытие задвижки/штуцера)",

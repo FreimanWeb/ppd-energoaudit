@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 
 WATER_EMOJI = {"пресная": "💧", "агрессивная": "🧪", "пластовая": "🛢️"}
@@ -22,6 +22,7 @@ class Ctx:
     audit: object  # AuditResult
     tariff: float
     selected_date: date
+    snapshot_timestamp: datetime
     scope: object  # ResultScope
 
 

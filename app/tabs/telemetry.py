@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import altair as alt
 import lib
 import streamlit as st
 import ui
@@ -12,11 +13,24 @@ from ppd_audit.services.telemetry_series import telemetry_series
 from tabs.common import Ctx
 
 
+def _line_chart(frame):
+    return (
+        alt.Chart(frame)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("Время:T", title=None),
+            y=alt.Y("Значение:Q"),
+            color=alt.Color("Показатель:N"),
+            tooltip=["Время:T", "Показатель:N", "Значение:Q"],
+        )
+        .properties(height=260)
+    )
+
+
 def _render_charts(rows: list[dict]) -> None:
     for unit, frame in telemetry_series(rows).items():
-        values = [column for column in frame.columns if column != "Время"]
         st.markdown(f"**{unit}**")
-        st.line_chart(frame, x="Время", y=values, height=260)
+        st.altair_chart(_line_chart(frame), width="stretch")
 
 
 def render_day(object_id: str, aggregate_id: str, selected_date: date) -> None:

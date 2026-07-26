@@ -1,13 +1,15 @@
-"""🗺️ Схема ППД — as-built технологическая схема (или типовая цепочка) + Sankey мощности."""
+"""🗺️ Схема ППД — as-built технологическая схема или типовая цепочка."""
 
 from __future__ import annotations
+
+from datetime import timedelta
 
 import lib
 import plotly.graph_objects as go
 import streamlit as st
 import ui
 
-from tabs.common import Ctx, fmt, loss_components
+from tabs.common import Ctx, fmt
 
 
 _CAT_COLOR = {
@@ -21,6 +23,35 @@ _CAT_COLOR = {
     "reservoir": "#eab8b8",
     "node": "#e0e0e0",
 }
+
+
+def _aggregate_pressure_text(snapshots, timestamp) -> str:
+    """Давления НА только в точном timestamp выбранного снимка."""
+    p_in, p_out = _pressure_labels(snapshots, timestamp)
+    if p_in is None or p_out is None:
+        return "p_вх/p_вых: нет данных"
+    return f"{p_in} · {p_out}"
+
+
+def _pressure_labels(snapshots, timestamp) -> tuple[str | None, str | None]:
+    snapshot = next((item for item in snapshots if item.timestamp == timestamp), None)
+    if snapshot is None:
+        return None, None
+    return (
+        f"p_вх={fmt(snapshot.p_in_mpa, 2)} МПа",
+        f"p_вых={fmt(snapshot.p_out_mpa, 2)} МПа",
+    )
+
+
+def _aggregate_pressure_labels(ctx: Ctx) -> dict[str, tuple[str | None, str | None]]:
+    start = ctx.snapshot_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        aggregate.id: _pressure_labels(
+            lib.telemetry_snapshots(ctx.object_id, aggregate.id, start, start + timedelta(days=1)),
+            ctx.snapshot_timestamp,
+        )
+        for aggregate in ctx.obj.aggregates
+    }
 
 
 def _node_hover(n, typ, au, rm):
@@ -58,7 +89,7 @@ def _node_hover(n, typ, au, rm):
     return "<br>".join(lines)
 
 
-def _topology_figure(topo, selected_audit, sel_agg, rm):
+def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
     """Интерактивная as-built схема: трубопроводы + узлы с hover и подсветкой.
 
     Насосы подсвечиваются по КПД (зелёный/жёлтый/красный), выбранный агрегат — золотой
@@ -66,6 +97,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm):
     """
     nodes = topo.get("nodes", [])
     pos = {n["id"]: (n["x"], n["y"]) for n in nodes}
+    nodes_by_id = {n["id"]: n for n in nodes}
 
     pumps = {
         n["id"]: selected_audit
@@ -84,6 +116,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm):
             continue
         x0, y0 = pos[e["from"]]
         x1, y1 = pos[e["to"]]
+        source, target = nodes_by_id[e["from"]], nodes_by_id[e["to"]]
         thr = e.get("kind") == "throttle"
         outer, inner = ("#b8860b", "#f3cf5a") if thr else ("#2f6098", "#a9d2ef")
         dash = "dash" if thr else None
@@ -116,6 +149,21 @@ def _topology_figure(topo, selected_audit, sel_agg, rm):
             startstandoff=34,
             opacity=0.85,
         )
+        if target.get("type") == "pump":
+            label = pressure_labels.get(target.get("agg"), (None, None))[0]
+        elif source.get("type") == "pump":
+            label = pressure_labels.get(source.get("agg"), (None, None))[1]
+        else:
+            label = None
+        if label:
+            fig.add_annotation(
+                x=(x0 + x1) / 2,
+                y=(y0 + y1) / 2,
+                text=label,
+                showarrow=False,
+                font={"size": 10, "color": "#13212e"},
+                bgcolor="white",
+            )
 
     # --- узлы: боксы + подписи + прозрачный hover-слой ---
     hx, hy, htext = [], [], []
@@ -182,19 +230,16 @@ def _topology_figure(topo, selected_audit, sel_agg, rm):
     return fig
 
 
-def _fallback_chain(ctx: Ctx) -> None:
+def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str | None]]) -> None:
     """Типовая параметрическая цепочка ППД, когда as-built топологии нет."""
-    obj, rm_s = ctx.obj, ctx.agg.regime
-    n_agg = len(obj.working_aggregates())
+    rm_s = ctx.agg.regime
     st.caption(
-        "Типовая цепочка ППД с фактическими параметрами объекта. As-built топология "
-        "для этого объекта пока не заведена (`config/topology/<id>.yaml`)."
+        "Типовая схема: параллельные ветви НА. As-built топология для этого объекта "
+        "пока не заведена (`config/topology/<id>.yaml`)."
     )
-    stages = [
-        ("Источник /\nводоподготовка", "приём воды", "#cde3f0"),
-        (f"КНС {obj.name}", f"НА ×{n_agg} · Q={fmt(rm_s.q_day, 0)} м³/сут", "#a8c8e0"),
-        ("Выкид НА", f"p_вых={fmt(rm_s.p_out, 2)} МПа", "#a8c8e0"),
-    ]
+    aggregates = ctx.obj.aggregates
+    pump_y = [(len(aggregates) - 1) / 2 - index for index, _ in enumerate(aggregates)]
+    stages = []
     if rm_s.p_bg:
         stages.append(("БГ / гребёнка", f"p_БГ={fmt(rm_s.p_bg, 2)} МПа", "#bcd9c6"))
     stages.append(("ЗРА / штуцеры", "дросселирование", "#e9d8a6"))
@@ -202,107 +247,99 @@ def _fallback_chain(ctx: Ctx) -> None:
     stages.append(("Пласт", "отклик (CRM)", "#e6b8b8"))
 
     fig_s = go.Figure()
-    n_st = len(stages)
-    for i, (title, sub, color) in enumerate(stages):
+
+    def box(x, y, title, sub, color, *, selected: bool = False):
         fig_s.add_shape(
             type="rect",
-            x0=i - 0.45,
-            x1=i + 0.45,
-            y0=-0.5,
-            y1=0.5,
-            line=dict(color="#557", width=1.5),
+            x0=x - 0.45,
+            x1=x + 0.45,
+            y0=y - 0.36,
+            y1=y + 0.36,
+            line={
+                "color": "#e8a33d" if selected else "#557",
+                "width": 3 if selected else 1.5,
+            },
             fillcolor=color,
         )
         fig_s.add_annotation(
-            x=i,
-            y=0.20,
+            x=x,
+            y=y + 0.13,
             showarrow=False,
-            font=dict(size=12),
+            font={"size": 12},
             text="<b>" + title.replace("\n", "<br>") + "</b>",
         )
         fig_s.add_annotation(
-            x=i,
-            y=-0.26,
+            x=x,
+            y=y - 0.18,
             showarrow=False,
-            font=dict(size=10, color="#333"),
+            font={"size": 10, "color": "#333"},
             text=sub.replace("\n", "<br>"),
         )
-        if i < n_st - 1:
+
+    def arrow(x0, y0, x1, y1, label: str | None = None):
+        fig_s.add_annotation(
+            x=x1,
+            y=y1,
+            ax=x0,
+            ay=y0,
+            xref="x",
+            yref="y",
+            axref="x",
+            ayref="y",
+            text="",
+            showarrow=True,
+            arrowhead=2,
+            arrowwidth=2,
+            arrowcolor="#557",
+        )
+        if label:
             fig_s.add_annotation(
-                x=i + 0.55,
-                y=0,
-                ax=i + 0.45,
-                ay=0,
-                xref="x",
-                yref="y",
-                axref="x",
-                ayref="y",
-                text="",
-                showarrow=True,
-                arrowhead=2,
-                arrowwidth=2,
-                arrowcolor="#557",
+                x=(x0 + x1) / 2,
+                y=(y0 + y1) / 2,
+                showarrow=False,
+                font={"size": 10, "color": "#13212e"},
+                text=label,
+                bgcolor="white",
             )
-    fig_s.add_annotation(
-        x=0.5,
-        y=0.66,
-        showarrow=False,
-        font=dict(size=10, color="#557"),
-        text=f"p_вх={fmt(rm_s.p_in, 2)} МПа",
+
+    box(0, 0, "Источник /\nводоподготовка", "приём воды", "#cde3f0")
+    for aggregate, y in zip(ctx.obj.aggregates, pump_y, strict=True):
+        selected = aggregate.id == ctx.agg_id
+        box(
+            1.5,
+            y,
+            aggregate.id,
+            aggregate.pump.model + (" · выбран" if selected else ""),
+            "#a8c8e0",
+            selected=selected,
+        )
+        p_in, p_out = pressure_labels[aggregate.id]
+        arrow(0.45, 0, 1.05, y, p_in)
+        arrow(1.95, y, 2.55, 0, p_out)
+
+    for index, (title, sub, color) in enumerate(stages):
+        x = 3 + index
+        box(x, 0, title, sub, color)
+        arrow(x - 0.55, 0, x - 0.45, 0)
+
+    fig_s.update_xaxes(visible=False, range=[-0.7, len(stages) + 3.0])
+    fig_s.update_yaxes(
+        visible=False,
+        range=[min(pump_y, default=0) - 0.8, max(pump_y, default=0) + 0.8],
     )
-    fig_s.update_xaxes(visible=False, range=[-0.7, n_st - 0.3])
-    fig_s.update_yaxes(visible=False, range=[-0.95, 0.95])
-    fig_s.update_layout(height=260, margin=dict(t=10, b=10, l=10, r=10), plot_bgcolor="white")
+    fig_s.update_layout(
+        height=max(260, 120 * len(aggregates)),
+        margin={"t": 10, "b": 10, "l": 10, "r": 10},
+        plot_bgcolor="white",
+    )
     st.plotly_chart(fig_s, width="stretch")
 
 
-def _sankey(ctx: Ctx) -> None:
-    st.markdown("**Поток мощности: P_эл → полезная мощность + статьи потерь**")
-    audit = ctx.audit
-    useful_s, losses_s = loss_components(audit)
-    losses_s = [(lbl, v) for lbl, v in losses_s if abs(v) > 1e-6]
-    p_el_s = audit.regime.p_electric or 0.0
-    # подписи с числами (кВт) — контраст не зависит от наложения текста на узлы
-    node_labels = [f"P_эл  {fmt(p_el_s, 0)} кВт", f"Полезная  {fmt(useful_s, 0)}"] + [
-        f"{lbl}  {fmt(v, 0)}" for lbl, v in losses_s
-    ]
-    node_colors = ["#2f80ed", "#2e9e6b"] + ["#e08a6b"] * len(losses_s)
-    link_src = [0] * (1 + len(losses_s))
-    link_tgt = list(range(1, 2 + len(losses_s)))
-    link_val = [max(useful_s, 1e-9)] + [max(v, 1e-9) for _, v in losses_s]
-    link_col = ["rgba(46,158,107,0.40)"] + ["rgba(224,138,107,0.38)"] * len(losses_s)
-    fig_sk = go.Figure(
-        go.Sankey(
-            arrangement="snap",
-            textfont=dict(color="#13212e", size=14, family="sans-serif"),
-            node=dict(
-                label=node_labels,
-                color=node_colors,
-                pad=26,
-                thickness=22,
-                line=dict(color="#33495f", width=0.8),
-            ),
-            link=dict(source=link_src, target=link_tgt, value=link_val, color=link_col),
-        )
-    )
-    fig_sk.update_layout(
-        height=380,
-        margin=dict(t=14, b=14, l=10, r=10),
-        font=dict(size=14, color="#13212e"),
-        paper_bgcolor="white",
-    )
-    st.plotly_chart(fig_sk, width="stretch")
-    pct_useful = useful_s / p_el_s * 100 if p_el_s else 0.0
-    st.caption(
-        f"P_эл = {fmt(p_el_s, 1)} кВт · полезная {fmt(useful_s, 1)} кВт "
-        f"({fmt(pct_useful, 1)} %). Ширина потока пропорциональна доле мощности."
-    )
-
-
 def render(ctx: Ctx) -> None:
-    st.subheader("Схема работы ППД и поток мощности")
+    st.subheader("Схема работы ППД")
     rm_s = ctx.agg.regime
     topo = lib.get_topology(ctx.object_id)
+    pressure_labels = _aggregate_pressure_labels(ctx)
 
     if topo:
         st.markdown(f"**{topo.get('title', 'Технологическая схема')}** — as-built по техсхеме")
@@ -313,7 +350,7 @@ def render(ctx: Ctx) -> None:
             "Золотая рамка — выбранный агрегат · оранжевый пунктир — дросселирование."
         )
         st.plotly_chart(
-            _topology_figure(topo, ctx.audit, ctx.agg_id, rm_s),
+            _topology_figure(topo, ctx.audit, ctx.agg_id, rm_s, pressure_labels),
             width="stretch",
             config={"displayModeBar": False},
         )
@@ -325,6 +362,4 @@ def render(ctx: Ctx) -> None:
         )
     else:
         ui.provenance(("Типовая схема", "warn"), ("Расчётные показатели", ""))
-        _fallback_chain(ctx)
-
-    _sankey(ctx)
+        _fallback_chain(ctx, pressure_labels)

@@ -154,6 +154,13 @@ def test_measures_suggested(audit_kns25):
             assert e.payback_years is not None and e.payback_years > 0
 
 
+def test_efficiency_recovery_scenario_is_suggested(audit_kns25):
+    measures = {measure.measure_id: measure for measure in suggest_measures(audit_kns25)}
+
+    scenario = measures["efficiency_recovery_scenario"]
+    assert scenario.energy_saving_kwh == pytest.approx(round(audit_kns25.dw_efficiency, 1))
+
+
 def test_pumping_measures_use_decomposition_components():
     audit = run_pump_audit("dns7s", "Н-4")
     assert isinstance(audit.decomposition, PumpingDecomposition)

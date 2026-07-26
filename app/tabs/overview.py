@@ -148,7 +148,10 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
         ui.provenance(("Эвристическая оценка", "warn"))
         evals = suggest_measures(audit, tariff)[:3]
         if not evals:
-            st.success("Применимых мероприятий не выявлено — режим близок к норме.")
+            st.info(
+                "В текущем каталоге нет применимого мероприятия. "
+                "Это не означает, что потери в норме."
+            )
         else:
             st.dataframe(
                 pd.DataFrame([
@@ -156,7 +159,11 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
                         "Мероприятие": e.name,
                         "кВт·ч/год": fmt(e.energy_saving_kwh, 0),
                         "тыс. ₽/год": fmt(e.money_saving_krub, 1),
-                        "Окуп., лет": fmt(e.payback_years, 1) if e.payback_years else "без CAPEX",
+                        "Окуп., лет": (
+                            "требует оценки"
+                            if e.cls == "сценарная оценка"
+                            else fmt(e.payback_years, 1) if e.payback_years else "без CAPEX"
+                        ),
                     }
                     for e in evals
                 ]),

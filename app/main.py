@@ -2,7 +2,7 @@
 
 Запуск:  streamlit run app/main.py
 Экраны (от общего к частному): Обзор · Схема ППД · Карта потерь · Рабочая точка ·
-Модель vs Отчёт · Мероприятия · Новый объект · Формулы · Качество данных.
+Мероприятия · Новый объект · Формулы.
 
 main.py — только каркас: сайдбар (выбор объекта/агрегата), hero-хедер и роутинг
 вкладок. Содержимое каждой вкладки — в app/tabs/<имя>.py (render(ctx)).
@@ -29,9 +29,8 @@ from tabs import (
     measures,
     new_object,
     overview,
-    quality,
-    reconcile,
     scheme,
+    snapshot,
     telemetry,
     working_point,
 )
@@ -44,7 +43,9 @@ ui.inject_css()
 # ───────────────────────── Sidebar: выбор объекта ─────────────────────────
 
 st.sidebar.title("⚡ Энергоаудит ППД")
-mode = st.sidebar.radio("Режим", ("Анализ", "Просмотр телеметрии", "Редактирование данных"))
+mode = st.sidebar.radio(
+    "Режим", ("Анализ", "Просмотр телеметрии", "Редактирование данных")
+)
 index = lib.object_index()
 waters = sorted(
     {o["water"] for o in index},
@@ -128,38 +129,52 @@ if status == "insufficient":
 is_snapshot = status == "snapshot"
 if is_snapshot:
     st.warning(
-        "Суточного покрытия давлением недостаточно. Показан режимный расчёт по последней "
-        "согласованной паре давлений и положительной мощности за сутки."
+        "Давления синхронны с работающим агрегатом менее чем для 80% точек мощности. "
+        "Поэтому показатели по давлению рассчитаны как режимный снимок, а не за сутки."
     )
+snapshots = lib.telemetry_snapshots(object_id, agg_id, start, end)
+if not snapshots:
+    st.warning(f"Нет физически допустимых пар p_вх/p_вых за {selected_date}.")
+    st.stop()
+snapshot_key = lib.snapshot_selection_key(object_id, agg_id, selected_date)
+snapshot_by_timestamp = {snapshot.timestamp.isoformat(): snapshot for snapshot in snapshots}
+st.session_state.setdefault(snapshot_key, snapshots[-1].timestamp.isoformat())
+if st.session_state[snapshot_key] not in snapshot_by_timestamp:
+    st.session_state[snapshot_key] = snapshots[-1].timestamp.isoformat()
+snapshot_timestamp = datetime.fromisoformat(st.session_state[snapshot_key])
 try:
-    obj = lib.get_object(object_id, start, agg_id)
-    audit = lib.get_audit(
+    obj = lib.get_object(object_id, start)
+    snapshot_audit = lib.get_snapshot_audit(
         object_id,
         agg_id,
         start,
         end,
-        require_daily_pressure_coverage=not is_snapshot,
+        snapshot_timestamp,
     )
 except (ArithmeticError, KeyError, ValueError) as exc:
     st.warning(f"Нет пригодного режима за {selected_date}: {exc}")
     telemetry.render_day(object_id, agg_id, selected_date)
     st.stop()
+audit = snapshot_audit.audit
 agg = audit.spec
 scope = lib.result_scope_for(
     object_id,
     agg_id,
     end,
     audit.spec.regime,
-    daily_pressure_coverage_is_complete=not is_snapshot,
+    daily_pressure_coverage_is_complete=False,
 )
 
 clarifications = lib.open_clarifications(object_id)
 if clarifications:
     with st.sidebar.expander(f"Требуют уточнения ({len(clarifications)})"):
         for item in clarifications:
-            field = {"t_year": "T_год", "transmission_eff": "КПД трансмиссии"}.get(
-                item["field"], item["field"]
-            )
+            field = {
+                "t_year": "T_год",
+                "transmission_eff": "КПД трансмиссии",
+                "pump_eta_nom": "КПД насоса",
+                "motor_eta_nom": "КПД ЭД",
+            }.get(item["field"], item["field"])
             st.caption(
                 f"{item['plant_name']} · {item['aggregate_code']}: "
                 f"{field} = {item['provisional_value']}"
@@ -174,14 +189,10 @@ ctx = Ctx(
     audit=audit,
     tariff=lib.tariff(),
     selected_date=selected_date,
+    snapshot_timestamp=snapshot_timestamp,
     scope=scope,
 )
 
-st.sidebar.markdown("---")
-st.sidebar.caption(f"НГДУ: **{selected['ngdu']}**")
-st.sidebar.caption(f"Ветка расчёта: **{obj.branch.value}**")
-st.sidebar.caption(f"Тип насоса: **{audit.pump_kind}**")
-st.sidebar.caption(f"Суточный режим: **{selected_date}**")
 
 # ───────────────────────── Hero-хедер ─────────────────────────
 
@@ -203,15 +214,14 @@ ui.hero(
 
 TABS = [
     ("📋 Обзор", overview),
+    ("🎯 Режимный снимок", snapshot),
     ("📊 Телеметрия", telemetry),
     ("🗺️ Схема ППД", scheme),
     ("📉 Карта потерь", losses),
     ("📈 Рабочая точка", working_point),
-    ("🔬 Модель vs Отчёт", reconcile),
     ("💡 Мероприятия", measures),
     ("🧩 Новый объект", new_object),
     ("🧮 Формулы", formulas),
-    ("✅ Качество данных", quality),
 ]
 
 for tab, (_, module) in zip(st.tabs([t for t, _ in TABS]), TABS, strict=True):

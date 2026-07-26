@@ -15,6 +15,9 @@ def render(ctx: Ctx) -> None:
 
     st.subheader("Реестр мероприятий с ТЭО")
     ui.provenance(("Эвристическая оценка", "warn"), ("CAPEX — типовой", ""))
+    st.caption(
+        "Сценарные оценки — потенциал после диагностики; CAPEX и окупаемость для них не заданы."
+    )
     if ctx.scope.annual_runtime_is_assumed:
         st.caption(
             "Экономия за год — сценарий при T_год = 8760 ч; "
@@ -33,16 +36,27 @@ def render(ctx: Ctx) -> None:
                 "Класс": [e.cls for e in evals],
                 "Экономия, кВт·ч/год": [fmt(e.energy_saving_kwh, 0) for e in evals],
                 "Экономия, тыс. ₽/год": [fmt(e.money_saving_krub, 1) for e in evals],
-                "CAPEX, тыс. ₽": [fmt(e.capex_krub, 0) for e in evals],
+                "CAPEX, тыс. ₽": [
+                    "требует оценки" if e.cls == "сценарная оценка" else fmt(e.capex_krub, 0)
+                    for e in evals
+                ],
                 "Окупаемость, лет": [
-                    fmt(e.payback_years, 2) if e.payback_years else "—" for e in evals
+                    (
+                        "требует оценки"
+                        if e.cls == "сценарная оценка"
+                        else fmt(e.payback_years, 2) if e.payback_years else "—"
+                    )
+                    for e in evals
                 ],
             },
             width="stretch",
             hide_index=True,
         )
     else:
-        st.info("Применимых мероприятий не выявлено (потери в пределах нормы).")
+        st.info(
+            "В текущем каталоге нет применимого мероприятия. "
+            "Это не означает, что потери в норме."
+        )
 
     st.markdown("---")
     st.subheader("Оптимизация уставки (с ограничениями)")

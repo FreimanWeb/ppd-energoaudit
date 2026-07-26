@@ -39,9 +39,6 @@ def telemetry_series(rows: list[dict[str, Any]]) -> dict[str, pd.DataFrame]:
             "Значение": row["value"],
         })
     return {
-        unit: pd
-        .DataFrame(points)
-        .pivot_table(index="Время", columns="Показатель", values="Значение", aggfunc="last")
-        .reset_index()
+        unit: pd.DataFrame(points).sort_values(["Показатель", "Время"]).reset_index(drop=True)
         for unit, points in grouped.items()
     }
