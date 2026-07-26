@@ -23,7 +23,6 @@ import streamlit as st
 import ui
 from ppd_telemetry_calendar import render_calendar, selected_calendar_date, visible_calendar_month
 from tabs import (
-    data_edit,
     formulas,
     losses,
     measures,
@@ -44,7 +43,7 @@ ui.inject_css()
 
 st.sidebar.title("⚡ Энергоаудит ППД")
 mode = st.sidebar.radio(
-    "Режим", ("Анализ", "Выезд", "Просмотр телеметрии", "Редактирование данных")
+    "Режим", ("Анализ по телеметрии", "Выезд", "Просмотр телеметрии")
 )
 index = lib.object_index()
 waters = sorted(
@@ -72,9 +71,6 @@ selected = next(o for o in index if o["id"] == object_id)
 
 agg_ids = selected["aggregate_ids"]
 agg_id = st.sidebar.selectbox("Агрегат", agg_ids)
-if mode == "Редактирование данных":
-    data_edit.render(object_id, agg_id)
-    st.stop()
 if mode == "Выезд":
     try:
         obj, audit = lib.get_field_trip_audit(object_id, agg_id)

@@ -28,11 +28,11 @@ def test_default_render():
     assert _has_telemetry_chart(at)
 
 
-def test_data_editor_is_available():
+def test_sidebar_shows_only_supported_modes():
     at = AppTest.from_file(APP, default_timeout=180).run()
 
     assert at.radio[0].label == "Режим"
-    assert "Редактирование данных" in at.radio[0].options
+    assert at.radio[0].options == ["Анализ по телеметрии", "Выезд", "Просмотр телеметрии"]
 
 
 def test_field_trip_mode_audits_yaml_object_without_telemetry():
