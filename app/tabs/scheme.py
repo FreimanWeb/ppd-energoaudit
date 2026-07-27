@@ -309,7 +309,7 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
             1.5,
             y,
             aggregate.id,
-            aggregate.pump.model + (" · выбран" if selected else ""),
+            aggregate.pump.model,
             "#a8c8e0",
             selected=selected,
         )
