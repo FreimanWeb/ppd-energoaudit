@@ -2,12 +2,15 @@
 pandas>=2.0
 numpy>=1.24
 openpyxl>=3.1
+xlrd>=2.0          # legacy .xls телеметрия (ingest/excel_telemetry.py)
 pydantic>=2.0
 pyyaml>=6.0
 
 # Дашборд (app/)
 streamlit>=1.30
 plotly>=5.18
+altair>=5.0
+./components/ppd_telemetry_calendar
 
 # Тесты
 pytest>=7.4

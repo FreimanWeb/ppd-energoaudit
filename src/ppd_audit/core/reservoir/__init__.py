@@ -1,8 +1,10 @@
-"""Подключаемый модуль отклика пласта (интерфейс + реализации)."""
+"""Подключаемый модуль отклика пласта (интерфейс + реализации) + прогноз закачки."""
 
 from .base import ReservoirInput, ReservoirModel, ReservoirResult
 from .crm import CRMLite
 from .demo import DemoReservoir
+from .forecast import (ForecastPoint, ForecastResult, aggregate_daily_to_periods,
+                       forecast_injection)
 
 
 __all__ = [
@@ -12,6 +14,10 @@ __all__ = [
     "DemoReservoir",
     "CRMLite",
     "get_model",
+    "ForecastPoint",
+    "ForecastResult",
+    "forecast_injection",
+    "aggregate_daily_to_periods",
 ]
 
 

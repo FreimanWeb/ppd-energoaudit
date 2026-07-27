@@ -33,7 +33,6 @@ from ppd_audit.services.telemetry_audit import (  # noqa: E402
     telemetry_snapshots as _telemetry_snapshots,
 )
 from ppd_audit.spec import ObjectSpec, load_object_spec  # noqa: E402
-from ppd_audit.verify.reconcile import run_reconciliation  # noqa: E402
 from ppd_audit.verify.runner import run_verification  # noqa: E402
 
 
@@ -208,58 +207,6 @@ def get_verification() -> dict:
         "rows": [row_to_dict(r) for r in res["rows"]],
         "summary": res["summary"],
         "errors": res["errors"],
-    }
-
-
-@st.cache_resource(show_spinner=True)
-def _reconciliation():
-    """Сырая трёхсторонняя сверка (один прогон на сессию; .doc уже сконвертированы)."""
-    return run_reconciliation()
-
-
-@st.cache_data(show_spinner=True)
-def get_reconciliation() -> dict:
-    """Трёхсторонняя сверка модель↔xlsx↔отчёт (для экрана «Модель vs Отчёт»)."""
-    from dataclasses import asdict
-
-    res = _reconciliation()
-    return {
-        "rows": [asdict(r) for r in res["rows"]],
-        "summary": res["summary"],
-        "errors": res["errors"],
-    }
-
-
-@st.cache_data(show_spinner=False)
-def get_report_facts(object_id: str) -> dict:
-    """Цитаты и ТЭО из текстового отчёта объекта (для карточки объекта)."""
-    res = _reconciliation()
-    rep = res["reports"].get(object_id)
-    if rep is None:
-        return {}
-    return {
-        "source": rep.source_original or rep.source,
-        "report_date": rep.report_date,
-        "template": rep.template,
-        "quotes": rep.quotes,
-        "recommendations": rep.recommendations,
-        "teo": rep.teo,
-        "aggregates": {
-            a.id: {
-                "pump_model": a.pump_model,
-                "claims": [
-                    {
-                        "metric": c.metric,
-                        "min": c.value_min,
-                        "max": c.value_max,
-                        "unit": c.unit,
-                        "text": c.text,
-                    }
-                    for c in a.claims
-                ],
-            }
-            for a in rep.aggregates
-        },
     }
 
 

@@ -308,34 +308,6 @@ def _passport_and_regime(ctx: Ctx) -> None:
         )
 
 
-def _report_excerpt(ctx: Ctx) -> None:
-    facts = lib.get_report_facts(ctx.object_id)
-    if not facts:
-        return
-    src = facts["source"].split("/")[-1]
-    with st.expander(f"📄 Текстовый отчёт энергоаудита — выводы (источник: {src})"):
-        ui.provenance(("Из текстового отчёта", ""))
-        ra = facts.get("aggregates", {}).get(ctx.agg_id, {})
-        for c in ra.get("claims", []):
-            st.markdown(f"> {c['text']}")
-        teo = facts.get("teo", {})
-        if teo.get("headline"):
-            st.info("ТЭО: " + teo["headline"])
-        elif teo.get("total_loss_kwh"):
-            st.caption(
-                f"Годовые потери по отчёту: {fmt(teo['total_loss_kwh'], 0)} кВт·ч"
-                + (
-                    f" · {fmt(teo.get('total_loss_krub'), 1)} тыс. ₽"
-                    if teo.get("total_loss_krub")
-                    else ""
-                )
-            )
-        if facts.get("recommendations"):
-            st.markdown("**Рекомендации отчёта:**")
-            for rrec in facts["recommendations"][:5]:
-                st.markdown(f"- {rrec}")
-
-
 def render(ctx: Ctx) -> None:
     st.subheader("КПИ выездного замера" if ctx.source == "field_trip" else "Суточный KPI")
     _kpi_rows(ctx)
@@ -349,4 +321,3 @@ def render(ctx: Ctx) -> None:
     _annual_kpis(ctx)
     st.divider()
     _passport_and_regime(ctx)
-    _report_excerpt(ctx)

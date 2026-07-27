@@ -129,7 +129,7 @@ def _num(v) -> float | None:
     s = str(v).strip().replace(",", ".") if v is not None else ""
     try:
         return float(s)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return None
 
 

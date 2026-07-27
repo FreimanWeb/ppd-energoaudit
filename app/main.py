@@ -1,8 +1,9 @@
 """Цифровой энергоаудит ППД — дашборд (Streamlit).
 
 Запуск:  streamlit run app/main.py
-Экраны (от общего к частному): Обзор · Схема ППД · Карта потерь · Рабочая точка ·
-Мероприятия · Новый объект · Формулы.
+Экраны (от общего к частному): Обзор · Режимный снимок · Телеметрия · Прогноз
+закачки · Схема ППД · Карта потерь · Рабочая точка · Мероприятия · Новый
+объект · Формулы.
 
 main.py — только каркас: сайдбар (выбор объекта/агрегата), hero-хедер и роутинг
 вкладок. Содержимое каждой вкладки — в app/tabs/<имя>.py (render(ctx)).
@@ -24,6 +25,7 @@ import ui
 from ppd_telemetry_calendar import render_calendar, selected_calendar_date, visible_calendar_month
 from tabs import (
     formulas,
+    forecast,
     losses,
     measures,
     new_object,
@@ -269,6 +271,7 @@ TABS = [
     ("📋 Обзор", overview),
     ("🎯 Режимный снимок", snapshot),
     ("📊 Телеметрия", telemetry),
+    ("📈 Прогноз закачки", forecast),
     ("🗺️ Схема ППД", scheme),
     ("📉 Карта потерь", losses),
     ("📈 Рабочая точка", working_point),
