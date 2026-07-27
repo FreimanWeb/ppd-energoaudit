@@ -105,12 +105,35 @@ def test_build_regime_averages_daily_operating_pressure_and_power(tmp_path):
 
     regime = build_regime(database, "kns97", "НА-02", start, start + timedelta(days=1))
 
-    assert regime.p_in == pytest.approx(13 / 3)
-    assert regime.p_out == pytest.approx(80 / 3)
+    assert regime.p_in == pytest.approx((1 + 2 + 10 * 46) / 48)
+    assert regime.p_out == pytest.approx((10 + 20 + 50 * 46) / 48)
     assert regime.p_electric == pytest.approx(300.0)
 
 
-def test_build_regime_rejects_pressure_pair_far_from_positive_power(tmp_path):
+def test_build_regime_uses_held_power_when_energy_is_absent(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.0, "МПа"),
+        ("p_out", 10.0, "МПа"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 600.0, "м³/сут"),
+        ("runtime", 2.0, "ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    database.add_measurement("kns97", "НА-02", start, "power", 200.0, "кВт")
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(hours=1), "power", 400.0, "кВт"
+    )
+
+    regime = build_regime(
+        database, "kns97", "НА-02", start, start + timedelta(hours=1, minutes=1)
+    )
+
+    assert regime.p_electric == pytest.approx(200.0)
+
+
+def test_build_regime_carries_power_until_pressure_appears(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     database.add_measurement("kns97", "НА-02", start, "power", 210.0, "кВт")
@@ -122,11 +145,13 @@ def test_build_regime_rejects_pressure_pair_far_from_positive_power(tmp_path):
         "kns97", "НА-02", start + timedelta(minutes=31), "p_out", 10.4, "МПа"
     )
 
-    with pytest.raises(ValueError, match="нет согласованной пары p_вх/p_вых"):
-        build_regime(database, "kns97", "НА-02", start, start + timedelta(days=1))
+    regime = build_regime(database, "kns97", "НА-02", start, start + timedelta(days=1))
+
+    assert regime.p_in == pytest.approx(1.2)
+    assert regime.p_out == pytest.approx(10.4)
 
 
-def test_build_regime_rejects_insufficient_pressure_coverage_of_operating_power(tmp_path):
+def test_build_regime_carries_pressure_over_operating_power_points(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     for metric, value, unit in [
@@ -143,8 +168,10 @@ def test_build_regime_rejects_insufficient_pressure_coverage_of_operating_power(
         "kns97", "НА-02", start + timedelta(minutes=60), "power", 210.0, "кВт"
     )
 
-    with pytest.raises(ValueError, match="давление покрывает только 1 из 2"):
-        build_regime(database, "kns97", "НА-02", start, start + timedelta(days=1))
+    regime = build_regime(database, "kns97", "НА-02", start, start + timedelta(days=1))
+
+    assert regime.p_in == pytest.approx(1.2)
+    assert regime.p_out == pytest.approx(10.4)
 
 
 def test_build_regime_uses_snapshot_when_daily_coverage_is_incomplete(tmp_path):
@@ -199,7 +226,7 @@ def test_snapshot_ignores_pressure_pair_with_negative_head(tmp_path):
     assert regime.p_out == pytest.approx(10.4)
 
 
-def test_snapshot_rejects_pressure_pair_more_than_five_minutes_from_power(tmp_path):
+def test_snapshot_uses_held_power_after_pressure_appears(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     database.add_measurement("kns97", "НА-02", start, "power", 210.0, "кВт")
@@ -211,18 +238,20 @@ def test_snapshot_rejects_pressure_pair_more_than_five_minutes_from_power(tmp_pa
         "kns97", "НА-02", start + timedelta(minutes=6), "p_out", 10.4, "МПа"
     )
 
-    with pytest.raises(ValueError, match="нет согласованной пары p_вх/p_вых"):
-        build_regime(
-            database,
-            "kns97",
-            "НА-02",
-            start,
-            start + timedelta(days=1),
-            require_daily_pressure_coverage=False,
-        )
+    regime = build_regime(
+        database,
+        "kns97",
+        "НА-02",
+        start,
+        start + timedelta(days=1),
+        require_daily_pressure_coverage=False,
+    )
+
+    assert regime.p_in == pytest.approx(1.2)
+    assert regime.p_out == pytest.approx(10.4)
 
 
-def test_snapshot_rejects_fast_pressure_transition(tmp_path):
+def test_snapshot_uses_power_slot_after_fast_pressure_transition(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     for timestamp, p_in, p_out in [
@@ -234,18 +263,20 @@ def test_snapshot_rejects_fast_pressure_transition(tmp_path):
     database.add_measurement("kns97", "НА-02", start, "power", 210.0, "кВт")
     database.add_measurement("kns97", "НА-02", start, "density", 1000.0, "кг/м³")
 
-    with pytest.raises(ValueError, match="нет согласованной пары p_вх/p_вых"):
-        build_regime(
-            database,
-            "kns97",
-            "НА-02",
-            start,
-            start + timedelta(days=1),
-            require_daily_pressure_coverage=False,
-        )
+    regime = build_regime(
+        database,
+        "kns97",
+        "НА-02",
+        start,
+        start + timedelta(days=1),
+        require_daily_pressure_coverage=False,
+    )
+
+    assert regime.p_in == pytest.approx(1.5)
+    assert regime.p_out == pytest.approx(10.7)
 
 
-def test_telemetry_snapshots_keep_measurement_timestamps_and_gaps(tmp_path):
+def test_telemetry_snapshots_use_power_timestamp_and_pressure_age(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
@@ -258,11 +289,78 @@ def test_telemetry_snapshots_keep_measurement_timestamps_and_gaps(tmp_path):
     )
 
     assert len(snapshots) == 1
-    assert snapshots[0].timestamp == start
+    assert snapshots[0].timestamp == start + timedelta(minutes=4)
     assert snapshots[0].power_kw == pytest.approx(210.0)
-    assert snapshots[0].power_gap == timedelta(minutes=4)
     assert snapshots[0].p_bg_mpa == pytest.approx(9.8)
-    assert snapshots[0].p_bg_gap == timedelta(minutes=2)
+    assert snapshots[0].p_bg_age == timedelta(minutes=2)
+
+
+def test_telemetry_snapshots_hold_pressure_values_until_the_next_change(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    previous_second = start - timedelta(seconds=1)
+    database.add_measurement("kns97", "НА-02", previous_second, "p_in", 1.2, "МПа")
+    database.add_measurement("kns97", "НА-02", previous_second, "p_out", 10.4, "МПа")
+    database.add_measurement("kns97", None, previous_second, "p_bg", 9.8, "МПа")
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(seconds=10), "power", 210.0, "кВт"
+    )
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(days=1)
+    )
+
+    assert len(snapshots) == 1
+    assert snapshots[0].timestamp == start + timedelta(seconds=10)
+    assert snapshots[0].p_in_mpa == pytest.approx(1.2)
+    assert snapshots[0].p_out_mpa == pytest.approx(10.4)
+    assert snapshots[0].p_bg_mpa == pytest.approx(9.8)
+    assert snapshots[0].p_bg_age == timedelta(seconds=11)
+
+
+def test_telemetry_snapshots_hold_power_for_missing_half_hour_slot(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    database.add_measurement("kns97", "НА-02", start, "power", 210.0, "кВт")
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(hours=1), "power", 220.0, "кВт"
+    )
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(hours=1, minutes=1)
+    )
+
+    assert [(snapshot.timestamp, snapshot.power_kw) for snapshot in snapshots] == [
+        (start, 210.0),
+        (start + timedelta(minutes=30), 210.0),
+        (start + timedelta(hours=1), 220.0),
+    ]
+
+
+def test_telemetry_snapshots_hold_single_aligned_power_value(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.2, "МПа"),
+        ("p_out", 10.4, "МПа"),
+        ("power", 210.0, "кВт"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    snapshots = telemetry_snapshots(
+        database, "kns97", "НА-02", start, start + timedelta(hours=1, minutes=1)
+    )
+
+    assert [(snapshot.timestamp, snapshot.power_kw) for snapshot in snapshots] == [
+        (start, 210.0),
+        (start + timedelta(minutes=30), 210.0),
+        (start + timedelta(hours=1), 210.0),
+    ]
 
 
 def test_telemetry_snapshots_exclude_pair_when_discharge_is_not_above_manifold(tmp_path):
@@ -280,7 +378,7 @@ def test_telemetry_snapshots_exclude_pair_when_discharge_is_not_above_manifold(t
     assert snapshots == []
 
 
-def test_telemetry_snapshots_exclude_fast_change_of_individual_pressure(tmp_path):
+def test_telemetry_snapshots_exclude_only_power_slot_near_fast_pressure_change(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
@@ -295,10 +393,11 @@ def test_telemetry_snapshots_exclude_fast_change_of_individual_pressure(tmp_path
         database, "kns97", "НА-02", start, start + timedelta(days=1)
     )
 
-    assert snapshots == []
+    assert snapshots[0].timestamp == start + timedelta(minutes=30)
+    assert snapshots[0].p_out_mpa == pytest.approx(10.7)
 
 
-def test_telemetry_snapshots_exclude_pressure_pair_far_from_positive_power(tmp_path):
+def test_telemetry_snapshots_hold_pressure_pair_until_positive_power(tmp_path):
     database = _database_with_aggregate(tmp_path)
     start = datetime(2026, 7, 24)
     database.add_measurement("kns97", "НА-02", start, "p_in", 1.2, "МПа")
@@ -312,7 +411,8 @@ def test_telemetry_snapshots_exclude_pressure_pair_far_from_positive_power(tmp_p
         database, "kns97", "НА-02", start, start + timedelta(days=1)
     )
 
-    assert snapshots == []
+    assert len(snapshots) == 1
+    assert snapshots[0].timestamp == start + timedelta(minutes=6)
 
 
 def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
@@ -330,7 +430,12 @@ def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
     database.add_measurement("kns97", "НА-02", start + timedelta(minutes=4), "power", 210.0, "кВт")
 
     snapshot = run_snapshot_audit(
-        database, "kns97", "НА-02", start, start + timedelta(days=1), start
+        database,
+        "kns97",
+        "НА-02",
+        start,
+        start + timedelta(days=1),
+        start + timedelta(minutes=4),
     )
 
     assert snapshot.audit.regime.p_in == pytest.approx(1.2)
@@ -390,7 +495,7 @@ def test_date_statuses_marks_snapshot_when_daily_coverage_is_incomplete(tmp_path
 
     statuses = telemetry_date_statuses(database, "kns97", "НА-02", [start.date()])
 
-    assert statuses == {start.date(): "snapshot"}
+    assert statuses == {start.date(): "ready"}
 
 
 def test_telemetry_day_status_is_insufficient_when_snapshot_has_no_flow(tmp_path):

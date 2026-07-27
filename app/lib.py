@@ -159,15 +159,9 @@ def telemetry_day_status(object_id: str, aggregate_id: str, day: date) -> str:
 
 
 def telemetry_for_day(object_id: str, aggregate_id: str, day: date) -> list[dict]:
-    """Сырые точки агрегата и станции за сутки — для графиков без эвристик."""
+    """События агрегата за сутки и актуальное на начало суток давление."""
     start = datetime.combine(day, datetime.min.time())
-    return database().measurements_in_window(
-        object_id,
-        aggregate_id,
-        start,
-        start + timedelta(days=1),
-        include_station=True,
-    )
+    return _telemetry_for_window(object_id, aggregate_id, start, start + timedelta(days=1))
 
 
 def telemetry_for_period(
@@ -176,9 +170,22 @@ def telemetry_for_period(
     """Сырые точки агрегата и станции за выбранные дни включительно."""
     start = datetime.combine(start_day, datetime.min.time())
     end = datetime.combine(end_day + timedelta(days=1), datetime.min.time())
-    return database().measurements_in_window(
+    return _telemetry_for_window(object_id, aggregate_id, start, end)
+
+
+def _telemetry_for_window(
+    object_id: str, aggregate_id: str, start: datetime, end: datetime
+) -> list[dict]:
+    database_ = database()
+    rows = database_.measurements_in_window(
         object_id, aggregate_id, start, end, include_station=True
     )
+    state_rows = database_.state_measurements_in_window(
+        object_id, aggregate_id, start, end, include_end=True
+    )
+    return [
+        row for row in rows if row["metric"] not in {"p_in", "p_out", "p_bg", "power"}
+    ] + state_rows
 
 
 def result_scope_for(

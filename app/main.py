@@ -199,7 +199,9 @@ if status == "insufficient":
 is_snapshot = status == "snapshot"
 if is_snapshot:
     st.warning(
-        "Давления синхронны с работающим агрегатом менее чем для 80% точек мощности. "
+        "Физически пригодное давление доступно менее чем для 80% рабочих 30-минутных "
+        "интервалов: часть точек относится к переходному режиму или не выполняет "
+        "p_вых > p_вх / p_вых > p_БГ. "
         "Поэтому показатели по давлению рассчитаны как режимный снимок, а не за сутки."
     )
 snapshots = lib.telemetry_snapshots(object_id, agg_id, start, end)
@@ -214,7 +216,7 @@ if excluded_by_manifold:
 if not snapshots:
     st.warning(
         f"Нет пригодного режимного снимка за {selected_date}: нужна устойчивая пара "
-        "p_вх/p_вых и положительная мощность не дальше 5 минут."
+        "p_вх/p_вых, актуальная в момент положительной мощности."
     )
     telemetry.render_day(object_id, agg_id, selected_date)
     st.stop()

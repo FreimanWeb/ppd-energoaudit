@@ -651,6 +651,68 @@ class AuditDatabase:
             query += ") ORDER BY tm.timestamp, tm.id"
             return [dict(row) for row in connection.execute(query, params)]
 
+    def state_measurements_in_window(
+        self,
+        plant_code: str,
+        aggregate_code: str,
+        start: datetime,
+        end: datetime,
+        *,
+        technical_place_code: str = "main",
+        include_end: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Изменения состояния плюс предыдущее и, при необходимости, конечное значение."""
+        with self._connection() as connection:
+            aggregate_id = self._aggregate_id(
+                connection, plant_code, aggregate_code, technical_place_code
+            )
+            select = """
+                SELECT tm.timestamp, tm.metric, tm.value, tm.unit, tm.quality,
+                       tm.aggregate_id IS NULL AS is_station
+                FROM telemetry_measurements tm
+                JOIN plants p ON p.id = tm.plant_id
+                WHERE p.code = ?
+            """
+            end_operator = "<=" if include_end else "<"
+            in_window = list(
+                connection.execute(
+                    select
+                    + f"""
+                        AND tm.timestamp >= ? AND tm.timestamp {end_operator} ?
+                        AND (
+                            (tm.aggregate_id = ? AND tm.metric IN ('p_in', 'p_out', 'power'))
+                            OR (tm.aggregate_id IS NULL AND tm.metric = 'p_bg')
+                        )
+                        ORDER BY tm.timestamp, tm.id
+                    """,
+                    (plant_code, self._iso(start), self._iso(end), aggregate_id),
+                )
+            )
+            previous = []
+            for aggregate_scope, metric in (
+                (True, "p_in"),
+                (True, "p_out"),
+                (True, "power"),
+                (False, "p_bg"),
+            ):
+                scope = "tm.aggregate_id = ?" if aggregate_scope else "tm.aggregate_id IS NULL"
+                params: list[str | int] = [plant_code]
+                if aggregate_scope:
+                    params.append(aggregate_id)
+                params.extend((metric, self._iso(start)))
+                row = connection.execute(
+                    select
+                    + f"""
+                        AND {scope} AND tm.metric = ? AND tm.timestamp < ?
+                        ORDER BY tm.timestamp DESC, tm.id DESC LIMIT 1
+                    """,
+                    params,
+                ).fetchone()
+                if row is not None:
+                    previous.append(row)
+        rows = sorted([*previous, *in_window], key=lambda row: row["timestamp"])
+        return [dict(row) for row in rows]
+
     def plant(self, plant_code: str) -> dict[str, Any]:
         with self._connection() as connection:
             row = connection.execute(

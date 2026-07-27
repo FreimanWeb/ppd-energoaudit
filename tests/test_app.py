@@ -122,7 +122,7 @@ def test_reconciliation_is_not_an_analysis_tab():
 def test_snapshot_warning_explains_what_pressure_coverage_is_needed_for():
     source = Path(APP).read_text(encoding="utf-8")
 
-    assert "Давления синхронны с работающим агрегатом менее чем для 80% точек" in source
+    assert "Физически пригодное давление доступно менее чем для 80% рабочих" in source
     assert "показатели по давлению рассчитаны как режимный снимок, а не за сутки" in source
 
 

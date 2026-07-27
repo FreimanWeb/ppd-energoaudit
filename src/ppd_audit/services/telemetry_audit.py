@@ -20,23 +20,23 @@ from ..spec import (
 )
 
 
-_PRESSURE_POWER_MAX_GAP = timedelta(minutes=5)
 _PRESSURE_STABILITY_WINDOW = timedelta(minutes=1)
 _PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND = 0.02
 _MIN_PRESSURE_COVERAGE = 0.8
+_POWER_INTERVAL = timedelta(minutes=30)
 
 
 @dataclass(frozen=True)
 class TelemetrySnapshot:
-    """Один снимок режима с исходными временны́ми рассогласованиями."""
+    """Один снимок режима: давления действуют с последнего изменения."""
 
     timestamp: datetime
     p_in_mpa: float
     p_out_mpa: float
     p_bg_mpa: float | None
-    p_bg_gap: timedelta | None
+    p_bg_age: timedelta | None
     power_kw: float | None
-    power_gap: timedelta | None
+    power_age: timedelta | None
     is_stable: bool
 
 
@@ -75,12 +75,17 @@ def build_regime(
     if any(metric in station_values for metric in ("q_day", "runtime", "energy")):
         raise ValueError("станционный расход, наработка или энергия не распределены по агрегатам")
     plant = database.plant(plant_code)
+    state_rows = database.state_measurements_in_window(plant_code, aggregate_code, start, end)
     p_in, p_out, p_bg = _operating_pressures(
-        rows, require_daily_pressure_coverage=require_daily_pressure_coverage
+        state_rows,
+        start,
+        end,
+        require_daily_pressure_coverage=require_daily_pressure_coverage,
     )
     q_day = _single(aggregate_values, "q_day", required=False)
     runtime = _single(aggregate_values, "runtime", required=False)
     energy = _single(aggregate_values, "energy", required=False)
+    power_values = [power for _, power, _ in _power_states(start, end, state_rows)]
 
     return RegimeMeasurement(
         rho=_median(aggregate_values, "density", required=False)
@@ -91,8 +96,10 @@ def build_regime(
         t=runtime,
         w=energy,
         q_fact=_median(aggregate_values, "flow_rate", required=False),
-        p_electric=energy / runtime if energy is not None and runtime else _median(
-            aggregate_values, "power", required=False
+        p_electric=(
+            energy / runtime
+            if energy is not None and runtime
+            else float(median(power_values)) if power_values else None
         ),
         nu=_median(aggregate_values, "viscosity", required=False) or plant["default_viscosity"],
         p_bg=p_bg,
@@ -137,47 +144,30 @@ def _snapshot_candidates(
     end: datetime,
 ) -> list[TelemetrySnapshot]:
     """Вернуть все пары p_вх/p_вых; фильтры пригодности применяет публичная функция."""
-    rows = database.measurements_in_window(
-        plant_code, aggregate_code, start, end, include_station=True
+    state_rows = database.state_measurements_in_window(
+        plant_code, aggregate_code, start, end
     )
-    pressure_by_time: dict[datetime, dict[str, float]] = {}
-    p_bg_points: list[tuple[datetime, float]] = []
-    power_points: list[tuple[datetime, float]] = []
-    for row in rows:
-        timestamp = datetime.fromisoformat(row["timestamp"])
-        value = float(row["value"])
-        if row["is_station"]:
-            if row["metric"] == "p_bg":
-                p_bg_points.append((timestamp, value))
-            continue
-        if row["metric"] in {"p_in", "p_out"}:
-            pressure_by_time.setdefault(timestamp, {})[row["metric"]] = value
-        elif row["metric"] == "power":
-            power_points.append((timestamp, value))
+    pressure_rows = [row for row in state_rows if row["metric"] != "power"]
+    power_points = _power_states(start, end, state_rows)
 
-    pairs = sorted(
-        (
-            (timestamp, values["p_in"], values["p_out"])
-            for timestamp, values in pressure_by_time.items()
-            if {"p_in", "p_out"} <= values.keys() and values["p_out"] > values["p_in"]
-        ),
-        key=lambda pair: pair[0],
-    )
     snapshots = []
-    for pair in pairs:
-        timestamp, p_in, p_out = pair
-        nearest_power = min(power_points, key=lambda point: abs(point[0] - timestamp), default=None)
-        nearest_bg = min(p_bg_points, key=lambda point: abs(point[0] - timestamp), default=None)
+    unstable_changes = _unstable_pressure_change_times(pressure_rows)
+    for timestamp, p_in, p_out, p_bg, p_bg_age, power, power_age in _pressure_states_at(
+        power_points, pressure_rows
+    ):
+        pair = (timestamp, p_in, p_out)
+        if p_out <= p_in:
+            continue
         snapshots.append(
             TelemetrySnapshot(
                 timestamp=timestamp,
                 p_in_mpa=p_in,
                 p_out_mpa=p_out,
-                p_bg_mpa=nearest_bg[1] if nearest_bg else None,
-                p_bg_gap=abs(nearest_bg[0] - timestamp) if nearest_bg else None,
-                power_kw=nearest_power[1] if nearest_power else None,
-                power_gap=abs(nearest_power[0] - timestamp) if nearest_power else None,
-                is_stable=_is_stable_pressure_pair(pair, pressure_by_time),
+                p_bg_mpa=p_bg,
+                p_bg_age=p_bg_age,
+                power_kw=power,
+                power_age=power_age,
+                is_stable=_is_stable_pressure_pair(pair, unstable_changes),
             )
         )
     return snapshots
@@ -288,59 +278,48 @@ def run_snapshot_audit(
 
 
 def _operating_pressures(
-    rows: list[dict], *, require_daily_pressure_coverage: bool
+    state_rows: list[dict],
+    start: datetime,
+    end: datetime,
+    *,
+    require_daily_pressure_coverage: bool,
 ) -> tuple[float, float, float | None]:
-    """Усреднить давления из пар, ближайших к положительной мощности агрегата."""
-    power_times: list[datetime] = []
-    pressure_by_time: dict[datetime, dict[str, float]] = {}
-    p_bg_points: list[tuple[datetime, float]] = []
-    for row in rows:
-        timestamp = datetime.fromisoformat(row["timestamp"])
-        value = float(row["value"])
-        if row["is_station"]:
-            if row["metric"] == "p_bg":
-                p_bg_points.append((timestamp, value))
-            continue
-        if row["metric"] == "power" and value > 0:
-            power_times.append(timestamp)
-        if row["metric"] in {"p_in", "p_out"}:
-            pressure_by_time.setdefault(timestamp, {})[row["metric"]] = value
-
-    pairs = [
-        (timestamp, values["p_in"], values["p_out"])
-        for timestamp, values in pressure_by_time.items()
-        if {"p_in", "p_out"} <= values.keys()
+    """Усреднить актуальные на момент мощности давления работающего агрегата."""
+    pressure_rows = [row for row in state_rows if row["metric"] != "power"]
+    power_points = [
+        (timestamp, power)
+        for timestamp, power, _ in _power_states(start, end, state_rows)
+        if power > 0
     ]
-    operating_pairs = []
-    for power_time in power_times:
-        if not pairs:
-            break
-        pair = min(pairs, key=lambda candidate: abs(candidate[0] - power_time))
-        if abs(pair[0] - power_time) <= _PRESSURE_POWER_MAX_GAP and _is_stable_pressure_pair(
-            pair, pressure_by_time
-        ):
-            operating_pairs.append(pair)
+
+    unstable_changes = _unstable_pressure_change_times(pressure_rows)
+    operating_pairs = [
+        (timestamp, p_in, p_out, p_bg)
+        for timestamp, p_in, p_out, p_bg, _, _, _ in _pressure_states_at(
+            power_points, pressure_rows
+        )
+        if (
+            p_out > p_in
+            and (p_bg is None or p_out > p_bg)
+            and _is_stable_pressure_pair((timestamp, p_in, p_out), unstable_changes)
+        )
+    ]
     if not operating_pairs:
         raise ValueError(
-            "нет согласованной пары p_вх/p_вых с p_вых > p_вх рядом с положительной мощностью "
+            "нет актуальных p_вх/p_вых с p_вых > p_вх в момент положительной мощности "
             "в выбранном окне"
         )
     if (
         require_daily_pressure_coverage
-        and len(operating_pairs) / len(power_times) < _MIN_PRESSURE_COVERAGE
+        and len(operating_pairs) / len(power_points) < _MIN_PRESSURE_COVERAGE
     ):
         raise ValueError(
-            f"давление покрывает только {len(operating_pairs)} из {len(power_times)} "
+            f"давление покрывает только {len(operating_pairs)} из {len(power_points)} "
             "точек положительной мощности в выбранном окне"
         )
 
     selected_pairs = operating_pairs if require_daily_pressure_coverage else [operating_pairs[-1]]
-    p_bg = []
-    for timestamp, _, _ in selected_pairs:
-        if p_bg_points:
-            nearest = min(p_bg_points, key=lambda point: abs(point[0] - timestamp))
-            if abs(nearest[0] - timestamp) <= _PRESSURE_POWER_MAX_GAP:
-                p_bg.append(nearest[1])
+    p_bg = [pair[3] for pair in selected_pairs if pair[3] is not None]
     return (
         float(mean(pair[1] for pair in selected_pairs)),
         float(mean(pair[2] for pair in selected_pairs)),
@@ -348,20 +327,141 @@ def _operating_pressures(
     )
 
 
+def _power_states(
+    start: datetime, end: datetime, state_rows: list[dict]
+) -> list[tuple[datetime, float, timedelta]]:
+    """Восстановить 30-минутные значения P_эл удержанием предыдущего значения."""
+    updates = sorted(
+        [
+            (datetime.fromisoformat(row["timestamp"]), float(row["value"]))
+            for row in state_rows
+            if not row["is_station"] and row["metric"] == "power"
+        ],
+        key=lambda update: update[0],
+    )
+    if not updates:
+        return []
+    window_updates = [timestamp for timestamp, _ in updates if start <= timestamp < end]
+    if not _is_fixed_power_series(updates):
+        sample_times = window_updates
+    else:
+        sample_times = list(_power_slots(start, end, updates[0][0]))
+
+    states = []
+    update_index = 0
+    value: float | None = None
+    changed_at: datetime | None = None
+    for timestamp in sample_times:
+        while update_index < len(updates) and updates[update_index][0] <= timestamp:
+            changed_at, value = updates[update_index]
+            update_index += 1
+        if value is not None and changed_at is not None:
+            states.append((timestamp, value, timestamp - changed_at))
+    return states
+
+
+def _is_fixed_power_series(updates: list[tuple[datetime, float]]) -> bool:
+    return all(
+        timestamp.minute % 30 == 0 and timestamp.second == 0 and timestamp.microsecond == 0
+        for timestamp, _ in updates
+    )
+
+
+def _power_slots(start: datetime, end: datetime, anchor: datetime):
+    offset = (start - anchor) % _POWER_INTERVAL
+    timestamp = start if offset == timedelta() else start + _POWER_INTERVAL - offset
+    while timestamp < end:
+        yield timestamp
+        timestamp += _POWER_INTERVAL
+
+
+def _pressure_states_at(
+    power_points: list[tuple[datetime, float] | tuple[datetime, float, timedelta]],
+    pressure_rows: list[dict],
+) -> list[tuple[datetime, float, float, float | None, timedelta | None, float, timedelta | None]]:
+    """Сопоставить мощности с последним изменением давления на тот же момент."""
+    updates = sorted(
+        [
+            (
+                datetime.fromisoformat(row["timestamp"]),
+                row["metric"],
+                float(row["value"]),
+                bool(row["is_station"]),
+            )
+            for row in pressure_rows
+        ],
+        key=lambda update: update[0],
+    )
+    state: dict[str, float] = {}
+    p_bg_timestamp: datetime | None = None
+    update_index = 0
+    states = []
+    for point in sorted(power_points, key=lambda point: point[0]):
+        timestamp, power = point[:2]
+        power_age = point[2] if len(point) == 3 else None
+        while update_index < len(updates) and updates[update_index][0] <= timestamp:
+            update_timestamp, metric, value, is_station = updates[update_index]
+            if is_station:
+                if metric == "p_bg":
+                    state[metric] = value
+                    p_bg_timestamp = update_timestamp
+            else:
+                state[metric] = value
+            update_index += 1
+        if {"p_in", "p_out"} <= state.keys():
+            states.append(
+                (
+                    timestamp,
+                    state["p_in"],
+                    state["p_out"],
+                    state.get("p_bg"),
+                    timestamp - p_bg_timestamp if p_bg_timestamp else None,
+                    power,
+                    power_age,
+                )
+            )
+    return states
+
+
+def _unstable_pressure_change_times(pressure_rows: list[dict]) -> list[datetime]:
+    """Моменты быстрых изменений p_вх/p_вых, исключаемые как переходный режим."""
+    previous: dict[str, tuple[datetime, float]] = {}
+    unstable = []
+    updates = sorted(
+        [
+            (
+                datetime.fromisoformat(row["timestamp"]),
+                row["metric"],
+                float(row["value"]),
+            )
+            for row in pressure_rows
+            if not row["is_station"] and row["metric"] in {"p_in", "p_out"}
+        ],
+        key=lambda update: update[0],
+    )
+    for timestamp, metric, value in updates:
+        if metric in previous:
+            previous_timestamp, previous_value = previous[metric]
+            elapsed = (timestamp - previous_timestamp).total_seconds()
+            if (
+                elapsed
+                and abs(value - previous_value) / elapsed
+                > _PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND
+            ):
+                unstable.append(timestamp)
+        previous[metric] = (timestamp, value)
+    return unstable
+
+
 def _is_stable_pressure_pair(
-    pair: tuple[datetime, float, float], pressure_by_time: dict[datetime, dict[str, float]]
+    pair: tuple[datetime, float, float], unstable_change_times: list[datetime]
 ) -> bool:
     timestamp, p_in, p_out = pair
     if p_out <= p_in:
         return False
     return not any(
-        candidate_timestamp != timestamp
-        and abs(candidate_timestamp - timestamp) <= _PRESSURE_STABILITY_WINDOW
-        and abs(candidate_value - value) / abs((candidate_timestamp - timestamp).total_seconds())
-        > _PRESSURE_STABILITY_MAX_RATE_MPA_PER_SECOND
-        for metric, value in (("p_in", p_in), ("p_out", p_out))
-        for candidate_timestamp, candidate_values in pressure_by_time.items()
-        if (candidate_value := candidate_values.get(metric)) is not None
+        abs(change_time - timestamp) <= _PRESSURE_STABILITY_WINDOW
+        for change_time in unstable_change_times
     )
 
 
@@ -370,8 +470,6 @@ def _is_usable_snapshot(snapshot: TelemetrySnapshot) -> bool:
         snapshot.is_stable
         and snapshot.power_kw is not None
         and snapshot.power_kw > 0
-        and snapshot.power_gap is not None
-        and snapshot.power_gap <= _PRESSURE_POWER_MAX_GAP
         and (snapshot.p_bg_mpa is None or snapshot.p_out_mpa > snapshot.p_bg_mpa)
     )
 

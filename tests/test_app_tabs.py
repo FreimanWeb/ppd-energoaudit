@@ -25,7 +25,6 @@ TAB_MARKERS = {
     "Мероприятия": ["Реестр мероприятий с ТЭО", "Оптимизация уставки"],
     "Новый объект": ["Подключение нового объекта", "Требуемая телеметрия"],
     "Формулы": ["Как получено каждое число"],
-    "Качество данных": ["Качество и происхождение данных", "Полнота режима"],
 }
 
 
@@ -35,7 +34,11 @@ def _run_for(label_part: str) -> AppTest:
     at.selectbox[0].set_value(option).run()
     if label_part == "КНС-54":
         at.selectbox[1].set_value("НА-2").run()
-        return at.date_input[0].set_value(date(2025, 6, 5)).run()
+        at.session_state["telemetry-date-kns54an-НА-2-picker"] = {
+            "selected_date": date(2025, 6, 1).isoformat(),
+            "visible_month": "2025-06",
+        }
+        return at.run()
     return at
 
 

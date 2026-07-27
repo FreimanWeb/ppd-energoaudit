@@ -33,14 +33,14 @@ def render(ctx: Ctx) -> None:
     end = start + timedelta(days=1)
     st.subheader("Режимный снимок")
     ui.provenance(
-        ("Давления: точный timestamp", "ok"),
+        ("Давления: последнее изменение ≤ timestamp", "ok"),
         ("Суточные итоги и год: допущения", "warn"),
     )
     snapshots = lib.telemetry_snapshots(object_id, aggregate_id, start, end)
     if not snapshots:
         st.warning(
             "Нет пригодного режимного снимка: нужна устойчивая пара p_вх/p_вых "
-            "и положительная мощность не дальше 5 минут."
+            "в момент положительной мощности."
         )
         return
 
@@ -75,11 +75,6 @@ def render(ctx: Ctx) -> None:
         st.warning("Давления быстро меняются рядом со снимком: это переходный режим.")
     if snapshot.power_kw is None:
         st.warning("Нет точки мощности: КПД по снимку остаётся расчётной оценкой.")
-    elif snapshot.power_gap is None or snapshot.power_gap > timedelta(minutes=5):
-        st.warning(
-            f"Ближайшая мощность отстоит на {_gap(snapshot.power_gap)}: "
-            "она не синхронна со снимком."
-        )
     if result.uses_daily_flow:
         st.info("Подача Q принята как Q_сут / T_сут: мгновенного Q(t) нет.")
     if result.uses_daily_power:
@@ -94,7 +89,8 @@ def render(ctx: Ctx) -> None:
         st.metric("КПД по снимку, о.е.", fmt(audit.regime.eta_unit, 3))
         st.caption(
             f"Снимок: {snapshot.timestamp:%Y-%m-%d %H:%M:%S}; "
-            f"Δt до P: {_gap(snapshot.power_gap)}; Δt до p_БГ: {_gap(snapshot.p_bg_gap)}."
+            f"P_эл не менялась: {_gap(snapshot.power_age)}; "
+            f"p_БГ не менялось: {_gap(snapshot.p_bg_age)}."
         )
 
     st.markdown("### Годовой сценарий")
