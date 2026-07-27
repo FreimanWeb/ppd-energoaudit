@@ -15,4 +15,4 @@ data/reports/
 
 data/json
 data/review
-components/ppd_telemetry_calendar/ppd_telemetry_calendar/frontend/node_modules/
+src/ppd_audit/telemetry_calendar/frontend/node_modules/

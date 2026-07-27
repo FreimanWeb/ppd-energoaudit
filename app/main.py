@@ -23,17 +23,22 @@ import lib
 import streamlit as st
 import ui
 
+
 try:
-    from ppd_telemetry_calendar import (render_calendar, selected_calendar_date,
-                                         visible_calendar_month)
+    from ppd_audit.telemetry_calendar import (
+        render_calendar,
+        selected_calendar_date,
+        visible_calendar_month,
+    )
+
     _HAS_CALENDAR = True
 except ImportError:
     # локальный компонент не установился в этом окружении — не роняем весь
     # дашборд, просто откатываемся на обычный st.date_input ниже.
     _HAS_CALENDAR = False
 from tabs import (
-    formulas,
     forecast,
+    formulas,
     losses,
     measures,
     new_object,

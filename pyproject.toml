@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ppd-energoaudit"
+name = "ppd-audit"
 version = "0.1.0"
 description = "Цифровая модель энергоаудита системы ППД (ПАО «Татнефть», Этап 1)"
 readme = "README.md"
@@ -22,7 +22,6 @@ app = [
     "streamlit>=1.30",
     "plotly>=5.18",
     "altair>=5.0",
-    "ppd-telemetry-calendar",
 ]
 api = ["fastapi>=0.115", "uvicorn>=0.30"]
 dev = ["pytest>=7.4", "fastapi>=0.115", "uvicorn>=0.30", "httpx2>=2.5", "ruff>=0.16"]
@@ -30,8 +29,11 @@ dev = ["pytest>=7.4", "fastapi>=0.115", "uvicorn>=0.30", "httpx2>=2.5", "ruff>=0
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.uv.sources]
-ppd-telemetry-calendar = { path = "components/ppd_telemetry_calendar", editable = true }
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+ppd_audit = ["pyproject.toml", "telemetry_calendar/frontend/build/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

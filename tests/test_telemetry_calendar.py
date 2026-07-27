@@ -1,6 +1,18 @@
 from datetime import date
+from importlib.resources import files
 
-from ppd_telemetry_calendar import calendar_data, selected_calendar_date, visible_calendar_month
+from ppd_audit.telemetry_calendar import (
+    calendar_data,
+    selected_calendar_date,
+    visible_calendar_month,
+)
+
+
+def test_calendar_assets_ship_with_the_main_package():
+    build_dir = files("ppd_audit.telemetry_calendar") / "frontend" / "build"
+
+    assert len(list(build_dir.glob("index-*.js"))) == 1
+    assert len(list(build_dir.glob("index-*.css"))) == 1
 
 
 def test_calendar_data_serializes_telemetry_statuses():
@@ -15,7 +27,7 @@ def test_calendar_data_serializes_telemetry_statuses():
 
 def test_selected_calendar_date_reads_component_state(monkeypatch):
     monkeypatch.setattr(
-        "ppd_telemetry_calendar.st.session_state",
+        "ppd_audit.telemetry_calendar.st.session_state",
         {"calendar": {"selected_date": "2025-06-04"}},
     )
 
@@ -24,7 +36,7 @@ def test_selected_calendar_date_reads_component_state(monkeypatch):
 
 def test_visible_calendar_month_reads_component_state(monkeypatch):
     monkeypatch.setattr(
-        "ppd_telemetry_calendar.st.session_state",
+        "ppd_audit.telemetry_calendar.st.session_state",
         {"calendar": {"visible_month": "2025-07"}},
     )
 

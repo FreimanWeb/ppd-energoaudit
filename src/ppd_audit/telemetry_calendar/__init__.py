@@ -12,7 +12,7 @@ def _calendar_renderer():
     global _CALENDAR
     if _CALENDAR is None:
         _CALENDAR = st.components.v2.component(
-            "ppd-telemetry-calendar.telemetry_calendar",
+            "ppd-audit.telemetry_calendar",
             js="index-*.js",
             css="index-*.css",
             html='<div class="react-root"></div>',
