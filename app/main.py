@@ -22,7 +22,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lib
 import streamlit as st
 import ui
-from ppd_telemetry_calendar import render_calendar, selected_calendar_date, visible_calendar_month
+
+try:
+    from ppd_telemetry_calendar import (render_calendar, selected_calendar_date,
+                                         visible_calendar_month)
+    _HAS_CALENDAR = True
+except ImportError:
+    # локальный компонент не установился в этом окружении — не роняем весь
+    # дашборд, просто откатываемся на обычный st.date_input ниже.
+    _HAS_CALENDAR = False
 from tabs import (
     formulas,
     forecast,
@@ -137,23 +145,36 @@ if mode == "Просмотр телеметрии":
 
 selected_key = f"telemetry-date-{object_id}-{agg_id}"
 calendar_key = f"{selected_key}-picker"
-selected_date = selected_calendar_date(
-    key=calendar_key,
-    fallback=st.session_state.get(selected_key, max(dates)),
-)
-visible_year, visible_month = visible_calendar_month(key=calendar_key, fallback=selected_date)
-month_dates = [
-    day for day in dates if (day.year, day.month) == (visible_year, visible_month)
-]
-date_statuses = lib.telemetry_date_statuses(object_id, agg_id, month_dates)
-with st.sidebar:
-    selected_date = render_calendar(
-        selected_day=selected_date,
-        statuses=date_statuses,
-        min_day=min(dates),
-        max_day=max(dates),
+
+if _HAS_CALENDAR:
+    selected_date = selected_calendar_date(
         key=calendar_key,
+        fallback=st.session_state.get(selected_key, max(dates)),
     )
+    visible_year, visible_month = visible_calendar_month(key=calendar_key, fallback=selected_date)
+    month_dates = [
+        day for day in dates if (day.year, day.month) == (visible_year, visible_month)
+    ]
+    date_statuses = lib.telemetry_date_statuses(object_id, agg_id, month_dates)
+    with st.sidebar:
+        selected_date = render_calendar(
+            selected_day=selected_date,
+            statuses=date_statuses,
+            min_day=min(dates),
+            max_day=max(dates),
+            key=calendar_key,
+        )
+else:
+    st.sidebar.caption("⚠️ Компонент календаря недоступен — обычный выбор даты.")
+    selected_date = st.sidebar.date_input(
+        "Дата телеметрии",
+        value=st.session_state.get(selected_key, max(dates)),
+        min_value=min(dates),
+        max_value=max(dates),
+        key=f"{calendar_key}-fallback",
+    )
+    date_statuses = lib.telemetry_date_statuses(object_id, agg_id, [selected_date])
+
 st.session_state[selected_key] = selected_date
 if selected_date not in date_statuses:
     st.warning(f"Нет телеметрии за {selected_date} для {selected['name']} / {agg_id}.")
