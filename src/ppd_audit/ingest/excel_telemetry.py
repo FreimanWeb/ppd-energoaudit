@@ -72,6 +72,8 @@ def _metric(header: str) -> tuple[str, str] | None:
     text = _norm(header)
     if not text or "кач" in text:
         return None
+    if "квар" in text:
+        return None
     if "плотн" in text:
         return "density_kg_m3", "кг/м³" if "кг/м3" in text or "кг/м³" in text else ""
     if "мощ" in text:
@@ -153,6 +155,8 @@ def _table_from_header(sheet_name: str, rows: list[list[Any]], header_index: int
                 if ts:
                     break
         if not ts:
+            if not tag_cols or not any(i < len(row) and row[i] for i in tag_cols):
+                continue
             ts = last_timestamp
         if not ts:
             continue

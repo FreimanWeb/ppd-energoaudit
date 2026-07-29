@@ -60,3 +60,34 @@ def test_build_excel_telemetry_carries_date_to_following_aggregate_rows(tmp_path
         ("2026-01-02T00:00:00", "НА 1", 100.0),
         ("2026-01-02T00:00:00", "НА 2", 200.0),
     ]
+
+
+def test_build_excel_telemetry_ignores_reactive_power(tmp_path):
+    path = tmp_path / "power.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["Дата", "Акт.прямая мощность, кВт", "Реакт.прямая мощность, кВар"])
+    sheet.append([datetime(2026, 4, 25), 0.0, 17568.0])
+    workbook.save(path)
+
+    payload = build_excel_telemetry(path, source_root=tmp_path)
+
+    assert [(item["metric"], item["value"]) for item in payload["telemetry"]] == [
+        ("power_kw", 0.0)
+    ]
+
+
+def test_build_excel_telemetry_ignores_summary_rows_without_date_or_tag(tmp_path):
+    path = tmp_path / "power.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["Дата", "Акт.прямая мощность, кВт"])
+    sheet.append([datetime(2026, 4, 25), 0.0])
+    sheet.append(["Пустых:", 357.0])
+    workbook.save(path)
+
+    payload = build_excel_telemetry(path, source_root=tmp_path)
+
+    assert [(item["timestamp"], item["value"]) for item in payload["telemetry"]] == [
+        ("2026-04-25T00:00:00", 0.0)
+    ]
