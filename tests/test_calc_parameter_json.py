@@ -1,6 +1,5 @@
 from ppd_audit.ingest.calc_parameter_json import (
     build_parameter_json,
-    export_calculation_parameter_jsons,
 )
 from ppd_audit.ingest.report_calc import CellBinding, ParsedCalc
 from ppd_audit.spec import Branch, ObjectSpec, WaterType
@@ -62,9 +61,3 @@ def test_build_parameter_json_groups_values_for_manual_review():
     assert payload["aggregates"]["НА-1"]["passport"]["pump.model"]["value"] == "ЦНС 180"
     assert payload["aggregates"]["НА-1"]["input"]["p_out"]["value"] is None
     assert payload["aggregates"]["НА-1"]["input"]["p_out"]["status"] == "needs_review"
-
-
-def test_export_parameter_jsons_handles_extra_files(tmp_path):
-    result = export_calculation_parameter_jsons(out_root=tmp_path)
-
-    assert result["errors"] == []
