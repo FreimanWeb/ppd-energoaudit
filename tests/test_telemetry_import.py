@@ -72,6 +72,32 @@ def test_importer_converts_kns97_pressure_from_kgf_per_cm2(tmp_path):
     assert database.measurements("kns97pren", "НА-1")[0]["value"] == pytest.approx(9.80665)
 
 
+def test_importer_keeps_low_kns97_pressure_values_in_mpa(tmp_path):
+    database = AuditDatabase(tmp_path / "audit.sqlite")
+    database.migrate()
+    database.upsert_plant("kns97pren", "КНС-97", "Елховнефть", "пресная", "кнс")
+    database.upsert_aggregate("kns97pren", "НА-2 ПР", "работа")
+    (tmp_path / "КНС-97 ПР ЕН давления НА-02 из вомбат.xls.json").write_text(
+        json.dumps(
+            {
+                "telemetry": [
+                    {
+                        "timestamp": "2026-07-24T00:00:00",
+                        "metric": "pressure",
+                        "label": "Давление на выкиде",
+                        "value": 11.807,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    import_test_telemetry(database, tmp_path)
+
+    assert database.measurements("kns97pren", "НА-2 ПР")[0]["value"] == pytest.approx(11.807)
+
+
 def test_importer_uses_kns10_daily_file_tag_as_aggregate_scope(tmp_path):
     database = AuditDatabase(tmp_path / "audit.sqlite")
     database.migrate()

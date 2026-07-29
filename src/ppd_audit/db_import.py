@@ -12,6 +12,7 @@ from .ingest.excel_telemetry import build_excel_telemetry
 
 
 _KGF_PER_CM2_TO_MPA = 0.0980665
+_PRESSURE_KGF_THRESHOLD = 15.0
 
 
 @dataclass(frozen=True)
@@ -32,7 +33,6 @@ def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
             plant_code,
             aggregate_code,
             technical_place_code,
-            pressure_multiplier,
             pressure_metric,
         ) = target
         if technical_place_code != "main":
@@ -45,7 +45,9 @@ def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
                 technical_place_code=technical_place_code,
             )
         draft = json.loads(path.read_text(encoding="utf-8"))
-        for record in draft.get("telemetry", []):
+        records = draft.get("telemetry", [])
+        pressure_multiplier = _pressure_multiplier(records)
+        for record in records:
             measurement = _measurement(
                 record,
                 plant_code,
@@ -75,7 +77,6 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
             plant_code,
             aggregate_code,
             technical_place_code,
-            pressure_multiplier,
             pressure_metric,
         ) = target
         if aggregate_code:
@@ -85,7 +86,9 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
                 "работа",
                 technical_place_code=technical_place_code,
             )
-        for record in build_excel_telemetry(path, source_root=root).get("telemetry", []):
+        records = build_excel_telemetry(path, source_root=root).get("telemetry", [])
+        pressure_multiplier = _pressure_multiplier(records)
+        for record in records:
             measurement = _measurement(
                 record,
                 plant_code,
@@ -103,13 +106,13 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
     return ImportStats(database.add_measurements(iter(measurements)), skipped)
 
 
-def _target(filename: str) -> tuple[str, str | None, str, float, str | None] | None:
+def _target(filename: str) -> tuple[str, str | None, str, str | None] | None:
     if "КНС-10 БН" in filename:
-        return "kns10bn", _aggregate_from_filename(filename), "main", _KGF_PER_CM2_TO_MPA, None
+        return "kns10bn", _aggregate_from_filename(filename), "main", None
     if "КНС-54" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns54an", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
+        return "kns54an", aggregate, "main", pressure_metric
     if "КНС-ОПУ" in filename or "КНС ОПУ" in filename:
         lower_filename = filename.lower()
         aggregate = (
@@ -118,18 +121,31 @@ def _target(filename: str) -> tuple[str, str | None, str, float, str | None] | N
             else _aggregate_from_filename(filename)
         )
         pressure_metric = "p_bg" if aggregate is None and "бг" in lower_filename else None
-        return "knsopu", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
+        return "knsopu", aggregate, "main", pressure_metric
     if "КНС-97 ПР ЕН" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         if aggregate:
             aggregate = f"{aggregate} ПР"
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns97pren", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
+        return "kns97pren", aggregate, "main", pressure_metric
     if "КНС-97 ЕН" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns97pren", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
+        return "kns97pren", aggregate, "main", pressure_metric
     return None
+
+
+def _pressure_multiplier(records: list[dict]) -> float:
+    """Выбрать единицы одного файла: большие значения считаем кгс/см²."""
+    for record in records:
+        if record.get("metric") != "pressure" or record.get("value") is None:
+            continue
+        try:
+            if float(record["value"]) > _PRESSURE_KGF_THRESHOLD:
+                return _KGF_PER_CM2_TO_MPA
+        except (TypeError, ValueError):
+            continue
+    return 1.0
 
 
 def _aggregate_from_filename(filename: str) -> str | None:
