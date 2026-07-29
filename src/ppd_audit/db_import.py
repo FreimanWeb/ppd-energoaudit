@@ -11,6 +11,9 @@ from .db import AuditDatabase, TelemetryMeasurement
 from .ingest.excel_telemetry import build_excel_telemetry
 
 
+_KGF_PER_CM2_TO_MPA = 0.0980665
+
+
 @dataclass(frozen=True)
 class ImportStats:
     stored: int
@@ -102,11 +105,11 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
 
 def _target(filename: str) -> tuple[str, str | None, str, float, str | None] | None:
     if "КНС-10 БН" in filename:
-        return "kns10bn", _aggregate_from_filename(filename), "main", 0.101325, None
+        return "kns10bn", _aggregate_from_filename(filename), "main", _KGF_PER_CM2_TO_MPA, None
     if "КНС-54" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns54an", aggregate, "main", 0.0980665, pressure_metric
+        return "kns54an", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
     if "КНС-ОПУ" in filename or "КНС ОПУ" in filename:
         lower_filename = filename.lower()
         aggregate = (
@@ -115,17 +118,17 @@ def _target(filename: str) -> tuple[str, str | None, str, float, str | None] | N
             else _aggregate_from_filename(filename)
         )
         pressure_metric = "p_bg" if aggregate is None and "бг" in lower_filename else None
-        return "knsopu", aggregate, "main", 0.0980665, pressure_metric
+        return "knsopu", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
     if "КНС-97 ПР ЕН" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         if aggregate:
             aggregate = f"{aggregate} ПР"
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns97pren", aggregate, "main", 1.0, pressure_metric
+        return "kns97pren", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
     if "КНС-97 ЕН" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns97pren", aggregate, "main", 1.0, pressure_metric
+        return "kns97pren", aggregate, "main", _KGF_PER_CM2_TO_MPA, pressure_metric
     return None
 
 

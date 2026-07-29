@@ -8,7 +8,7 @@ from ppd_audit.db import AuditDatabase
 from ppd_audit.db_import import import_excel_telemetry, import_test_telemetry
 
 
-def test_importer_converts_kns10_pressure_from_atm(tmp_path):
+def test_importer_converts_kns10_pressure_from_kgf_per_cm2(tmp_path):
     database = AuditDatabase(tmp_path / "audit.sqlite")
     database.migrate()
     database.upsert_plant("kns10bn", "КНС-10 БН", "Бавлынефть", "пластовая", "кнс")
@@ -39,11 +39,37 @@ def test_importer_converts_kns10_pressure_from_atm(tmp_path):
 
     assert stats.stored == 2
     assert [row["metric"] for row in records] == ["p_in", "p_out"]
-    assert records[0]["value"] == pytest.approx(1.01325)
+    assert records[0]["value"] == pytest.approx(10.0 * 0.0980665)
     assert records[0]["unit"] == "МПа"
     assert records[0]["source_kind"] == "json_draft"
     assert records[0]["source_file"] == path.name
     assert records[0]["source_label"] == "Давление на приёме"
+
+
+def test_importer_converts_kns97_pressure_from_kgf_per_cm2(tmp_path):
+    database = AuditDatabase(tmp_path / "audit.sqlite")
+    database.migrate()
+    database.upsert_plant("kns97pren", "КНС-97", "Елховнефть", "пресная", "кнс")
+    database.upsert_aggregate("kns97pren", "НА-1", "работа")
+    (tmp_path / "КНС-97 ЕН давления НА-1 из вомбат.xls.json").write_text(
+        json.dumps(
+            {
+                "telemetry": [
+                    {
+                        "timestamp": "2026-07-24T00:00:00",
+                        "metric": "pressure",
+                        "label": "Давление на выкиде",
+                        "value": 100.0,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    import_test_telemetry(database, tmp_path)
+
+    assert database.measurements("kns97pren", "НА-1")[0]["value"] == pytest.approx(9.80665)
 
 
 def test_importer_uses_kns10_daily_file_tag_as_aggregate_scope(tmp_path):
