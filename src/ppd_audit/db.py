@@ -195,6 +195,15 @@ CREATE INDEX IF NOT EXISTS ix_parameter_clarifications_aggregate
     ON parameter_clarifications (aggregate_id, status);
 """
 
+_SCHEMA_V9 = """
+ALTER TABLE telemetry_measurements ADD COLUMN source_kind TEXT;
+ALTER TABLE telemetry_measurements ADD COLUMN source_file TEXT;
+ALTER TABLE telemetry_measurements ADD COLUMN source_sheet TEXT;
+ALTER TABLE telemetry_measurements ADD COLUMN source_row INTEGER;
+ALTER TABLE telemetry_measurements ADD COLUMN source_tag TEXT;
+ALTER TABLE telemetry_measurements ADD COLUMN source_label TEXT;
+"""
+
 
 @dataclass(frozen=True)
 class TelemetryMeasurement:
@@ -206,6 +215,12 @@ class TelemetryMeasurement:
     unit: str
     quality: str | None = None
     technical_place_code: str = "main"
+    source_kind: str | None = None
+    source_file: str | None = None
+    source_sheet: str | None = None
+    source_row: int | None = None
+    source_tag: str | None = None
+    source_label: str | None = None
 
 
 def default_database_path() -> Path:
@@ -281,6 +296,9 @@ class AuditDatabase:
                         "ALTER TABLE aggregate_passports ADD COLUMN transmission_ratio REAL"
                     )
                 connection.execute("PRAGMA user_version = 8")
+            if version < 9:
+                connection.executescript(_SCHEMA_V9)
+                connection.execute("PRAGMA user_version = 9")
 
     def upsert_ngdu(self, name: str) -> None:
         with self._connection() as connection:
@@ -478,18 +496,30 @@ class AuditDatabase:
         *,
         quality: str | None = None,
         technical_place_code: str = "main",
+        source_kind: str | None = None,
+        source_file: str | None = None,
+        source_sheet: str | None = None,
+        source_row: int | None = None,
+        source_tag: str | None = None,
+        source_label: str | None = None,
     ) -> None:
         self.add_measurements(
             [
                 TelemetryMeasurement(
-                    plant_code,
-                    aggregate_code,
-                    timestamp,
-                    metric,
-                    value,
-                    unit,
-                    quality,
-                    technical_place_code,
+                    plant_code=plant_code,
+                    aggregate_code=aggregate_code,
+                    timestamp=timestamp,
+                    metric=metric,
+                    value=value,
+                    unit=unit,
+                    quality=quality,
+                    technical_place_code=technical_place_code,
+                    source_kind=source_kind,
+                    source_file=source_file,
+                    source_sheet=source_sheet,
+                    source_row=source_row,
+                    source_tag=source_tag,
+                    source_label=source_label,
                 )
             ]
         )
@@ -540,16 +570,26 @@ class AuditDatabase:
                         measurement.value,
                         measurement.unit,
                         measurement.quality,
+                        measurement.source_kind,
+                        measurement.source_file,
+                        measurement.source_sheet,
+                        measurement.source_row,
+                        measurement.source_tag,
+                        measurement.source_label,
                     )
                 )
             connection.executemany(
                 """
                 INSERT INTO telemetry_measurements(
                     plant_id, technical_place_id, aggregate_id, timestamp, metric, value,
-                    unit, quality
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    unit, quality, source_kind, source_file, source_sheet, source_row,
+                    source_tag, source_label
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT DO UPDATE SET value = excluded.value, unit = excluded.unit,
-                    quality = excluded.quality
+                    quality = excluded.quality, source_kind = excluded.source_kind,
+                    source_file = excluded.source_file, source_sheet = excluded.source_sheet,
+                    source_row = excluded.source_row, source_tag = excluded.source_tag,
+                    source_label = excluded.source_label
                 """,
                 rows,
             )
@@ -566,6 +606,8 @@ class AuditDatabase:
         with self._connection() as connection:
             query = """
                 SELECT tm.timestamp, tm.metric, tm.value, tm.unit, tm.quality,
+                       tm.source_kind, tm.source_file, tm.source_sheet, tm.source_row,
+                       tm.source_tag, tm.source_label,
                        ngdu.name AS ngdu_name
                 FROM telemetry_measurements tm
                 JOIN plants p ON p.id = tm.plant_id
@@ -634,6 +676,8 @@ class AuditDatabase:
             )
             query = """
                 SELECT tm.timestamp, tm.metric, tm.value, tm.unit, tm.quality,
+                       tm.source_kind, tm.source_file, tm.source_sheet, tm.source_row,
+                       tm.source_tag, tm.source_label,
                        tm.aggregate_id IS NULL AS is_station
                 FROM telemetry_measurements tm
                 JOIN plants p ON p.id = tm.plant_id
@@ -668,6 +712,8 @@ class AuditDatabase:
             )
             select = """
                 SELECT tm.timestamp, tm.metric, tm.value, tm.unit, tm.quality,
+                       tm.source_kind, tm.source_file, tm.source_sheet, tm.source_row,
+                       tm.source_tag, tm.source_label,
                        tm.aggregate_id IS NULL AS is_station
                 FROM telemetry_measurements tm
                 JOIN plants p ON p.id = tm.plant_id

@@ -18,7 +18,7 @@ class ImportStats:
 
 
 def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
-    """Загрузить нормализованные JSON тестовой выборки без сохранения её происхождения."""
+    """Загрузить нормализованные JSON тестовой выборки с provenance каждой строки."""
     measurements: list[TelemetryMeasurement] = []
     skipped = 0
     for path in root.rglob("*.json"):
@@ -50,6 +50,8 @@ def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
                 technical_place_code,
                 pressure_multiplier,
                 pressure_metric,
+                source_kind="json_draft",
+                source_file=str(path.relative_to(root)),
             )
             if measurement is None:
                 skipped += 1
@@ -88,6 +90,8 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
                 technical_place_code,
                 pressure_multiplier,
                 pressure_metric,
+                source_kind="excel",
+                source_file=str(path.relative_to(root)),
             )
             if measurement is None:
                 skipped += 1
@@ -157,6 +161,9 @@ def _measurement(
     technical_place_code: str,
     pressure_multiplier: float,
     pressure_metric: str | None,
+    *,
+    source_kind: str,
+    source_file: str,
 ) -> TelemetryMeasurement | None:
     if record.get("value") is None:
         return None
@@ -172,6 +179,12 @@ def _measurement(
         unit=unit,
         quality=str(record["quality"]) if record.get("quality") not in (None, "") else None,
         technical_place_code=technical_place_code,
+        source_kind=source_kind,
+        source_file=source_file,
+        source_sheet=record.get("sheet"),
+        source_row=int(record["row"]) if record.get("row") is not None else None,
+        source_tag=record.get("tag"),
+        source_label=record.get("label"),
     )
 
 

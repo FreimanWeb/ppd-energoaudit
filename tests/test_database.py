@@ -27,7 +27,18 @@ def test_schema_persists_object_passport_and_measurement(tmp_path):
         motor_eta_nom=0.949,
     )
     db.add_measurement(
-        "kns97", "НА-02", datetime(2026, 7, 24, 12), "p_in", 1.2, "МПа"
+        "kns97",
+        "НА-02",
+        datetime(2026, 7, 24, 12),
+        "p_in",
+        1.2,
+        "МПа",
+        source_kind="excel",
+        source_file="КНС-97/НА-2.xlsx",
+        source_sheet="Расход",
+        source_row=42,
+        source_tag="НА 02(ЦНС)",
+        source_label="Давление на приёме",
     )
 
     measurement = db.measurements("kns97", "НА-02")[0]
@@ -35,6 +46,10 @@ def test_schema_persists_object_passport_and_measurement(tmp_path):
     passport = db.active_passport("kns97", "НА-02", datetime(2026, 7, 24))
     assert passport["pump_model"] == "ЦНС 40-1000(-2)"
     assert measurement["unit"] == "МПа"
+    assert measurement["source_file"] == "КНС-97/НА-2.xlsx"
+    assert measurement["source_sheet"] == "Расход"
+    assert measurement["source_row"] == 42
+    assert measurement["source_tag"] == "НА 02(ЦНС)"
 
 
 def test_measurement_rejects_noncanonical_unit(tmp_path):

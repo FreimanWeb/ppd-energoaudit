@@ -14,6 +14,11 @@ def render(ctx: Ctx) -> None:
     from ppd_audit.optimize import optimize_setpoint
 
     st.subheader("Реестр мероприятий с ТЭО")
+    if ctx.quality is not None and not ctx.quality.allows_economic_conclusions:
+        st.warning(
+            "Мероприятия не рассчитаны: выбранный режим непригоден для экономических выводов."
+        )
+        return
     ui.provenance(("Эвристическая оценка", "warn"), ("CAPEX — типовой", ""))
     st.caption(
         "Сценарные оценки — потенциал после диагностики; CAPEX и окупаемость для них не заданы."

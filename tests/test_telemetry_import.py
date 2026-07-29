@@ -41,6 +41,9 @@ def test_importer_converts_kns10_pressure_from_atm(tmp_path):
     assert [row["metric"] for row in records] == ["p_in", "p_out"]
     assert records[0]["value"] == pytest.approx(1.01325)
     assert records[0]["unit"] == "МПа"
+    assert records[0]["source_kind"] == "json_draft"
+    assert records[0]["source_file"] == path.name
+    assert records[0]["source_label"] == "Давление на приёме"
 
 
 def test_importer_uses_kns10_daily_file_tag_as_aggregate_scope(tmp_path):

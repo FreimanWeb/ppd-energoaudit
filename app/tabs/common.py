@@ -25,6 +25,7 @@ class Ctx:
     snapshot_timestamp: datetime
     scope: object  # ResultScope
     source: str = "telemetry"
+    quality: object | None = None
 
 
 def fmt(x, nd: int = 2) -> str:

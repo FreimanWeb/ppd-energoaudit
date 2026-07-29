@@ -27,6 +27,12 @@ TAB_MARKERS = {
     "Формулы": ["Как получено каждое число"],
 }
 
+UNFIT_TAB_MARKERS = {
+    "Обзор": ["Суточный KPI", "Паспорт и режим"],
+    "Карта потерь": ["Цифровая карта потерь мощности"],
+    "Мероприятия": ["Реестр мероприятий с ТЭО"],
+}
+
 
 def _run_for(label_part: str) -> AppTest:
     at = AppTest.from_file(APP, default_timeout=240).run()
@@ -59,7 +65,15 @@ def test_tab_renders_kns54(at_kns54, tab_name):
     """КНС-54: каждая вкладка рендерит контент из SQLite-телеметрии."""
     assert not at_kns54.exception, at_kns54.exception
     text = _all_text(at_kns54)
-    for marker in TAB_MARKERS[tab_name]:
+    is_unfit = any(
+        "Режим непригоден для экономических выводов" in item.value for item in at_kns54.error
+    )
+    markers = (
+        UNFIT_TAB_MARKERS.get(tab_name, TAB_MARKERS[tab_name])
+        if is_unfit
+        else TAB_MARKERS[tab_name]
+    )
+    for marker in markers:
         assert marker in text, f"КНС-54, вкладка «{tab_name}»: нет «{marker}»"
 
 
@@ -78,11 +92,19 @@ def test_overview_answers_manager_questions(at_kns54):
         "УРЭ расчётный, кВт·ч/м³",
         "УРЭ оптимальный, кВт·ч/м³",
         "КПД факт",
-        "ΔW по КПД, кВт·ч/год",
-        "ΔW по КПД, тыс. ₽/год",
     } <= labels
     text = _all_text(at_kns54)
-    assert "Структура потерь" in text and "Топ-мероприятия" in text
+    if at_kns54.error:
+        assert any(
+            "Режим непригоден для экономических выводов" in item.value for item in at_kns54.error
+        )
+        assert any(
+            "Потери, мероприятия и годовая экономия скрыты" in item.value
+            for item in at_kns54.warning
+        )
+    else:
+        assert {"ΔW по КПД, кВт·ч/год", "ΔW по КПД, тыс. ₽/год"} <= labels
+        assert "Структура потерь" in text and "Топ-мероприятия" in text
 
 
 def test_dashboard_marks_calculated_blocks(at_kns54):

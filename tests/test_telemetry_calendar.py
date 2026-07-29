@@ -18,10 +18,10 @@ def test_calendar_assets_ship_with_the_main_package():
 def test_calendar_data_serializes_telemetry_statuses():
     assert calendar_data(
         selected_day=date(2025, 7, 25),
-        statuses={date(2025, 7, 24): "ready", date(2025, 7, 25): "insufficient"},
+        statuses={date(2025, 7, 24): "ready", date(2025, 7, 25): "unfit"},
     ) == {
         "value": "2025-07-25",
-        "cellClasses": {"2025-07-24": "ready", "2025-07-25": "insufficient"},
+        "cellClasses": {"2025-07-24": "ready", "2025-07-25": "unfit"},
     }
 
 

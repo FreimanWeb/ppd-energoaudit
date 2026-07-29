@@ -311,6 +311,11 @@ def _passport_and_regime(ctx: Ctx) -> None:
 def render(ctx: Ctx) -> None:
     st.subheader("КПИ выездного замера" if ctx.source == "field_trip" else "Суточный KPI")
     _kpi_rows(ctx)
+    if ctx.quality is not None and not ctx.quality.allows_economic_conclusions:
+        st.warning("Потери, мероприятия и годовая экономия скрыты: режим непригоден для выводов.")
+        st.divider()
+        _passport_and_regime(ctx)
+        return
     st.divider()
     st.subheader("Режимный расчёт")
     _loss_structure_and_measures(ctx)

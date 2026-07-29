@@ -241,6 +241,7 @@ except (ArithmeticError, KeyError, ValueError) as exc:
     st.stop()
 audit = snapshot_audit.audit
 agg = audit.spec
+quality = snapshot_audit.quality
 scope = lib.result_scope_for(
     object_id,
     agg_id,
@@ -274,16 +275,17 @@ ctx = Ctx(
     selected_date=selected_date,
     snapshot_timestamp=snapshot_timestamp,
     scope=scope,
+    quality=quality,
 )
 
-if audit.regime.eta_unit > 1.0:
+if quality.status == "unfit":
     st.error(
-        "Физически невозможный КПД: "
-        f"η = {fmt(audit.regime.eta_unit, 3)} при "
-        f"P_гидр = {fmt(audit.regime.p_hydraulic, 1)} кВт и "
-        f"P_эл = {fmt(audit.regime.p_electric, 1)} кВт. "
-        "Расчёт показан только для диагностики: до сверки давления, расхода и "
-        "энергии не используйте его для оценки потерь или мероприятий."
+        "Режим непригоден для экономических выводов: "
+        + " ".join(issue.message for issue in quality.issues if issue.severity == "error")
+    )
+elif quality.status == "assumptions":
+    st.warning(
+        "Режим рассчитан с допущениями: " + " ".join(issue.message for issue in quality.issues)
     )
 
 

@@ -18,6 +18,7 @@ from ..spec import (
     RegimeMeasurement,
     TransmissionSpec,
 )
+from .telemetry_quality import TelemetryQuality, assess_telemetry_quality
 
 
 _PRESSURE_STABILITY_WINDOW = timedelta(minutes=1)
@@ -49,6 +50,8 @@ class SnapshotAudit:
     uses_daily_flow: bool
     uses_daily_power: bool
     annual_runtime_is_assumed: bool
+    quality: TelemetryQuality
+    sources: dict[str, str]
 
 
 def build_regime(
@@ -67,8 +70,6 @@ def build_regime(
     aggregate_values: dict[str, list[float]] = {}
     station_values: dict[str, list[float]] = {}
     for row in rows:
-        if row["value"] == 0:
-            continue
         target = station_values if row["is_station"] else aggregate_values
         target.setdefault(row["metric"], []).append(float(row["value"]))
 
@@ -225,11 +226,10 @@ def run_snapshot_audit(
     rows = database.measurements_in_window(
         plant_code, aggregate_code, start, end, include_station=True
     )
+    state_rows = database.state_measurements_in_window(plant_code, aggregate_code, start, end)
     aggregate_values: dict[str, list[float]] = {}
     station_values: dict[str, list[float]] = {}
     for row in rows:
-        if row["value"] == 0:
-            continue
         target = station_values if row["is_station"] else aggregate_values
         target.setdefault(row["metric"], []).append(float(row["value"]))
     if any(metric in station_values for metric in ("q_day", "runtime", "energy")):
@@ -268,12 +268,27 @@ def run_snapshot_audit(
     audit = audit_aggregate(
         _aggregate_spec(aggregate, passport, regime=regime), Branch(plant["branch"])
     )
+    integrated_energy, powered_hours = _power_reconciliation(start, end, state_rows)
+    integrated_flow = _integrated_flow_rate(start, end, rows)
+    quality = assess_telemetry_quality(
+        eta_unit=audit.regime.eta_unit,
+        uses_daily_flow=uses_daily_flow,
+        uses_daily_power=uses_daily_power,
+        energy_kwh=energy,
+        integrated_energy_kwh=integrated_energy,
+        runtime_hours=runtime,
+        powered_hours=powered_hours,
+        q_day_m3=q_day,
+        integrated_flow_m3=integrated_flow,
+    )
     return SnapshotAudit(
         audit=audit,
         snapshot=snapshot,
         uses_daily_flow=uses_daily_flow,
         uses_daily_power=uses_daily_power,
         annual_runtime_is_assumed=annual_runtime is None,
+        quality=quality,
+        sources=_regime_sources(rows, state_rows, timestamp, uses_daily_flow, uses_daily_power),
     )
 
 
@@ -358,6 +373,106 @@ def _power_states(
         if value is not None and changed_at is not None:
             states.append((timestamp, value, timestamp - changed_at))
     return states
+
+
+def _power_reconciliation(
+    start: datetime, end: datetime, state_rows: list[dict]
+) -> tuple[float | None, float | None]:
+    """Вернуть W и T из полного 30-минутного ряда мощности, иначе не сравнивать."""
+    updates = [
+        (datetime.fromisoformat(row["timestamp"]), float(row["value"]))
+        for row in state_rows
+        if not row["is_station"] and row["metric"] == "power"
+    ]
+    if not updates or not _is_fixed_power_series(updates):
+        return None, None
+    states = _power_states(start, end, state_rows)
+    expected_slots = int((end - start) / _POWER_INTERVAL)
+    if len(states) != expected_slots or states[0][0] != start:
+        return None, None
+    interval_hours = _POWER_INTERVAL.total_seconds() / 3600
+    return (
+        sum(power * interval_hours for _, power, _ in states),
+        sum(interval_hours for _, power, _ in states if power > 0),
+    )
+
+
+def _integrated_flow_rate(start: datetime, end: datetime, rows: list[dict]) -> float | None:
+    """Интегрировать Q только для полного равномерного ряда с началом в окне."""
+    points = sorted(
+        (
+            datetime.fromisoformat(row["timestamp"]),
+            float(row["value"]),
+        )
+        for row in rows
+        if not row["is_station"] and row["metric"] == "flow_rate"
+    )
+    if len(points) < 2 or points[0][0] != start:
+        return None
+    intervals = {
+        later - earlier
+        for (earlier, _), (later, _) in zip(points, points[1:], strict=True)
+    }
+    if len(intervals) != 1:
+        return None
+    interval = intervals.pop()
+    if interval <= timedelta() or points[-1][0] + interval != end:
+        return None
+    hours = interval.total_seconds() / 3600
+    return sum(value * hours for _, value in points)
+
+
+def _regime_sources(
+    rows: list[dict],
+    state_rows: list[dict],
+    timestamp: datetime,
+    uses_daily_flow: bool,
+    uses_daily_power: bool,
+) -> dict[str, str]:
+    """Собрать provenance только для входов, реально использованных в расчёте."""
+    sources = {
+        "p_вх": _latest_source(state_rows, "p_in", timestamp),
+        "p_вых": _latest_source(state_rows, "p_out", timestamp),
+        "p_БГ": _latest_source(state_rows, "p_bg", timestamp),
+        "ρ": _measurement_source(rows, "density"),
+    }
+    if uses_daily_flow:
+        sources["Q_сут"] = _measurement_source(rows, "q_day")
+    else:
+        sources["Q"] = _measurement_source(rows, "flow_rate")
+    if uses_daily_power:
+        sources["W_сут"] = _measurement_source(rows, "energy")
+        sources["T_сут"] = _measurement_source(rows, "runtime")
+    else:
+        sources["P_эл"] = _measurement_source(rows, "power")
+    return {metric: source for metric, source in sources.items() if source is not None}
+
+
+def _latest_source(rows: list[dict], metric: str, timestamp: datetime) -> str | None:
+    candidates = [
+        row
+        for row in rows
+        if row["metric"] == metric and datetime.fromisoformat(row["timestamp"]) <= timestamp
+    ]
+    return _source_reference(candidates[-1]) if candidates else None
+
+
+def _measurement_source(rows: list[dict], metric: str) -> str | None:
+    candidates = [row for row in rows if not row["is_station"] and row["metric"] == metric]
+    return _source_reference(candidates[-1]) if candidates else None
+
+
+def _source_reference(row: dict) -> str | None:
+    parts = [
+        row.get("source_kind"),
+        row.get("source_file"),
+        row.get("source_sheet"),
+        str(row["source_row"]) if row.get("source_row") is not None else None,
+        row.get("source_tag"),
+        row.get("source_label"),
+    ]
+    values = [str(part) for part in parts if part not in (None, "")]
+    return " · ".join(values) if values else None
 
 
 def _is_fixed_power_series(updates: list[tuple[datetime, float]]) -> bool:
@@ -532,20 +647,24 @@ def telemetry_day_status(
             track_clarifications=False,
         )
     except (ArithmeticError, KeyError, ValueError):
-        try:
-            run_snapshot_audit(
-                database,
-                plant_code,
-                aggregate_code,
-                start,
-                end,
-                snapshots[-1].timestamp,
-                track_clarifications=False,
-            )
-        except (ArithmeticError, KeyError, ValueError):
-            return "insufficient"
-        return "snapshot"
-    return "ready"
+        daily_pressure_coverage_is_complete = False
+    else:
+        daily_pressure_coverage_is_complete = True
+    try:
+        snapshot_audit = run_snapshot_audit(
+            database,
+            plant_code,
+            aggregate_code,
+            start,
+            end,
+            snapshots[-1].timestamp,
+            track_clarifications=False,
+        )
+    except (ArithmeticError, KeyError, ValueError):
+        return "insufficient"
+    if not snapshot_audit.quality.allows_economic_conclusions:
+        return "unfit"
+    return "ready" if daily_pressure_coverage_is_complete else "snapshot"
 
 
 def telemetry_date_statuses(

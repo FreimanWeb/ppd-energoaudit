@@ -77,6 +77,11 @@ def _power_flow(ctx: Ctx) -> None:
 
 def render(ctx: Ctx) -> None:
     st.subheader("Цифровая карта потерь мощности")
+    if ctx.quality is not None and not ctx.quality.allows_economic_conclusions:
+        st.warning(
+            "Карта потерь не построена: выбранный режим непригоден для экономических выводов."
+        )
+        return
     audit, tariff = ctx.audit, ctx.tariff
     if ctx.source == "field_trip" and not ctx.scope.annual_runtime_is_assumed:
         ui.provenance((f"T_год из YAML: {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"))

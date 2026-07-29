@@ -135,8 +135,16 @@ def test_snapshot_filter_explains_manifold_pressure_rejection():
 def test_analysis_warns_about_physically_impossible_efficiency():
     source = Path(APP).read_text(encoding="utf-8")
 
-    assert "if audit.regime.eta_unit > 1.0:" in source
-    assert "Физически невозможный КПД" in source
+    assert "snapshot_audit.quality" in source
+    assert "Режим непригоден для экономических выводов" in source
+
+
+def test_unfit_regime_hides_loss_map_and_measures():
+    losses = Path("app/tabs/losses.py").read_text(encoding="utf-8")
+    measures = Path("app/tabs/measures.py").read_text(encoding="utf-8")
+
+    assert "ctx.quality.allows_economic_conclusions" in losses
+    assert "ctx.quality.allows_economic_conclusions" in measures
 
 
 def test_overview_separates_snapshot_and_daily_regime_data():

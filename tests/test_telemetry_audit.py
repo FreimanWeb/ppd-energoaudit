@@ -427,6 +427,20 @@ def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
         ("energy", 420.0, "кВт·ч"),
     ]:
         database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    database.add_measurement(
+        "kns97",
+        "НА-02",
+        start,
+        "p_in",
+        1.2,
+        "МПа",
+        source_kind="excel",
+        source_file="КНС-97.xlsx",
+        source_sheet="Измерения",
+        source_row=42,
+        source_tag="НА-02",
+        source_label="Давление на приёме",
+    )
     database.add_measurement("kns97", "НА-02", start + timedelta(minutes=4), "power", 210.0, "кВт")
 
     snapshot = run_snapshot_audit(
@@ -443,6 +457,98 @@ def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
     assert snapshot.uses_daily_flow is True
     assert snapshot.uses_daily_power is True
     assert snapshot.annual_runtime_is_assumed is True
+    assert snapshot.quality.status == "assumptions"
+    assert snapshot.quality.basis["flow"] == "Q_сут / T_сут"
+    assert snapshot.sources["p_вх"] == (
+        "excel · КНС-97.xlsx · Измерения · 42 · НА-02 · Давление на приёме"
+    )
+
+
+def test_snapshot_audit_marks_conflicting_daily_totals_unfit(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.0, "МПа"),
+        ("p_out", 4.0, "МПа"),
+        ("power", 100.0, "кВт"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 100.0, "м³/сут"),
+        ("runtime", 2.0, "ч"),
+        ("energy", 100.0, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    snapshot = run_snapshot_audit(
+        database, "kns97", "НА-02", start, start + timedelta(days=1), start
+    )
+
+    assert snapshot.quality.status == "unfit"
+    assert {"energy_mismatch", "runtime_mismatch"} <= set(snapshot.quality.codes)
+
+
+def test_snapshot_audit_does_not_reconcile_partial_power_series(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.0, "МПа"),
+        ("p_out", 4.0, "МПа"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 50.0, "м³/сут"),
+        ("runtime", 2.0, "ч"),
+        ("energy", 100.0, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(minutes=30), "power", 100.0, "кВт"
+    )
+
+    snapshot = run_snapshot_audit(
+        database,
+        "kns97",
+        "НА-02",
+        start,
+        start + timedelta(days=1),
+        start + timedelta(minutes=30),
+    )
+
+    assert snapshot.quality.status == "assumptions"
+    assert {"energy_mismatch", "runtime_mismatch"}.isdisjoint(snapshot.quality.codes)
+
+
+def test_build_regime_preserves_zero_daily_flow(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.0, "МПа"),
+        ("p_out", 4.0, "МПа"),
+        ("power", 100.0, "кВт"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 0.0, "м³/сут"),
+        ("runtime", 2.0, "ч"),
+        ("energy", 100.0, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    regime = build_regime(database, "kns97", "НА-02", start, start + timedelta(days=1))
+
+    assert regime.q_day == 0.0
+
+
+def test_telemetry_day_status_rejects_unfit_snapshot(tmp_path):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1.0, "МПа"),
+        ("p_out", 4.0, "МПа"),
+        ("power", 100.0, "кВт"),
+        ("density", 1000.0, "кг/м³"),
+        ("q_day", 100.0, "м³/сут"),
+        ("runtime", 2.0, "ч"),
+        ("energy", 100.0, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+
+    assert telemetry_day_status(database, "kns97", "НА-02", start.date()) == "unfit"
 
 
 def test_snapshot_audit_resolves_t_year_clarification_with_complete_runtime(tmp_path):
@@ -491,6 +597,9 @@ def test_date_statuses_marks_snapshot_when_daily_coverage_is_incomplete(tmp_path
         database.add_measurement("kns97", "НА-02", start, metric, value, unit)
     database.add_measurement(
         "kns97", "НА-02", start + timedelta(minutes=60), "power", 210.0, "кВт"
+    )
+    database.add_measurement(
+        "kns97", "НА-02", start + timedelta(hours=2), "power", 0.0, "кВт"
     )
 
     statuses = telemetry_date_statuses(database, "kns97", "НА-02", [start.date()])
@@ -623,7 +732,7 @@ def test_telemetry_date_statuses_marks_ready_and_insufficient_days(tmp_path):
     for metric, value, unit in [
         ("p_in", 1.2, "МПа"),
         ("p_out", 10.4, "МПа"),
-        ("power", 210.0, "кВт"),
+        ("power", 300.0, "кВт"),
         ("q_day", 2400.0, "м³/сут"),
         ("runtime", 24.0, "ч"),
         ("density", 1000.0, "кг/м³"),
@@ -663,7 +772,7 @@ def test_telemetry_day_status_is_the_single_source_for_calendar_status(tmp_path)
     for metric, value, unit in [
         ("p_in", 1.2, "МПа"),
         ("p_out", 10.4, "МПа"),
-        ("power", 210.0, "кВт"),
+        ("power", 300.0, "кВт"),
         ("q_day", 2400.0, "м³/сут"),
         ("runtime", 24.0, "ч"),
         ("density", 1000.0, "кг/м³"),

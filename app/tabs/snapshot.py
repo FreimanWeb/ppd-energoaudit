@@ -63,6 +63,12 @@ def render(ctx: Ctx) -> None:
         return
 
     audit, snapshot = result.audit, result.snapshot
+    if result.quality.status == "unfit":
+        st.error("Режим непригоден: " + " ".join(issue.message for issue in result.quality.issues))
+    elif result.quality.status == "assumptions":
+        st.warning(
+            "Допущения режима: " + " ".join(issue.message for issue in result.quality.issues)
+        )
     st.markdown("### Суточный факт")
     if audit.spec.regime.w is None or audit.spec.regime.q_day is None:
         st.info("Нет W и Q_сут: суточный фактический УРЭ не вычисляется.")
@@ -79,6 +85,24 @@ def render(ctx: Ctx) -> None:
         st.info("Подача Q принята как Q_сут / T_сут: мгновенного Q(t) нет.")
     if result.uses_daily_power:
         st.info("P_эл принята как W_сут / T_сут: это среднесуточная, а не мгновенная мощность.")
+    st.markdown("**Основание расчётных показателей**")
+    st.dataframe(
+        {
+            "Показатель": list(result.quality.basis),
+            "Основание": list(result.quality.basis.values()),
+        },
+        hide_index=True,
+        width="stretch",
+    )
+    if result.sources:
+        st.markdown("**Provenance расчётных входов**")
+        st.dataframe(
+            {"Показатель": list(result.sources), "Источник": list(result.sources.values())},
+            hide_index=True,
+            width="stretch",
+        )
+    else:
+        st.caption("Provenance отсутствует у этой ранее загруженной телеметрии.")
     left, right = st.columns(2)
     with left:
         st.metric("p_вх, МПа", fmt(snapshot.p_in_mpa, 3))
