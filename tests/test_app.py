@@ -132,6 +132,13 @@ def test_snapshot_filter_explains_manifold_pressure_rejection():
     assert "p_вых ≤ p_БГ" in source
 
 
+def test_analysis_warns_about_physically_impossible_efficiency():
+    source = Path(APP).read_text(encoding="utf-8")
+
+    assert "if audit.regime.eta_unit > 1.0:" in source
+    assert "Физически невозможный КПД" in source
+
+
 def test_overview_separates_snapshot_and_daily_regime_data():
     source = Path("app/tabs/overview.py").read_text(encoding="utf-8")
 
