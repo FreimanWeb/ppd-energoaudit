@@ -15,9 +15,16 @@ dependencies = [
     "xlrd>=2.0", # для парсинга старых форматов Excel (.xls)
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    # Дашборд (app/) — в основных зависимостях, а не в extras: Streamlit Cloud
+    # ставит окружение из uv.lock через `uv sync`, который extras не включает.
+    "streamlit>=1.30",
+    "plotly>=5.18",
+    "altair>=5.0",
 ]
 
 [project.optional-dependencies]
+# Оставлено для обратной совместимости (`pip install .[app]`); содержимое
+# уже входит в основные зависимости.
 app = [
     "streamlit>=1.30",
     "plotly>=5.18",

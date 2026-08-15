@@ -1,3 +1,11 @@
+# ВНИМАНИЕ: Streamlit Community Cloud этот файл НЕ читает, пока в репозитории
+# есть uv.lock — приоритет файлов зависимостей: uv.lock > Pipfile >
+# environment.yml > requirements.txt > pyproject.toml. Окружение на Cloud
+# собирается из uv.lock (`uv sync`), поэтому реальный источник правды —
+# [project.dependencies] в pyproject.toml. После правки зависимостей нужно
+# выполнить `uv lock` и закоммитить uv.lock, иначе изменения на Cloud не приедут.
+# Этот файл оставлен для локальной установки через pip.
+
 # Расчётное ядро
 pandas>=2.0
 numpy>=1.24
