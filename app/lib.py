@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -19,8 +20,17 @@ if str(_ROOT / "src") not in sys.path:
 
 from ppd_audit.config import load_constraints  # noqa: E402
 from ppd_audit.core.audit import AuditResult  # noqa: E402
+from ppd_audit.core.reservoir.forecast import (  # noqa: E402
+    aggregate_daily_to_periods,
+    forecast_injection,
+)
 from ppd_audit.db import default_database_path  # noqa: E402
 from ppd_audit.db_seed import bootstrap_database  # noqa: E402
+from ppd_audit.measures.economics import (  # noqa: E402
+    DEFAULT_HORIZON_YEARS,
+    InjectionProfile,
+    build_annual_profile,
+)
 from ppd_audit.services.audit import run_energy_audit  # noqa: E402
 from ppd_audit.services.result_scope import ResultScope, result_scope as _result_scope  # noqa: E402
 from ppd_audit.services.telemetry_audit import (  # noqa: E402
@@ -171,6 +181,65 @@ def telemetry_for_period(
     start = datetime.combine(start_day, datetime.min.time())
     end = datetime.combine(end_day + timedelta(days=1), datetime.min.time())
     return _telemetry_for_window(object_id, aggregate_id, start, end)
+
+
+def daily_injection_series(
+    object_id: str, aggregate_id: str, start_day: date, end_day: date
+) -> list[tuple[str, float]]:
+    """Суточные объёмы закачки (метрика q_day) по датам, от старых к новым.
+
+    Приоритет — значение самого агрегата; станционное берётся только там, где
+    своего нет. Общая точка входа для вкладки прогноза и для экономики
+    мероприятий, чтобы обе считали ряд одинаково.
+    """
+    rows = telemetry_for_period(object_id, aggregate_id, start_day, end_day)
+    by_date: dict[str, float] = {}
+    for row in rows:
+        if row["metric"] != "q_day":
+            continue
+        day_key = row["timestamp"][:10]
+        if row["is_station"] and day_key in by_date:
+            continue
+        if (not row["is_station"]) or day_key not in by_date:
+            by_date[day_key] = row["value"]
+    return sorted(by_date.items())
+
+
+def injection_profile(
+    object_id: str,
+    aggregate_id: str,
+    base_annual_m3: float,
+    *,
+    horizon_years: int = DEFAULT_HORIZON_YEARS,
+    period_days: int = 30,
+) -> InjectionProfile | None:
+    """Прогнозный профиль закачки по годам горизонта.
+
+    Возвращает ``None``, если телеметрии не хватает на трендовую
+    экстраполяцию (нужно ≥3 полных периода) — вызывающая сторона должна
+    честно сказать об этом пользователю, а не подсовывать выдуманный профиль.
+    """
+    dates = telemetry_dates(object_id, aggregate_id)
+    if len(dates) < 3:
+        return None
+    series = daily_injection_series(object_id, aggregate_id, dates[0], dates[-1])
+    daily = [value for _, value in series]
+    history = aggregate_daily_to_periods(daily, days_per_period=period_days)
+    if len(history) < 3:
+        return None
+
+    horizon_periods = math.ceil(horizon_years * 365 / period_days)
+    forecast = forecast_injection(history, horizon=horizon_periods)
+    return build_annual_profile(
+        [point.value for point in forecast.points],
+        period_days=period_days,
+        horizon_years=horizon_years,
+        base_annual_m3=base_annual_m3,
+        lower_values=[point.lower for point in forecast.points],
+        upper_values=[point.upper for point in forecast.points],
+        method=forecast.method,
+        note=forecast.note,
+    )
 
 
 def _telemetry_for_window(

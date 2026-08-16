@@ -23,22 +23,6 @@ from tabs.common import Ctx, fmt
 PERIOD_LABELS = {1: "сутки", 7: "неделя", 30: "месяц"}
 
 
-def _daily_q_series(object_id: str, aggregate_id: str, start_day, end_day) -> list[tuple[str, float]]:
-    """Суточные объёмы (q_day) по датам, отсортированные по времени."""
-    rows = lib.telemetry_for_period(object_id, aggregate_id, start_day, end_day)
-    by_date: dict[str, float] = {}
-    for row in rows:
-        if row["metric"] != "q_day":
-            continue
-        # приоритет — значение агрегата; станционное берём только если своего нет
-        day_key = row["timestamp"][:10]
-        if row["is_station"] and day_key in by_date:
-            continue
-        if (not row["is_station"]) or day_key not in by_date:
-            by_date[day_key] = row["value"]
-    return sorted(by_date.items())
-
-
 def render(ctx: Ctx) -> None:
     st.subheader("Прогноз объёма закачки")
     ui.note(
@@ -46,6 +30,12 @@ def render(ctx: Ctx) -> None:
         "<b>не гидродинамическая модель пласта</b>. Не учитывает план ГТМ, "
         "фонд скважин, ограничения приёмистости/давления нагнетания. "
         "Используйте только как индикативный, а не проектный ориентир."
+    )
+    st.caption(
+        "Этот же прогноз питает экономику на вкладке «Мероприятия»: там его можно "
+        "включить как базу расчёта вместо постоянного текущего режима — "
+        "годовой эффект масштабируется прогнозным объёмом закачки, "
+        "и считаются NPV, IRR и дисконтированная окупаемость."
     )
 
     all_dates = lib.telemetry_dates(ctx.object_id, ctx.agg_id)
@@ -77,7 +67,7 @@ def render(ctx: Ctx) -> None:
             key="forecast_horizon",
         )
 
-    daily = _daily_q_series(ctx.object_id, ctx.agg_id, start_day, end_day)
+    daily = lib.daily_injection_series(ctx.object_id, ctx.agg_id, start_day, end_day)
     if len(daily) < 3:
         st.info("В выбранном периоде меньше 3 суток с измеренным q_day — сузьте фильтр или уберите его.")
         return
