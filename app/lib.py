@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+import os
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -25,7 +26,12 @@ from ppd_audit.core.reservoir.forecast import (  # noqa: E402
     forecast_injection,
 )
 from ppd_audit.db import default_database_path  # noqa: E402
-from ppd_audit.db_seed import bootstrap_database  # noqa: E402
+from ppd_audit.db_seed import (  # noqa: E402
+    DEFAULT_TELEMETRY_DIRNAME,
+    TelemetrySeedResult,
+    bootstrap_database,
+    seed_telemetry_from_excel,
+)
 from ppd_audit.measures.economics import (  # noqa: E402
     DEFAULT_HORIZON_YEARS,
     InjectionProfile,
@@ -49,8 +55,24 @@ from ppd_audit.verify.runner import run_verification  # noqa: E402
 WATER_ORDER = ["пресная", "агрессивная", "пластовая"]
 
 
+TELEMETRY_DIR = _ROOT / "data" / DEFAULT_TELEMETRY_DIRNAME
+
+
+@st.cache_resource(show_spinner="Первый запуск: читаем паспорта и выгрузки телеметрии…")
+def _bootstrap():
+    db = bootstrap_database(default_database_path(), _ROOT / "config" / "plants")
+    seed = seed_telemetry_from_excel(
+        db, TELEMETRY_DIR, include_examples=os.getenv("PPD_SKIP_EXAMPLE_TELEMETRY") != "1"
+    )
+    return db, seed
+
+
 def database():
-    return bootstrap_database(default_database_path(), _ROOT / "config" / "plants")
+    return _bootstrap()[0]
+
+
+def telemetry_seed_status() -> TelemetrySeedResult:
+    return _bootstrap()[1]
 
 
 def list_object_ids() -> list[str]:

@@ -4,7 +4,12 @@ import pytest
 
 from ppd_audit import db as db_module
 from ppd_audit.config import project_root
-from ppd_audit.db import AuditDatabase, TelemetryMeasurement, default_database_path
+from ppd_audit.db import (
+    DATABASE_PATH_ENV,
+    AuditDatabase,
+    TelemetryMeasurement,
+    default_database_path,
+)
 
 
 def test_schema_persists_object_passport_and_measurement(tmp_path):
@@ -187,9 +192,15 @@ def test_clarification_can_be_resolved(tmp_path):
     assert db.clarifications("kns97", "НА-1") == []
 
 
-def test_default_database_is_in_project_root():
+def test_default_database_is_in_project_root(monkeypatch):
+    monkeypatch.delenv(DATABASE_PATH_ENV, raising=False)
     assert default_database_path().name == "telemetry.sqlite"
     assert default_database_path().parent == project_root()
+
+
+def test_database_path_can_be_overridden_by_env(monkeypatch, tmp_path):
+    monkeypatch.setenv(DATABASE_PATH_ENV, str(tmp_path / "custom.sqlite"))
+    assert default_database_path() == tmp_path / "custom.sqlite"
 
 
 def test_migration_cleans_ngdu_suffix_from_known_name(tmp_path):

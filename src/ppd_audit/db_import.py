@@ -14,11 +14,14 @@ from .ingest.excel_telemetry import build_excel_telemetry
 _KGF_PER_CM2_TO_MPA = 0.0980665
 _PRESSURE_KGF_THRESHOLD = 15.0
 
+EXAMPLE_PREFIX = "ПРИМЕР"
+
 
 @dataclass(frozen=True)
 class ImportStats:
     stored: int
     skipped: int
+    unreadable: tuple[str, ...] = ()
 
 
 def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
@@ -65,11 +68,35 @@ def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
     return ImportStats(database.add_measurements(iter(measurements)), skipped)
 
 
-def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
-    """Загрузить Excel-временные ряды тестового объекта в canonical SQLite."""
+def is_example_file(path: Path | str) -> bool:
+    name = path.name if isinstance(path, Path) else Path(path).name
+    return name.upper().startswith(EXAMPLE_PREFIX)
+
+
+def excel_telemetry_files(
+    root: Path, *, recursive: bool = False, include_examples: bool = True
+) -> list[Path]:
+    paths = root.rglob("*.xls*") if recursive else root.glob("*.xls*")
+    return sorted(
+        path
+        for path in paths
+        if not path.name.startswith("~$") and (include_examples or not is_example_file(path))
+    )
+
+
+def import_excel_telemetry(
+    database: AuditDatabase,
+    root: Path,
+    *,
+    recursive: bool = False,
+    include_examples: bool = True,
+) -> ImportStats:
     measurements: list[TelemetryMeasurement] = []
     skipped = 0
-    for path in root.glob("*.xls*"):
+    unreadable: list[str] = []
+    for path in excel_telemetry_files(
+        root, recursive=recursive, include_examples=include_examples
+    ):
         target = _target(path.name)
         if target is None:
             continue
@@ -86,7 +113,11 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
                 "работа",
                 technical_place_code=technical_place_code,
             )
-        records = build_excel_telemetry(path, source_root=root).get("telemetry", [])
+        try:
+            records = build_excel_telemetry(path, source_root=root).get("telemetry", [])
+        except Exception:
+            unreadable.append(path.name)
+            continue
         pressure_multiplier = _pressure_multiplier(records)
         for record in records:
             measurement = _measurement(
@@ -103,7 +134,9 @@ def import_excel_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
                 skipped += 1
             else:
                 measurements.append(measurement)
-    return ImportStats(database.add_measurements(iter(measurements)), skipped)
+    return ImportStats(
+        database.add_measurements(iter(measurements)), skipped, tuple(unreadable)
+    )
 
 
 def _target(filename: str) -> tuple[str, str | None, str, str | None] | None:

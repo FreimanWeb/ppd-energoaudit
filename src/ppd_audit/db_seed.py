@@ -3,21 +3,97 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import yaml
 
 from .db import AuditDatabase
+from .db_import import (
+    EXAMPLE_PREFIX,
+    ImportStats,
+    excel_telemetry_files,
+    import_excel_telemetry,
+    is_example_file,
+)
 
 
-def bootstrap_database(path: Path, plants_dir: Path) -> AuditDatabase:
-    """Создать локальную БД и заполнить её паспортами только при первом запуске."""
+DEFAULT_TELEMETRY_DIRNAME = "telemetry"
+
+__all__ = [
+    "DEFAULT_TELEMETRY_DIRNAME",
+    "EXAMPLE_PREFIX",
+    "TelemetrySeedResult",
+    "bootstrap_database",
+    "seed_passports",
+    "seed_telemetry_from_excel",
+    "telemetry_is_example_only",
+]
+
+
+@dataclass(frozen=True)
+class TelemetrySeedResult:
+    directory: Path
+    files_found: int
+    stored: int
+    skipped: int
+    reason: str = ""
+    unreadable: tuple[str, ...] = ()
+    example_only: bool = False
+
+    @property
+    def imported(self) -> bool:
+        return self.stored > 0
+
+
+def bootstrap_database(
+    path: Path, plants_dir: Path, *, telemetry_dir: Path | None = None
+) -> AuditDatabase:
     database = AuditDatabase(path)
     database.migrate()
     if not database.plants(include_examples=True):
         seed_passports(database, plants_dir, valid_from=datetime(1970, 1, 1))
+    if telemetry_dir is not None:
+        seed_telemetry_from_excel(database, telemetry_dir)
     return database
+
+
+def seed_telemetry_from_excel(
+    database: AuditDatabase, telemetry_dir: Path, *, include_examples: bool = True
+) -> TelemetrySeedResult:
+    if not telemetry_dir.is_dir():
+        return TelemetrySeedResult(telemetry_dir, 0, 0, 0, "каталог не найден")
+    files = excel_telemetry_files(
+        telemetry_dir, recursive=True, include_examples=include_examples
+    )
+    if not files:
+        return TelemetrySeedResult(telemetry_dir, 0, 0, 0, "нет Excel-файлов")
+    if database.has_measurements():
+        return TelemetrySeedResult(
+            telemetry_dir,
+            len(files),
+            0,
+            0,
+            "телеметрия уже загружена",
+            example_only=telemetry_is_example_only(database),
+        )
+    stats: ImportStats = import_excel_telemetry(
+        database, telemetry_dir, recursive=True, include_examples=include_examples
+    )
+    return TelemetrySeedResult(
+        telemetry_dir,
+        len(files),
+        stats.stored,
+        stats.skipped,
+        unreadable=stats.unreadable,
+        example_only=telemetry_is_example_only(database),
+    )
+
+
+def telemetry_is_example_only(database: AuditDatabase) -> bool:
+    sources = database.telemetry_source_files()
+    return bool(sources) and all(is_example_file(source) for source in sources)
 
 
 def seed_passports(

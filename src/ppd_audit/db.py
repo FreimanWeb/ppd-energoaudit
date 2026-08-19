@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -223,9 +224,15 @@ class TelemetryMeasurement:
     source_label: str | None = None
 
 
+DATABASE_PATH_ENV = "PPD_DATABASE_PATH"
+
+
 def default_database_path() -> Path:
     from .config import project_root
 
+    override = os.getenv(DATABASE_PATH_ENV)
+    if override:
+        return Path(override)
     return project_root() / "telemetry.sqlite"
 
 
@@ -804,6 +811,25 @@ class AuditDatabase:
                     ORDER BY a.code
                     """,
                     (plant_code,),
+                )
+            ]
+
+    def has_measurements(self) -> bool:
+        with self._connection() as connection:
+            row = connection.execute("SELECT 1 FROM telemetry_measurements LIMIT 1").fetchone()
+        return row is not None
+
+    def telemetry_source_files(self) -> list[str]:
+        with self._connection() as connection:
+            return [
+                row["source_file"]
+                for row in connection.execute(
+                    """
+                    SELECT DISTINCT source_file
+                    FROM telemetry_measurements
+                    WHERE source_file IS NOT NULL
+                    ORDER BY source_file
+                    """
                 )
             ]
 

@@ -19,6 +19,7 @@ from datetime import date, datetime, time, timedelta
 # каталог app/ для import lib/ui/tabs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import auth
 import lib
 import streamlit as st
 import ui
@@ -54,9 +55,19 @@ from tabs.common import WATER_EMOJI, Ctx, fmt
 st.set_page_config(page_title="Энергоаудит ППД", page_icon="⚡", layout="wide")
 ui.inject_css()
 
+auth.require_password()
+
+if lib.telemetry_seed_status().example_only:
+    st.warning(
+        "Демонстрационный режим: загружены только синтетические выгрузки-примеры "
+        "из `data/telemetry/`, а не промысловая телеметрия. Цифры показывают, как "
+        "работает дашборд, и не описывают реальный объект."
+    )
+
 # ───────────────────────── Sidebar: выбор объекта ─────────────────────────
 
 st.sidebar.title("⚡ Энергоаудит ППД")
+auth.render_logout()
 mode = st.sidebar.radio(
     "Режим", ("Анализ по телеметрии", "Выезд", "Просмотр телеметрии")
 )
@@ -133,6 +144,22 @@ if mode == "Выезд":
 dates = lib.telemetry_dates(object_id, agg_id)
 if not dates:
     st.warning(f"Нет телеметрии для {selected['name']} / {agg_id}.")
+    seed = lib.telemetry_seed_status()
+    if seed.files_found == 0:
+        st.caption(
+            f"В каталоге `data/{lib.TELEMETRY_DIR.name}/` нет Excel-выгрузок "
+            f"({seed.reason}), поэтому телеметрии нет ни у одного объекта. "
+            "Положите туда файлы выгрузок и закоммитьте — приложение загрузит их "
+            "при следующем запуске. Расчёт по паспорту доступен в режиме «Выезд»."
+        )
+    else:
+        st.caption(
+            f"Найдено файлов выгрузок: {seed.files_found}, загружено точек: {seed.stored}. "
+            "Для этого агрегата точек нет: имя файла должно содержать обозначение "
+            "объекта (например «КНС-54»), иначе он не опознаётся."
+        )
+    if seed.unreadable:
+        st.caption("Не удалось прочитать: " + ", ".join(seed.unreadable))
     st.stop()
 
 if mode == "Просмотр телеметрии":
