@@ -57,13 +57,6 @@ ui.inject_css()
 
 auth.require_password()
 
-if lib.telemetry_seed_status().example_only:
-    st.warning(
-        "Демонстрационный режим: загружены только синтетические выгрузки-примеры "
-        "из `data/telemetry/`, а не промысловая телеметрия. Цифры показывают, как "
-        "работает дашборд, и не описывают реальный объект."
-    )
-
 # ───────────────────────── Sidebar: выбор объекта ─────────────────────────
 
 st.sidebar.title("⚡ Энергоаудит ППД")
@@ -309,10 +302,6 @@ if quality.status == "unfit":
     st.error(
         "Режим непригоден для экономических выводов: "
         + " ".join(issue.message for issue in quality.issues if issue.severity == "error")
-    )
-elif quality.status == "assumptions":
-    st.warning(
-        "Режим рассчитан с допущениями: " + " ".join(issue.message for issue in quality.issues)
     )
 
 
