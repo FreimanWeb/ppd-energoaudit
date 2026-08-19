@@ -77,7 +77,7 @@ def _annual_kpis(ctx: Ctx) -> None:
         )
     elif ctx.scope.annual_runtime_is_assumed:
         ui.provenance(("Сценарий: T_год = 8760 ч", "warn"), ("Тариф и цель — конфиг", ""))
-        st.warning("Годовые значения не являются фактом: нет полного года ежедневных моточасов.")
+        st.warning("Годовые значения не являются фактом: нет полного года ежедневной наработки.")
     else:
         ui.provenance(
             (f"Год телеметрии: T_год = {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"),

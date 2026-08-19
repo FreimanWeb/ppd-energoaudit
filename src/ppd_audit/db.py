@@ -642,7 +642,7 @@ class AuditDatabase:
         *,
         technical_place_code: str = "main",
     ) -> float | None:
-        """Суммировать 365 непрерывных ежедневных моточасов до конца окна."""
+        """Суммировать 365 непрерывных суток наработки до конца окна."""
         start = end - timedelta(days=365)
         with self._connection() as connection:
             aggregate_id = self._aggregate_id(
