@@ -25,7 +25,7 @@ from ppd_audit.core.reservoir.forecast import (  # noqa: E402
     aggregate_daily_to_periods,
     forecast_injection,
 )
-from ppd_audit.db import default_database_path  # noqa: E402
+from ppd_audit.db import AuditDatabase, default_database_path  # noqa: E402
 from ppd_audit.db_seed import (  # noqa: E402
     DEFAULT_SCADA_DIRNAME,
     DEFAULT_TELEMETRY_DIRNAME,
@@ -66,7 +66,17 @@ SCADA_TAGS = _ROOT / "config" / SCADA_TAGS_CONFIG
 
 @st.cache_resource(show_spinner="Первый запуск: читаем паспорта и выгрузки телеметрии…")
 def _bootstrap():
-    db = bootstrap_database(default_database_path(), _ROOT / "config" / "plants")
+    """Разовая подготовка БД. Возвращает путь, а не объект базы.
+
+    Объект здесь кэшировать нельзя: ``st.cache_resource`` переживает
+    обновление кода, и после деплоя в кэше остаётся экземпляр, собранный по
+    прежней версии класса — новые методы у него отсутствуют, и приложение
+    падает с AttributeError до перезапуска. Путь же переживает обновление
+    безболезненно, а собрать ``AuditDatabase`` заново стоит один вызов
+    конструктора: соединение открывается на каждую операцию отдельно.
+    """
+    path = default_database_path()
+    db = bootstrap_database(path, _ROOT / "config" / "plants")
     scada = (
         seed_telemetry_from_scada(db, SCADA_DIR, SCADA_TAGS)
         if os.getenv("PPD_SKIP_SCADA_TELEMETRY") != "1"
@@ -75,11 +85,11 @@ def _bootstrap():
     seed = seed_telemetry_from_excel(
         db, TELEMETRY_DIR, include_examples=os.getenv("PPD_SKIP_EXAMPLE_TELEMETRY") != "1"
     )
-    return db, seed, scada
+    return path, seed, scada
 
 
-def database():
-    return _bootstrap()[0]
+def database() -> AuditDatabase:
+    return AuditDatabase(_bootstrap()[0])
 
 
 def telemetry_seed_status() -> TelemetrySeedResult:

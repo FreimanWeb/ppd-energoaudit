@@ -71,3 +71,24 @@ def test_blank_secret_does_not_lock_the_app():
     at = _app("   ").run()
     assert not at.exception
     assert not at.text_input
+
+
+def test_database_is_rebuilt_after_code_reload():
+    """В кэше живёт путь, а не объект БД.
+
+    st.cache_resource переживает обновление кода на Streamlit Cloud. Если в
+    нём лежит экземпляр AuditDatabase, после деплоя у него не окажется новых
+    методов и приложение упадёт с AttributeError до ручного перезапуска.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, "app")
+    import lib
+
+    cached = lib._bootstrap()
+    assert isinstance(cached[0], Path)  # путь, а не AuditDatabase
+
+    first, second = lib.database(), lib.database()
+    assert first is not second  # объект собирается заново на каждый вызов
+    assert first.path == second.path
