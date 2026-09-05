@@ -27,10 +27,14 @@ from ppd_audit.core.reservoir.forecast import (  # noqa: E402
 )
 from ppd_audit.db import default_database_path  # noqa: E402
 from ppd_audit.db_seed import (  # noqa: E402
+    DEFAULT_SCADA_DIRNAME,
     DEFAULT_TELEMETRY_DIRNAME,
+    SCADA_TAGS_CONFIG,
+    ScadaSeedResult,
     TelemetrySeedResult,
     bootstrap_database,
     seed_telemetry_from_excel,
+    seed_telemetry_from_scada,
 )
 from ppd_audit.measures.economics import (  # noqa: E402
     DEFAULT_HORIZON_YEARS,
@@ -56,15 +60,22 @@ WATER_ORDER = ["пресная", "агрессивная", "пластовая"]
 
 
 TELEMETRY_DIR = _ROOT / "data" / DEFAULT_TELEMETRY_DIRNAME
+SCADA_DIR = TELEMETRY_DIR / DEFAULT_SCADA_DIRNAME
+SCADA_TAGS = _ROOT / "config" / SCADA_TAGS_CONFIG
 
 
 @st.cache_resource(show_spinner="Первый запуск: читаем паспорта и выгрузки телеметрии…")
 def _bootstrap():
     db = bootstrap_database(default_database_path(), _ROOT / "config" / "plants")
+    scada = (
+        seed_telemetry_from_scada(db, SCADA_DIR, SCADA_TAGS)
+        if os.getenv("PPD_SKIP_SCADA_TELEMETRY") != "1"
+        else ScadaSeedResult(SCADA_DIR, 0, 0, reason="импорт выгрузок отключён")
+    )
     seed = seed_telemetry_from_excel(
         db, TELEMETRY_DIR, include_examples=os.getenv("PPD_SKIP_EXAMPLE_TELEMETRY") != "1"
     )
-    return db, seed
+    return db, seed, scada
 
 
 def database():
@@ -73,6 +84,10 @@ def database():
 
 def telemetry_seed_status() -> TelemetrySeedResult:
     return _bootstrap()[1]
+
+
+def scada_seed_status() -> ScadaSeedResult:
+    return _bootstrap()[2]
 
 
 def list_object_ids() -> list[str]:

@@ -45,7 +45,13 @@ def test_empty_directory_is_reported(tmp_path):
 def test_import_is_skipped_when_database_already_has_telemetry(tmp_path):
     database = _database(tmp_path)
     database.add_measurement(
-        "kns54an", "НА-1", datetime(2026, 1, 1), "q_day", 2400.0, "м³/сут"
+        "kns54an",
+        "НА-1",
+        datetime(2026, 1, 1),
+        "q_day",
+        2400.0,
+        "м³/сут",
+        source_kind="excel",
     )
     directory = tmp_path / "telemetry"
     directory.mkdir()
@@ -146,3 +152,25 @@ def _write_minimal_xlsx(path) -> None:
     sheet.append(["Дата", "Значение"])
     sheet.append(["01.01.2026", 1.0])
     book.save(path)
+
+
+def test_scada_rows_do_not_block_excel_import(tmp_path):
+    """Источники независимы: выгрузки АСУ ТП не отменяют импорт Excel и наоборот."""
+    database = _database(tmp_path)
+    database.add_measurement(
+        "kns54an",
+        "НА-1",
+        datetime(2026, 1, 1),
+        "q_day",
+        2400.0,
+        "м³/сут",
+        source_kind="scada",
+    )
+    directory = tmp_path / "telemetry"
+    directory.mkdir()
+    _write_minimal_xlsx(directory / "КНС-54 НА-1.xlsx")
+
+    result = seed_telemetry_from_excel(database, directory)
+
+    assert result.reason != "телеметрия уже загружена"
+    assert database.has_measurements("scada") is True

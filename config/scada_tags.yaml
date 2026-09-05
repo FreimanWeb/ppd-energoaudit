@@ -1,0 +1,59 @@
+# Сопоставление тегов АСУ ТП (выгрузки ТИ/ТС) с метриками модели.
+#
+# Имя тега имеет вид  KNS__#<объект>#<блок><индекс>#<код>[#I3]
+# например            KNS__#0197#PUMP_#003#APWCN#I3
+# Суффикс #I3 — накопление за интервал опроса; тот же код без суффикса
+# у части тегов означает счётчик с начала эксплуатации, и его брать нельзя.
+#
+# Источник расшифровок — «Сопоставление тегов 97.xlsx» (docs/scada/).
+
+schema: scada_tags.v1
+
+# Длительность интервала накопления, ч. Из неё считается наработка.
+interval_hours: 0.5
+
+objects:
+  "0197":
+    plant: kns97pren
+    technical_place: main
+    title: "Ек КНС 97"
+    aggregates:
+      PUMP_001: "НА-1"
+      PUMP_003: "НА-3"
+  "0297":
+    plant: kns97pren
+    technical_place: main
+    title: "Ек КНС 97ПР"
+    aggregates:
+      PUMP_002: "НА-2 ПР"
+
+# Мгновенные значения агрегата: ступенчатый сигнал, храним только изменения.
+points:
+  PINNA: {metric: p_in, unit: МПа}
+  POUNA: {metric: p_out, unit: МПа}
+  S_KWT: {metric: power, unit: кВт}
+
+# То же, но по объекту в целом (блок БГ) — без привязки к агрегату.
+station_points:
+  PKOL_: {metric: p_bg, unit: МПа}
+
+# Накопления за интервал: суммируются в суточное значение.
+# integral: true — берётся только вариант тега с суффиксом #I3.
+interval_sums:
+  QVD__: {metric: q_day, unit: м³/сут, integral: true, runtime_source: true}
+  # Из энергии за интервал выводится мощность (P = W/T, формула 12) — для
+  # агрегатов без собственного датчика мощности.
+  APWCN:
+    metric: energy
+    unit: кВт·ч
+    integral: true
+    derive_power: {metric: power, unit: кВт}
+
+# Наработка за сутки: интервалы с ненулевым runtime_source × interval_hours.
+runtime:
+  metric: runtime
+  unit: ч
+
+# Дискретные сигналы из выгрузки ТС.
+states:
+  NAON_: {metric: pump_state}

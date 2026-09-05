@@ -814,9 +814,14 @@ class AuditDatabase:
                 )
             ]
 
-    def has_measurements(self) -> bool:
+    def has_measurements(self, source_kind: str | None = None) -> bool:
+        query = "SELECT 1 FROM telemetry_measurements"
+        params: tuple = ()
+        if source_kind is not None:
+            query += " WHERE source_kind = ?"
+            params = (source_kind,)
         with self._connection() as connection:
-            row = connection.execute("SELECT 1 FROM telemetry_measurements LIMIT 1").fetchone()
+            row = connection.execute(f"{query} LIMIT 1", params).fetchone()
         return row is not None
 
     def telemetry_source_files(self) -> list[str]:

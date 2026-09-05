@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .db import AuditDatabase, TelemetryMeasurement
 from .ingest.excel_telemetry import build_excel_telemetry
+from .ingest.scada_txt import ScadaMapping, read_rows, scada_files
 
 
 _KGF_PER_CM2_TO_MPA = 0.0980665
@@ -261,3 +262,55 @@ def _metric(record: dict, pressure_metric: str | None = None) -> tuple[str | Non
     if raw_metric == "energy_kwh" and "уд." not in label:
         return "energy", "кВт·ч"
     return None, ""
+
+
+SCADA_SOURCE_KIND = "scada"
+
+
+def import_scada_exports(
+    database: AuditDatabase, root: Path, mapping: ScadaMapping
+) -> ImportStats:
+    """Загрузить выгрузки АСУ ТП (ТИ/ТС) из каталога в canonical SQLite.
+
+    Агрегаты, которых нет в паспорте объекта, создаются: выгрузка — источник
+    факта о том, что агрегат существует и работает. Ошибка разбора одного
+    файла не прерывает остальные, её имя возвращается в ``unreadable``.
+    """
+    measurements: list[TelemetryMeasurement] = []
+    unreadable: list[str] = []
+    seen_aggregates: set[tuple[str, str, str]] = set()
+
+    for path in scada_files(root):
+        try:
+            rows = read_rows(path, mapping)
+        except Exception:
+            unreadable.append(path.name)
+            continue
+        for row in rows:
+            if row.aggregate_code:
+                key = (row.plant_code, row.technical_place_code, row.aggregate_code)
+                if key not in seen_aggregates:
+                    database.upsert_aggregate(
+                        row.plant_code,
+                        row.aggregate_code,
+                        "работа",
+                        technical_place_code=row.technical_place_code,
+                    )
+                    seen_aggregates.add(key)
+            measurements.append(
+                TelemetryMeasurement(
+                    plant_code=row.plant_code,
+                    aggregate_code=row.aggregate_code,
+                    timestamp=row.timestamp,
+                    metric=row.metric,
+                    value=row.value,
+                    unit=row.unit,
+                    technical_place_code=row.technical_place_code,
+                    source_kind=SCADA_SOURCE_KIND,
+                    source_file=path.name,
+                    source_tag=row.source_tag,
+                )
+            )
+    return ImportStats(
+        database.add_measurements(iter(measurements)), 0, tuple(unreadable)
+    )

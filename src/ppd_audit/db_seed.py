@@ -12,17 +12,25 @@ import yaml
 from .db import AuditDatabase
 from .db_import import (
     EXAMPLE_PREFIX,
+    SCADA_SOURCE_KIND,
     ImportStats,
     excel_telemetry_files,
     import_excel_telemetry,
+    import_scada_exports,
     is_example_file,
 )
+from .ingest.scada_txt import ScadaMapping, scada_files
 
 
 DEFAULT_TELEMETRY_DIRNAME = "telemetry"
+DEFAULT_SCADA_DIRNAME = "scada"
+SCADA_TAGS_CONFIG = "scada_tags.yaml"
 
 __all__ = [
+    "DEFAULT_SCADA_DIRNAME",
     "DEFAULT_TELEMETRY_DIRNAME",
+    "ScadaSeedResult",
+    "seed_telemetry_from_scada",
     "EXAMPLE_PREFIX",
     "TelemetrySeedResult",
     "bootstrap_database",
@@ -69,7 +77,7 @@ def seed_telemetry_from_excel(
     )
     if not files:
         return TelemetrySeedResult(telemetry_dir, 0, 0, 0, "нет Excel-файлов")
-    if database.has_measurements():
+    if database.has_measurements("excel"):
         return TelemetrySeedResult(
             telemetry_dir,
             len(files),
@@ -169,3 +177,39 @@ def _first_regime_value(raw: dict, field: str) -> float | None:
         if value is not None:
             return float(value)
     return None
+
+
+@dataclass(frozen=True)
+class ScadaSeedResult:
+    """Что произошло с импортом выгрузок АСУ ТП."""
+
+    directory: Path
+    files_found: int
+    stored: int
+    unreadable: tuple[str, ...] = ()
+    reason: str = ""
+
+    @property
+    def imported(self) -> bool:
+        return self.stored > 0
+
+
+def seed_telemetry_from_scada(
+    database: AuditDatabase, scada_dir: Path, tags_config: Path
+) -> ScadaSeedResult:
+    """Однократно загрузить выгрузки ТИ/ТС в БД, если их там ещё нет."""
+    if not scada_dir.is_dir():
+        return ScadaSeedResult(scada_dir, 0, 0, reason="каталог не найден")
+    files = scada_files(scada_dir)
+    if not files:
+        return ScadaSeedResult(scada_dir, 0, 0, reason="нет выгрузок ТИ/ТС")
+    if not tags_config.is_file():
+        return ScadaSeedResult(
+            scada_dir, len(files), 0, reason=f"нет карты тегов {tags_config.name}"
+        )
+    if database.has_measurements(SCADA_SOURCE_KIND):
+        return ScadaSeedResult(scada_dir, len(files), 0, reason="выгрузки уже загружены")
+
+    mapping = ScadaMapping.from_yaml(tags_config)
+    stats = import_scada_exports(database, scada_dir, mapping)
+    return ScadaSeedResult(scada_dir, len(files), stats.stored, stats.unreadable)

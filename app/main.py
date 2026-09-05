@@ -153,6 +153,12 @@ if not dates:
         )
     if seed.unreadable:
         st.caption("Не удалось прочитать: " + ", ".join(seed.unreadable))
+    scada = lib.scada_seed_status()
+    st.caption(
+        f"Выгрузки АСУ ТП: файлов {scada.files_found}, строк загружено {scada.stored}"
+        + (f" ({scada.reason})" if scada.reason else "")
+        + (". Не прочитаны: " + ", ".join(scada.unreadable) if scada.unreadable else ".")
+    )
     st.stop()
 
 if mode == "Просмотр телеметрии":
