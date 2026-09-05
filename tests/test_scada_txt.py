@@ -304,3 +304,66 @@ def test_real_export_shape_is_covered_by_fixture(tmp_path, mapping):
     assert by_metric["energy"] == pytest.approx(177.12)
     assert by_metric["power"] == pytest.approx(354.24)
     assert by_metric["runtime"] == pytest.approx(0.5)
+
+
+# ───────────────────────── оборвавшиеся последние сутки ─────────────────────────
+
+
+def _interval_lines(day: str, last_hhmm: str, aggregate: str = "PUMP_#003") -> list[str]:
+    lines = []
+    hour, minute = (int(part) for part in last_hhmm.split(":"))
+    slot = 0
+    while slot <= hour * 60 + minute:
+        h, m = divmod(slot, 60)
+        stamp = f"{day} {h}:{m:02d}:00"
+        lines.append(f"KNS__#0197#{aggregate}#QVD__#I3,{stamp},10")
+        lines.append(f"KNS__#0197#{aggregate}#APWCN#I3,{stamp},50")
+        slot += 30
+    return lines
+
+
+def test_full_last_day_keeps_daily_totals(mapping):
+    rows = build_rows(iter(_ti(_interval_lines("01.07.2025", "23:30"))), mapping)
+    assert any(r.metric == "q_day" for r in rows)
+    assert any(r.metric == "runtime" and r.value == 24.0 for r in rows)
+
+
+def test_truncated_last_day_has_no_daily_totals(mapping):
+    """Выгрузка обрывается в 11:30 — суточные итоги за этот день не пишутся."""
+    lines = _interval_lines("01.07.2025", "23:30") + _interval_lines("02.07.2025", "11:30")
+    rows = build_rows(iter(_ti(lines)), mapping)
+    cut = datetime(2025, 7, 2).date()
+
+    daily_metrics = [
+        r.metric for r in rows
+        if r.timestamp.date() == cut and r.metric in ("q_day", "energy", "runtime")
+    ]
+    assert daily_metrics == []
+    # мгновенные значения при этом не теряются
+    assert any(r.metric == "power" for r in rows)
+    assert any(r.metric == "q_day" and r.timestamp.date() != cut for r in rows)
+
+
+def test_only_the_last_day_is_dropped(mapping):
+    """Полные предыдущие сутки сохраняются, обрывается только последний день."""
+    lines = _interval_lines("01.07.2025", "23:30") + _interval_lines("02.07.2025", "11:30")
+    rows = build_rows(iter(_ti(lines)), mapping)
+    days = {r.timestamp.date() for r in rows if r.metric == "q_day"}
+    assert days == {datetime(2025, 7, 1).date()}
+
+
+def test_short_export_without_full_days_keeps_its_totals(mapping):
+    """Выгрузили несколько часов — это и есть заказанное окно, итоги остаются."""
+    rows = build_rows(iter(_ti(_interval_lines("01.07.2025", "03:30"))), mapping)
+    assert any(r.metric == "q_day" for r in rows)
+
+
+def test_gap_inside_the_period_is_not_a_truncation(mapping):
+    """Пропуск интервалов в середине суток — не обрыв: значение держится дальше."""
+    lines = [
+        line
+        for line in _interval_lines("01.07.2025", "23:30")
+        if " 5:" not in line and " 6:" not in line
+    ]
+    rows = build_rows(iter(_ti(lines)), mapping)
+    assert any(r.metric == "q_day" for r in rows)

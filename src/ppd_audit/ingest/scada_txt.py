@@ -110,6 +110,7 @@ class ScadaMapping:
 class DailyTotals:
     sums: dict[str, float] = field(default_factory=dict)
     runtime_intervals: set[datetime] = field(default_factory=set)
+    intervals: set[datetime] = field(default_factory=set)
 
 
 def parse_tag(raw: str) -> ScadaTag | None:
@@ -253,6 +254,7 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
             totals = daily[key]
             metric = spec["metric"]
             totals.sums[metric] = totals.sums.get(metric, 0.0) + point.value
+            totals.intervals.add(point.timestamp)
             if code in mapping.runtime_codes and point.value > 0:
                 totals.runtime_intervals.add(point.timestamp)
             power_spec = spec.get("derive_power")
@@ -363,10 +365,52 @@ def _derived_power_rows(
     return rows
 
 
+def truncated_days(daily: dict[tuple, DailyTotals], interval_hours: float) -> set[tuple]:
+    """Последние сутки агрегата, если выгрузка обрывается до конца дня.
+
+    Такие сутки нельзя выдавать за суточные итоги: Q_сут и W_сут покроют
+    половину дня, а восстановленный ряд мощности — все 24 часа, и сверка
+    честно объявит режим непригодным.
+
+    Правило срабатывает только там, где в выгрузке есть хотя бы одни полные
+    сутки: тогда короткий последний день — артефакт границы экспорта. Если
+    полных суток нет вовсе (выгрузили несколько часов), это и есть заказанное
+    окно, и отбирать у него итоги не за что. Пропуски интервалов в середине
+    периода обрывом не считаются — там значение держится до следующего.
+    """
+    slots_per_day = 24.0 / interval_hours if interval_hours > 0 else 0
+    last_by_unit: dict[tuple, datetime] = {}
+    has_full_day: set[tuple] = set()
+    for (plant, place, aggregate, day), totals in daily.items():
+        if not totals.intervals:
+            continue
+        unit = (plant, place, aggregate)
+        newest = max(totals.intervals)
+        if unit not in last_by_unit or newest > last_by_unit[unit]:
+            last_by_unit[unit] = newest
+        day_end = datetime.combine(day, datetime.min.time()) + timedelta(days=1)
+        if newest + timedelta(hours=interval_hours) >= day_end and (
+            len(totals.intervals) >= slots_per_day
+        ):
+            has_full_day.add(unit)
+
+    truncated = set()
+    for unit, newest in last_by_unit.items():
+        if unit not in has_full_day:
+            continue
+        day_end = datetime.combine(newest.date(), datetime.min.time()) + timedelta(days=1)
+        if newest + timedelta(hours=interval_hours) < day_end:
+            truncated.add((*unit, newest.date()))
+    return truncated
+
+
 def _daily_rows(daily: dict[tuple, DailyTotals], mapping: ScadaMapping) -> list[CanonicalRow]:
     rows: list[CanonicalRow] = []
     runtime_spec = mapping.runtime
+    incomplete = truncated_days(daily, mapping.interval_hours)
     for (plant, place, aggregate, day), totals in daily.items():
+        if (plant, place, aggregate, day) in incomplete:
+            continue
         timestamp = datetime.combine(day, datetime.min.time())
         for code, spec in mapping.interval_sums.items():
             metric = spec["metric"]

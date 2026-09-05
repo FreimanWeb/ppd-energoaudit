@@ -177,10 +177,14 @@ if mode == "Просмотр телеметрии":
 selected_key = f"telemetry-date-{object_id}-{agg_id}"
 calendar_key = f"{selected_key}-picker"
 
+# По умолчанию открываем последние сутки с суточными итогами: у оборвавшегося
+# последнего дня выгрузки режим не строится.
+default_day = lib.last_complete_day(object_id, agg_id) or max(dates)
+
 if _HAS_CALENDAR:
     selected_date = selected_calendar_date(
         key=calendar_key,
-        fallback=st.session_state.get(selected_key, max(dates)),
+        fallback=st.session_state.get(selected_key, default_day),
     )
     visible_year, visible_month = visible_calendar_month(key=calendar_key, fallback=selected_date)
     month_dates = [
@@ -199,7 +203,7 @@ else:
     st.sidebar.caption("⚠️ Компонент календаря недоступен — обычный выбор даты.")
     selected_date = st.sidebar.date_input(
         "Дата телеметрии",
-        value=st.session_state.get(selected_key, max(dates)),
+        value=st.session_state.get(selected_key, default_day),
         min_value=min(dates),
         max_value=max(dates),
         key=f"{calendar_key}-fallback",

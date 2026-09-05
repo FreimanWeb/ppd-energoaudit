@@ -195,6 +195,11 @@ def telemetry_dates(object_id: str, aggregate_id: str) -> list[date]:
     return database().telemetry_dates(object_id, aggregate_id)
 
 
+def last_complete_day(object_id: str, aggregate_id: str):
+    """Последние сутки с суточными итогами; None — таких нет."""
+    return database().last_day_with_daily_totals(object_id, aggregate_id)
+
+
 def telemetry_date_statuses(
     object_id: str, aggregate_id: str, dates: list[date]
 ) -> dict[date, str]:

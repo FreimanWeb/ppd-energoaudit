@@ -838,6 +838,27 @@ class AuditDatabase:
                 )
             ]
 
+    def last_day_with_daily_totals(
+        self, plant_code: str, aggregate_code: str, *, metric: str = "q_day"
+    ) -> date | None:
+        """Последние сутки, за которые есть суточный итог.
+
+        Дашборд открывается именно на них: у оборвавшегося последнего дня
+        выгрузки суточных итогов нет, и открывать его по умолчанию значит
+        встречать пользователя сообщением о непригодном режиме.
+        """
+        with self._connection() as connection:
+            aggregate_id = self._aggregate_id(connection, plant_code, aggregate_code, "main")
+            row = connection.execute(
+                """
+                SELECT MAX(substr(timestamp, 1, 10)) AS day
+                FROM telemetry_measurements
+                WHERE aggregate_id = ? AND metric = ?
+                """,
+                (aggregate_id, metric),
+            ).fetchone()
+        return date.fromisoformat(row["day"]) if row and row["day"] else None
+
     def telemetry_dates(self, plant_code: str, aggregate_code: str) -> list[date]:
         with self._connection() as connection:
             aggregate_id = self._aggregate_id(connection, plant_code, aggregate_code, "main")
