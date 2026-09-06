@@ -230,23 +230,7 @@ if status == "insufficient":
         st.warning(f"Нет пригодного режима за {selected_date}: телеметрия недостаточна.")
     telemetry.render_day(object_id, agg_id, selected_date)
     st.stop()
-is_snapshot = status == "snapshot"
-if is_snapshot:
-    st.warning(
-        "Физически пригодное давление доступно менее чем для 80% рабочих 30-минутных "
-        "интервалов: часть точек относится к переходному режиму или не выполняет "
-        "p_вых > p_вх / p_вых > p_БГ. "
-        "Поэтому показатели по давлению рассчитаны как режимный снимок, а не за сутки."
-    )
 snapshots = lib.telemetry_snapshots(object_id, agg_id, start, end)
-excluded_by_manifold = lib.excluded_snapshots_by_manifold_pressure(
-    object_id, agg_id, start, end
-)
-if excluded_by_manifold:
-    st.warning(
-        f"Исключено снимков из расчёта НА: {excluded_by_manifold}. "
-        "Причина: p_вых ≤ p_БГ."
-    )
 if not snapshots:
     st.warning(
         f"Нет пригодного режимного снимка за {selected_date}: нужна устойчивая пара "

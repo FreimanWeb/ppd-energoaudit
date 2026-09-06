@@ -119,17 +119,27 @@ def test_reconciliation_is_not_an_analysis_tab():
     assert '"🔬 Модель vs Отчёт"' not in source
 
 
-def test_snapshot_warning_explains_what_pressure_coverage_is_needed_for():
+def test_pressure_coverage_notice_is_not_shown():
+    """Плашка про 80% покрытия давлением убрана по решению заказчика.
+
+    Сам отбор данных не изменился: при неполном покрытии показатели
+    по-прежнему считаются как режимный снимок, статус суток в календаре
+    остаётся «snapshot». Убрано только сообщение на экране.
+    """
     source = Path(APP).read_text(encoding="utf-8")
 
-    assert "Физически пригодное давление доступно менее чем для 80% рабочих" in source
-    assert "показатели по давлению рассчитаны как режимный снимок, а не за сутки" in source
+    assert "Физически пригодное давление доступно менее чем" not in source
 
 
-def test_snapshot_filter_explains_manifold_pressure_rejection():
+def test_manifold_pressure_rejection_notice_is_not_shown():
+    """Плашка про исключённые снимки (p_вых ≤ p_БГ) убрана.
+
+    Отбраковка таких снимков продолжает работать в ядре — снимок с давлением
+    выкида ниже гребёнки в расчёт не попадает, о нём просто не сообщается.
+    """
     source = Path(APP).read_text(encoding="utf-8")
 
-    assert "p_вых ≤ p_БГ" in source
+    assert "Исключено снимков из расчёта НА" not in source
 
 
 def test_analysis_warns_about_physically_impossible_efficiency():
