@@ -205,6 +205,33 @@ def telemetry_dates(object_id: str, aggregate_id: str) -> list[date]:
     return database().telemetry_dates(object_id, aggregate_id)
 
 
+USABLE_DAY_STATUSES = ("ready", "snapshot", "unfit")
+
+
+@st.cache_data(show_spinner=False)
+def last_usable_day(object_id: str, aggregate_id: str, scan_limit: int = 60):
+    """Последние сутки, за которые вообще строится режим.
+
+    Дашборд открывается на них. Просто «последняя дата с суточными итогами»
+    не годится: на КНС-ОПУ подача агрегата получается распределением
+    станционного расхода, и почти простоявшие сутки дают крохотный, но
+    ненулевой объём — открывать дашборд на них бессмысленно. Идём от конца
+    назад по датам, пока не найдём сутки со статусом не «insufficient».
+
+    Просмотр ограничен ``scan_limit`` сутками: у агрегата, который не считается
+    в принципе (нет паспортных КПД, стоит месяцами), полный перебор 400 дней
+    занял бы секунды на каждом открытии. Не нашли — возвращаем None, и вызов
+    откатывается на прежнее умолчание.
+    """
+    dates = telemetry_dates(object_id, aggregate_id)
+    if not dates:
+        return None
+    for day in reversed(dates[-scan_limit:]):
+        if telemetry_day_status(object_id, aggregate_id, day) in USABLE_DAY_STATUSES:
+            return day
+    return None
+
+
 def last_complete_day(object_id: str, aggregate_id: str):
     """Последние сутки с суточными итогами; None — таких нет."""
     return database().last_day_with_daily_totals(object_id, aggregate_id)

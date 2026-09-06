@@ -48,11 +48,12 @@ points:
 station_points:
   PKOL_: {metric: p_bg, unit: МПа}
 interval_sums:
-  QVD__: {metric: q_day, unit: м³/сут, integral: true, runtime_source: true}
+  QVD__: {metric: q_day, unit: м³/сут, integral: true}
   APWCN:
     metric: energy
     unit: кВт·ч
     integral: true
+    runtime_source: true
     derive_power: {metric: power, unit: кВт}
 runtime:
   metric: runtime
@@ -160,11 +161,12 @@ def test_counter_tag_without_integral_suffix_is_ignored(mapping):
     assert energy[0].value == pytest.approx(100.0)
 
 
-def test_runtime_counts_intervals_with_flow(mapping):
+def test_runtime_counts_intervals_with_energy(mapping):
     lines = [
-        "KNS__#0197#PUMP_#003#QVD__#I3,01.07.2025,10",
-        "KNS__#0197#PUMP_#003#QVD__#I3,01.07.2025 0:30:00,12",
-        "KNS__#0197#PUMP_#003#QVD__#I3,01.07.2025 1:00:00,0",
+        "KNS__#0197#PUMP_#003#APWCN#I3,01.07.2025,10",
+        "KNS__#0197#PUMP_#003#APWCN#I3,01.07.2025 0:30:00,12",
+        "KNS__#0197#PUMP_#003#APWCN#I3,01.07.2025 1:00:00,0",
+        "KNS__#0197#PUMP_#003#QVD__#I3,01.07.2025,22",
     ]
     rows = build_rows(iter(_ti(lines)), mapping)
     runtime = next(r for r in rows if r.metric == "runtime")
@@ -175,7 +177,7 @@ def test_runtime_counts_intervals_with_flow(mapping):
 
 def test_runtime_never_exceeds_the_day(mapping):
     lines = [
-        f"KNS__#0197#PUMP_#003#QVD__#I3,01.07.2025 {h}:{m:02d}:00,5"
+        f"KNS__#0197#PUMP_#003#APWCN#I3,01.07.2025 {h}:{m:02d}:00,5"
         for h in range(24)
         for m in (0, 15, 30, 45)
     ]
@@ -367,3 +369,95 @@ def test_gap_inside_the_period_is_not_a_truncation(mapping):
     ]
     rows = build_rows(iter(_ti(lines)), mapping)
     assert any(r.metric == "q_day" for r in rows)
+
+
+# ───────────────────────── единицы и станционный расход ─────────────────────────
+
+
+KGF_MAPPING = MAPPING_YAML.replace(
+    'objects:\n  "0197":',
+    'pressure_unit: МПа\nobjects:\n  "0197":\n    pressure_unit: кгс/см²',
+).replace('    plant: kns97pren\n    technical_place: main\n    aggregates:',
+          '    plant: kns97pren\n    technical_place: main\n    aggregates:')
+
+
+def test_pressure_is_converted_from_kgf(tmp_path):
+    """142 кгс/см² — это 13,9 МПа; без пересчёта КПД вылезает за единицу."""
+    path = tmp_path / "m.yaml"
+    path.write_text(KGF_MAPPING, encoding="utf-8")
+    mapping = ScadaMapping.from_yaml(path)
+
+    rows = build_rows(iter(_ti(["KNS__#0197#PUMP_#003#POUNA,01.07.2025 0:00:00,142"])), mapping)
+    p_out = next(r for r in rows if r.metric == "p_out")
+    assert p_out.value == pytest.approx(13.925, abs=0.001)
+
+
+def test_pressure_stays_as_is_for_mpa_objects(mapping):
+    rows = build_rows(iter(_ti(["KNS__#0197#PUMP_#003#POUNA,01.07.2025 0:00:00,8,6"])), mapping)
+    assert next(r for r in rows if r.metric == "p_out").value == pytest.approx(8.6)
+
+
+STATION_MAPPING = MAPPING_YAML.replace(
+    '''    aggregates:
+      PUMP_003: "НА-3"''',
+    '''    aggregates:
+      PUMP_001: "НА-1"
+      PUMP_002: "НА-2"
+    station_flow:
+      unit: SLC__001
+      code: QVD__
+      integral: true
+      metric: q_day
+      allocate_by: energy''',
+)
+
+
+@pytest.fixture
+def station_mapping(tmp_path) -> ScadaMapping:
+    path = tmp_path / "station.yaml"
+    path.write_text(STATION_MAPPING, encoding="utf-8")
+    return ScadaMapping.from_yaml(path)
+
+
+def test_station_flow_is_split_by_energy(station_mapping):
+    """Станционный расход делится пропорционально энергии работающих НА."""
+    lines = [
+        "KNS__#0197#SLC__#001#QVD__#I3,01.07.2025 0:00:00,100",
+        "KNS__#0197#PUMP_#001#APWCN#I3,01.07.2025 0:00:00,300",
+        "KNS__#0197#PUMP_#002#APWCN#I3,01.07.2025 0:00:00,100",
+    ]
+    rows = build_rows(iter(_ti(lines)), station_mapping)
+    q = {r.aggregate_code: r.value for r in rows if r.metric == "q_day"}
+    assert q["НА-1"] == pytest.approx(75.0)
+    assert q["НА-2"] == pytest.approx(25.0)
+
+
+def test_station_flow_is_not_written_as_a_station_row(station_mapping):
+    """Иначе ядро откажется: станционный расход не распределён по агрегатам."""
+    lines = [
+        "KNS__#0197#SLC__#001#QVD__#I3,01.07.2025 0:00:00,100",
+        "KNS__#0197#PUMP_#001#APWCN#I3,01.07.2025 0:00:00,300",
+    ]
+    rows = build_rows(iter(_ti(lines)), station_mapping)
+    assert all(r.aggregate_code is not None for r in rows if r.metric == "q_day")
+
+
+def test_idle_interval_gets_no_flow(station_mapping):
+    """Если ни один агрегат не потреблял, приписывать расход некому."""
+    lines = [
+        "KNS__#0197#SLC__#001#QVD__#I3,01.07.2025 0:00:00,100",
+        "KNS__#0197#PUMP_#001#APWCN#I3,01.07.2025 0:00:00,0",
+    ]
+    rows = build_rows(iter(_ti(lines)), station_mapping)
+    assert [r for r in rows if r.metric == "q_day"] == []
+
+
+def test_runtime_now_follows_energy_not_flow(mapping):
+    """Наработка считается по энергии — так она сходится со сверкой мощности."""
+    lines = [
+        "KNS__#0197#PUMP_#003#APWCN#I3,01.07.2025 0:00:00,50",
+        "KNS__#0197#PUMP_#003#APWCN#I3,01.07.2025 0:30:00,50",
+        "KNS__#0197#PUMP_#003#QVD__#I3,01.07.2025 1:00:00,7",
+    ]
+    rows = build_rows(iter(_ti(lines)), mapping)
+    assert next(r for r in rows if r.metric == "runtime").value == pytest.approx(1.0)

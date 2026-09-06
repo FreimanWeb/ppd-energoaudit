@@ -38,6 +38,8 @@ import yaml
 
 
 ENCODING = "cp1251"
+KGF_PER_CM2_TO_MPA = 0.0980665
+PRESSURE_UNITS = {"МПа": 1.0, "кгс/см²": KGF_PER_CM2_TO_MPA, "атм": KGF_PER_CM2_TO_MPA}
 INTEGRAL_SUFFIX = "I3"
 MEASUREMENT_HEADER = "ЗНАЧЕНИЕ_ИЗМЕРЕНИЯ"
 SIGNAL_HEADER = "ЗНАЧЕНИЕ_СИГНАЛА"
@@ -68,6 +70,7 @@ class ScadaMapping:
     """Разобранный ``config/scada_tags.yaml``."""
 
     interval_hours: float
+    pressure_unit: str
     objects: dict[str, dict[str, Any]]
     points: dict[str, dict[str, str]]
     station_points: dict[str, dict[str, str]]
@@ -80,6 +83,7 @@ class ScadaMapping:
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         return cls(
             interval_hours=float(raw.get("interval_hours") or 0.5),
+            pressure_unit=str(raw.get("pressure_unit") or "МПа"),
             objects=raw.get("objects") or {},
             points=raw.get("points") or {},
             station_points=raw.get("station_points") or {},
@@ -98,6 +102,20 @@ class ScadaMapping:
     def aggregate(self, tag: ScadaTag) -> str | None:
         obj = self.objects.get(tag.object_code) or {}
         return (obj.get("aggregates") or {}).get(tag.unit)
+
+    def pressure_scale(self, tag: ScadaTag) -> float:
+        """Множитель к МПа для давлений этого объекта."""
+        obj = self.objects.get(tag.object_code) or {}
+        unit = str(obj.get("pressure_unit") or self.pressure_unit)
+        return PRESSURE_UNITS.get(unit, 1.0)
+
+    def station_flow(self, tag: ScadaTag) -> dict[str, Any] | None:
+        """Описание станционного расходомера объекта, если он задан."""
+        obj = self.objects.get(tag.object_code) or {}
+        spec = obj.get("station_flow")
+        if not spec or spec.get("unit") != tag.unit or spec.get("code") != tag.code:
+            return None
+        return spec
 
     @property
     def runtime_codes(self) -> set[str]:
@@ -237,6 +255,8 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
     daily: dict[tuple, DailyTotals] = defaultdict(DailyTotals)
     direct_power: set[tuple] = set()
     derived_power: dict[tuple, list[tuple[datetime, float, ScadaTag]]] = defaultdict(list)
+    station_flow: dict[tuple, float] = {}
+    shares: dict[tuple, dict[str, float]] = defaultdict(dict)
 
     for point in points:
         target = mapping.target(point.tag)
@@ -245,6 +265,12 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
         plant, place = target
         aggregate = mapping.aggregate(point.tag)
         code = point.tag.code
+
+        flow_spec = mapping.station_flow(point.tag)
+        if flow_spec is not None:
+            if not flow_spec.get("integral") or point.tag.integral:
+                station_flow[(plant, place, point.timestamp)] = point.value
+            continue
 
         spec = mapping.interval_sums.get(code)
         if spec is not None and aggregate is not None:
@@ -255,6 +281,7 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
             metric = spec["metric"]
             totals.sums[metric] = totals.sums.get(metric, 0.0) + point.value
             totals.intervals.add(point.timestamp)
+            shares[(plant, place, point.timestamp)][f"{aggregate}|{metric}"] = point.value
             if code in mapping.runtime_codes and point.value > 0:
                 totals.runtime_intervals.add(point.timestamp)
             power_spec = spec.get("derive_power")
@@ -270,7 +297,7 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
                 direct_power.add((plant, place, aggregate))
             rows.extend(
                 _step_row(
-                    last_value, plant, aggregate, place, point, spec, point.tag
+                    last_value, plant, aggregate, place, point, spec, point.tag, mapping
                 )
             )
             continue
@@ -278,9 +305,10 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
         spec = mapping.station_points.get(code)
         if spec is not None:
             rows.extend(
-                _step_row(last_value, plant, None, place, point, spec, point.tag)
+                _step_row(last_value, plant, None, place, point, spec, point.tag, mapping)
             )
 
+    _allocate_station_flow(daily, station_flow, shares, mapping)
     rows.extend(_derived_power_rows(derived_power, direct_power, last_value, mapping))
     rows.extend(_daily_rows(daily, mapping))
     rows.sort(key=lambda row: (row.timestamp, row.metric, row.aggregate_code or ""))
@@ -295,13 +323,17 @@ def _step_row(
     point: ScadaPoint,
     spec: dict[str, str],
     tag: ScadaTag,
+    mapping: ScadaMapping,
 ) -> list[CanonicalRow]:
     """Ступенчатый сигнал: строка пишется только при изменении значения."""
     metric = spec["metric"]
+    value = point.value
+    if metric.startswith("p_"):
+        value = round(value * mapping.pressure_scale(tag), 4)
     key = (plant, place, aggregate, metric)
-    if last_value.get(key) == point.value:
+    if last_value.get(key) == value:
         return []
-    last_value[key] = point.value
+    last_value[key] = value
     return [
         CanonicalRow(
             plant_code=plant,
@@ -309,11 +341,58 @@ def _step_row(
             technical_place_code=place,
             timestamp=point.timestamp,
             metric=metric,
-            value=point.value,
+            value=value,
             unit=spec.get("unit", ""),
             source_tag=f"{tag.object_code}#{tag.unit}#{tag.code}",
         )
     ]
+
+
+def _allocate_station_flow(
+    daily: dict[tuple, DailyTotals],
+    station_flow: dict[tuple, float],
+    shares: dict[tuple, dict[str, float]],
+    mapping: ScadaMapping,
+) -> None:
+    """Разнести станционный расход по работающим агрегатам.
+
+    Доля агрегата — его энергия за тот же интервал (метрика из
+    ``allocate_by``). Агрегаты работают на общую гребёнку при одном давлении
+    выкида, поэтому доля энергии близка к доле объёма. Интервалы, где ни один
+    агрегат не потреблял, пропускаются: расход в них некому приписать.
+    """
+    if not station_flow:
+        return
+    flow_metric = next(
+        (
+            obj["station_flow"].get("metric", "q_day")
+            for obj in mapping.objects.values()
+            if obj.get("station_flow")
+        ),
+        "q_day",
+    )
+    basis = next(
+        (
+            (obj["station_flow"].get("allocate_by") or "energy")
+            for obj in mapping.objects.values()
+            if obj.get("station_flow")
+        ),
+        "energy",
+    )
+    for (plant, place, timestamp), volume in station_flow.items():
+        by_aggregate = {
+            key.split("|", 1)[0]: value
+            for key, value in shares.get((plant, place, timestamp), {}).items()
+            if key.endswith(f"|{basis}") and value > 0
+        }
+        total = sum(by_aggregate.values())
+        if total <= 0 or volume <= 0:
+            continue
+        for aggregate, weight in by_aggregate.items():
+            portion = volume * weight / total
+            totals = daily[(plant, place, aggregate, timestamp.date())]
+            totals.sums[flow_metric] = totals.sums.get(flow_metric, 0.0) + portion
+            totals.intervals.add(timestamp)
 
 
 def _derived_power_rows(

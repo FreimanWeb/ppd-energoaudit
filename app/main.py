@@ -179,7 +179,11 @@ calendar_key = f"{selected_key}-picker"
 
 # По умолчанию открываем последние сутки с суточными итогами: у оборвавшегося
 # последнего дня выгрузки режим не строится.
-default_day = lib.last_complete_day(object_id, agg_id) or max(dates)
+default_day = (
+    lib.last_usable_day(object_id, agg_id)
+    or lib.last_complete_day(object_id, agg_id)
+    or max(dates)
+)
 
 if _HAS_CALENDAR:
     selected_date = selected_calendar_date(

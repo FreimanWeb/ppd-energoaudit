@@ -311,6 +311,35 @@ def import_scada_exports(
                     source_tag=row.source_tag,
                 )
             )
+    _flag_allocated_flow(database, mapping, seen_aggregates)
     return ImportStats(
         database.add_measurements(iter(measurements)), 0, tuple(unreadable)
     )
+
+
+def _flag_allocated_flow(
+    database: AuditDatabase, mapping: ScadaMapping, aggregates: set[tuple[str, str, str]]
+) -> None:
+    """Пометить подачу как расчётную там, где расходомер стоит на станции.
+
+    Иначе доля станционного расхода выглядела бы измеренной величиной.
+    """
+    allocating = {
+        obj["plant"]
+        for obj in mapping.objects.values()
+        if obj.get("station_flow")
+    }
+    for plant_code, _, aggregate_code in aggregates:
+        if plant_code not in allocating:
+            continue
+        database.upsert_clarification(
+            plant_code,
+            aggregate_code,
+            field="q_day",
+            provisional_value="доля станционного расхода",
+            reason=(
+                "Расходомер только на выкиде станции; подача агрегата получена "
+                "распределением станционного расхода пропорционально энергии. "
+                "Нужен поагрегатный учёт."
+            ),
+        )
