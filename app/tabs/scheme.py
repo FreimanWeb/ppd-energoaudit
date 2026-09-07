@@ -1,4 +1,4 @@
-"""🗺️ Схема ППД — as-built технологическая схема или типовая цепочка."""
+"""Схема ППД — as-built технологическая схема или типовая цепочка."""
 
 from __future__ import annotations
 
@@ -13,15 +13,15 @@ from tabs.common import Ctx, fmt
 
 
 _CAT_COLOR = {
-    "source": "#d6e8f5",
-    "prep": "#dbeaf2",
-    "meter": "#e4e8ec",
-    "pump": "#aacbe6",
-    "manifold": "#c4e0cb",
-    "valve": "#f0dca0",
-    "wells": "#f0cfa6",
-    "reservoir": "#eab8b8",
-    "node": "#e0e0e0",
+    "source": "#f3f4f6",
+    "prep": "#f3f4f6",
+    "meter": "#f9fafb",
+    "pump": "#e5e7eb",
+    "manifold": "#eef0f2",
+    "valve": "#f3f4f6",
+    "wells": "#f3f4f6",
+    "reservoir": "#f9fafb",
+    "node": "#f3f4f6",
 }
 
 
@@ -107,7 +107,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
 
     def eta_fill(au):
         r = (au.regime.eta_unit / au.regime.eta_nom) if au.regime.eta_nom else 1.0
-        return "#7cc47c" if r >= 0.9 else ("#f0c64b" if r >= 0.78 else "#e8836b")
+        return "#cfe8dc" if r >= 0.9 else ("#f6e3b4" if r >= 0.78 else "#f2cecb")
 
     fig = go.Figure()
     # --- трубопроводы: двухслойная «труба», дросселирование — оранжевый пунктир ---
@@ -118,7 +118,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
         x1, y1 = pos[e["to"]]
         source, target = nodes_by_id[e["from"]], nodes_by_id[e["to"]]
         thr = e.get("kind") == "throttle"
-        outer, inner = ("#b8860b", "#f3cf5a") if thr else ("#2f6098", "#a9d2ef")
+        outer, inner = ("#b8860b", "#f3cf5a") if thr else ("#9ca3af", "#e5e7eb")
         dash = "dash" if thr else None
         for w, c in ((9, outer), (4, inner)):
             fig.add_trace(
@@ -144,7 +144,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
             showarrow=True,
             arrowhead=3,
             arrowwidth=1.4,
-            arrowcolor="#2f4858",
+            arrowcolor="#9ca3af",
             standoff=38,
             startstandoff=34,
             opacity=0.85,
@@ -173,7 +173,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
         au = pumps.get(n["id"])
         fill = eta_fill(au) if au is not None else _CAT_COLOR.get(typ, "#e0e0e0")
         border, bw = (
-            ("#e8a33d", 4.5) if (n.get("agg") and n["agg"] == sel_agg) else ("#5a6b7b", 1.4)
+            ("#1f2937", 2.4) if (n.get("agg") and n["agg"] == sel_agg) else ("#d1d5db", 1.0)
         )
         fig.add_shape(
             type="rect",
@@ -241,10 +241,10 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
     pump_y = [(len(aggregates) - 1) / 2 - index for index, _ in enumerate(aggregates)]
     stages = []
     if rm_s.p_bg:
-        stages.append(("БГ / гребёнка", f"p_БГ={fmt(rm_s.p_bg, 2)} МПа", "#bcd9c6"))
-    stages.append(("ЗРА / штуцеры", "дросселирование", "#e9d8a6"))
-    stages.append(("Нагнетательные\nскважины", "приёмистость P–Q", "#e9c6a6"))
-    stages.append(("Пласт", "отклик (CRM)", "#e6b8b8"))
+        stages.append(("БГ / гребёнка", f"p_БГ={fmt(rm_s.p_bg, 2)} МПа", "#f3f4f6"))
+    stages.append(("ЗРА / штуцеры", "дросселирование", "#f6e3b4"))
+    stages.append(("Нагнетательные\nскважины", "приёмистость P–Q", "#f3f4f6"))
+    stages.append(("Пласт", "отклик (CRM)", "#f9fafb"))
 
     fig_s = go.Figure()
 
@@ -256,8 +256,8 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
             y0=y - 0.36,
             y1=y + 0.36,
             line={
-                "color": "#e8a33d" if selected else "#557",
-                "width": 3 if selected else 1.5,
+                "color": "#1f2937" if selected else "#d1d5db",
+                "width": 2 if selected else 1,
             },
             fillcolor=color,
         )
@@ -290,7 +290,7 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
             showarrow=True,
             arrowhead=2,
             arrowwidth=2,
-            arrowcolor="#557",
+            arrowcolor="#9ca3af",
         )
         if label:
             fig_s.add_annotation(
@@ -302,7 +302,7 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
                 bgcolor="white",
             )
 
-    box(0, 0, "Источник /\nводоподготовка", "приём воды", "#cde3f0")
+    box(0, 0, "Источник /\nводоподготовка", "приём воды", "#f3f4f6")
     for aggregate, y in zip(ctx.obj.aggregates, pump_y, strict=True):
         selected = aggregate.id == ctx.agg_id
         box(
@@ -310,7 +310,7 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
             y,
             aggregate.id,
             aggregate.pump.model,
-            "#a8c8e0",
+            "#e5e7eb",
             selected=selected,
         )
         p_in, p_out = pressure_labels[aggregate.id]
@@ -345,8 +345,8 @@ def render(ctx: Ctx) -> None:
         st.markdown(f"**{topo.get('title', 'Технологическая схема')}** — as-built по техсхеме")
         ui.provenance(("As-built схема", "ok"), ("Расчётные показатели", ""))
         st.caption(
-            "🖱️ Наведите курсор на узел — что в нём происходит и фактические значения. "
-            "Насосы окрашены по КПД: 🟢 норма · 🟡 пониженный · 🔴 низкий. "
+            "Наведите курсор на узел — что в нём происходит и фактические значения. "
+            "Насосы окрашены по КПД: зелёный — норма, жёлтый — пониженный, красный — низкий. "
             "Золотая рамка — выбранный агрегат · оранжевый пунктир — дросселирование."
         )
         st.plotly_chart(

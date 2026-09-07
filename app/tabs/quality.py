@@ -1,4 +1,4 @@
-"""✅ Качество данных — полнота режима + отчёт качества телеметрии (если есть)."""
+"""Качество данных — полнота режима + отчёт качества телеметрии (если есть)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def render(ctx: Ctx) -> None:
         {
             "Параметр": list(fields),
             "Значение": [fmt(v, 3) if v is not None else "— нет данных" for v in fields.values()],
-            "Статус": ["✓" if v is not None else "—" for v in fields.values()],
+            "Статус": ["есть" if v is not None else "нет" for v in fields.values()],
         },
         width="stretch",
         hide_index=True,

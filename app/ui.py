@@ -1,7 +1,10 @@
 """Дизайн-система дашборда энергоаудита ППД.
 
-Единый CSS + готовые HTML-компоненты (hero-хедер, бейджи, секции, карточки).
-Цель — современный, читаемый, корпоративный вид без сторонних зависимостей.
+Единый CSS + готовые HTML-компоненты (хедер, бейджи, секции, карточки).
+Оформление намеренно строгое: плоские поверхности, волосяные линии, никаких
+градиентов, теней и скруглений — так дашборд читается как инженерный документ,
+а не как витрина. Цвет используется только там, где несёт смысл: статус и
+серии на графиках.
 """
 
 from __future__ import annotations
@@ -9,18 +12,19 @@ from __future__ import annotations
 import streamlit as st
 
 
-# Палитра (используется и в Plotly-графиках для единства стиля).
+# Палитра. Цвета серий (accent, ok, water_dark, throttle) не меняются: они
+# проверены на различимость и используются в графиках Altair/Plotly.
 PALETTE = {
-    "primary": "#1f4e79",
+    "primary": "#1f2937",
     "accent": "#2f80ed",
     "ok": "#2e9e6b",
     "warn": "#e0a106",
     "bad": "#d9534f",
-    "ink": "#16283a",
-    "muted": "#5b6b7b",
-    "bg": "#eef3f9",
+    "ink": "#111827",
+    "muted": "#6b7280",
+    "bg": "#ffffff",
     "card": "#ffffff",
-    "line": "#e2ebf4",
+    "line": "#e5e7eb",
     "water": "#2f80ed",
     "water_dark": "#1f4e79",
     "throttle": "#e0a106",
@@ -29,74 +33,75 @@ PALETTE = {
 _CSS = """
 <style>
 :root{
-  --pri:#1f4e79; --acc:#2f80ed; --ok:#2e9e6b; --warn:#e0a106; --bad:#d9534f;
-  --bg:#eef3f9; --card:#ffffff; --line:#e2ebf4; --ink:#16283a; --muted:#5b6b7b;
+  --pri:#1f2937; --acc:#2f80ed; --ok:#2e9e6b; --warn:#e0a106; --bad:#d9534f;
+  --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --ink:#111827; --muted:#6b7280;
 }
-.stApp{ background:linear-gradient(180deg,#eaf1f9 0%, #eef3f9 240px, #eef3f9 100%); }
+.stApp{ background:var(--bg); }
 #MainMenu, header[data-testid="stHeader"], footer{ visibility:hidden; height:0; }
-.block-container{ padding-top:1.0rem; padding-bottom:2.4rem; max-width:1360px; }
+.block-container{ padding-top:1.2rem; padding-bottom:2.4rem; max-width:1320px; }
 
-/* ── Hero ── */
+/* Хедер объекта */
 .pp-hero{
-  background:linear-gradient(120deg,#1f4e79 0%, #2f6db0 55%, #3a86d6 100%);
-  color:#fff; border-radius:18px; padding:20px 26px; margin-bottom:18px;
-  box-shadow:0 8px 24px rgba(31,78,121,.22);
+  border-bottom:1px solid var(--line); padding:0 0 14px; margin:0 0 18px;
 }
-.pp-hero-title{ font-size:1.7rem; font-weight:800; letter-spacing:.2px; }
-.pp-hero-sub{ font-size:.95rem; opacity:.92; margin:2px 0 12px; }
-.pp-badges{ display:flex; gap:8px; flex-wrap:wrap; }
+.pp-hero-title{ font-size:1.35rem; font-weight:600; color:var(--ink); letter-spacing:0; }
+.pp-hero-sub{ font-size:.85rem; color:var(--muted); margin:4px 0 10px; }
+.pp-badges{ display:flex; gap:6px; flex-wrap:wrap; }
 .pp-badge{
-  display:inline-block; padding:4px 12px; border-radius:999px; font-size:.78rem;
-  font-weight:700; background:rgba(255,255,255,.18); color:#fff;
-  border:1px solid rgba(255,255,255,.35);
+  display:inline-block; padding:2px 8px; border-radius:2px; font-size:.75rem;
+  font-weight:500; background:transparent; color:var(--muted);
+  border:1px solid var(--line);
 }
-.pp-badge.ok{ background:rgba(46,158,107,.95); border-color:transparent; }
-.pp-badge.warn{ background:rgba(224,161,6,.95); border-color:transparent; }
-.pp-badge.bad{ background:rgba(217,83,79,.95); border-color:transparent; }
-.pp-provenance{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 8px; }
-.pp-provenance .pp-badge{ color:var(--pri); background:#e7eef8; border-color:#c9d9eb; }
-.pp-provenance .pp-badge.ok,.pp-provenance .pp-badge.warn{
-  color:var(--ink); border-color:transparent;
-}
+.pp-badge.ok{ color:var(--ok); border-color:#bfe3d0; }
+.pp-badge.warn{ color:#8a6200; border-color:#eddcae; }
+.pp-badge.bad{ color:var(--bad); border-color:#eec4c2; }
+.pp-provenance{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
 
-/* ── KPI (st.metric → карточки) ── */
+/* KPI */
 div[data-testid="stMetric"]{
-  background:var(--card); border:1px solid var(--line); border-left:4px solid var(--acc);
-  border-radius:14px; padding:14px 18px 12px; box-shadow:0 2px 8px rgba(20,40,60,.05);
+  background:var(--card); border:1px solid var(--line); border-radius:2px;
+  padding:12px 14px 10px;
 }
 div[data-testid="stMetricValue"]{
-  font-size:1.85rem; font-weight:800; color:var(--ink); line-height:1.1;
+  font-size:1.5rem; font-weight:600; color:var(--ink); line-height:1.15;
+  font-variant-numeric:tabular-nums;
 }
-div[data-testid="stMetricLabel"] p{ font-size:.8rem; color:var(--muted); font-weight:700;
-  text-transform:uppercase; letter-spacing:.3px; }
-div[data-testid="stMetricDelta"]{ font-weight:700; }
+div[data-testid="stMetricLabel"] p{ font-size:.72rem; color:var(--muted); font-weight:500;
+  text-transform:uppercase; letter-spacing:.4px; }
+div[data-testid="stMetricDelta"]{ font-weight:500; }
 
-/* ── Заголовки / секции ── */
-h1,h2,h3{ color:var(--pri); font-weight:800; }
-h2,h3{ border-left:4px solid var(--acc); padding-left:10px; margin-top:.2rem; }
+/* Заголовки */
+h1,h2,h3{ color:var(--ink); font-weight:600; letter-spacing:0; }
+h1{ font-size:1.5rem; } h2{ font-size:1.2rem; } h3{ font-size:1.02rem; }
+h2,h3{ margin-top:.6rem; padding-left:0; border-left:none; }
 .stCaption, .st-emotion-cache p small{ color:var(--muted); }
 
-/* ── Вкладки ── */
-div[data-baseweb="tab-list"]{ gap:3px; background:#e3ecf7; padding:5px; border-radius:14px;
-  border:1px solid var(--line); }
-button[data-baseweb="tab"]{ font-size:.92rem; font-weight:700; color:var(--muted);
-  border-radius:10px; padding:7px 13px; }
-button[data-baseweb="tab"][aria-selected="true"]{ background:var(--card); color:var(--pri);
-  box-shadow:0 1px 4px rgba(20,40,60,.10); }
+/* Вкладки: подчёркивание вместо плашек */
+div[data-baseweb="tab-list"]{ gap:0; background:transparent; padding:0;
+  border-radius:0; border-bottom:1px solid var(--line); }
+button[data-baseweb="tab"]{ font-size:.88rem; font-weight:500; color:var(--muted);
+  border-radius:0; padding:8px 14px; border-bottom:2px solid transparent; }
+button[data-baseweb="tab"][aria-selected="true"]{ background:transparent; color:var(--ink);
+  border-bottom-color:var(--ink); box-shadow:none; }
 
-/* ── Контейнеры с рамкой (st.container(border=True)) ── */
-div[data-testid="stVerticalBlockBorderWrapper"]{ border-radius:14px; }
+/* Контейнеры и таблицы */
+div[data-testid="stVerticalBlockBorderWrapper"]{ border-radius:2px; }
+.stDataFrame{ border:1px solid var(--line); border-radius:2px; overflow:hidden; }
 
-/* ── Сайдбар ── */
-section[data-testid="stSidebar"]{ background:#e7eef8; border-right:1px solid var(--line); }
+/* Сайдбар */
+section[data-testid="stSidebar"]{ background:var(--card); border-right:1px solid var(--line); }
 section[data-testid="stSidebar"] .block-container{ padding-top:1.4rem; }
 
-/* ── Таблицы ── */
-.stDataFrame{ border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+/* Фильтры: вместо тёмных плашек — светлые теги с контуром */
+span[data-baseweb="tag"]{
+  background:#f3f4f6 !important; color:var(--ink) !important;
+  border:1px solid var(--line); border-radius:2px; font-weight:400;
+}
+span[data-baseweb="tag"] span[role="presentation"] svg{ fill:var(--muted); }
 
-/* ── Инфо-плашки ── */
-.pp-note{ background:#f3f8ff; border:1px solid #d7e6fb; border-left:4px solid var(--acc);
-  border-radius:10px; padding:10px 14px; color:var(--ink); font-size:.9rem; }
+/* Врезка с пояснением */
+.pp-note{ background:#fafafa; border:1px solid var(--line); border-left:2px solid var(--muted);
+  border-radius:2px; padding:10px 14px; color:var(--ink); font-size:.86rem; }
 
 </style>
 """
@@ -111,7 +116,7 @@ def _badges_html(badges) -> str:
 
 
 def hero(title: str, subtitle: str, badges=()) -> None:
-    """Верхний баннер: название объекта/агрегата, подзаголовок, бейджи-статусы."""
+    """Шапка экрана: объект и агрегат, подзаголовок, бейджи-статусы."""
     st.markdown(
         f"<div class='pp-hero'><div class='pp-hero-title'>{title}</div>"
         f"<div class='pp-hero-sub'>{subtitle}</div>"

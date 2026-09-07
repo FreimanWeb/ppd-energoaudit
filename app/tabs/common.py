@@ -1,14 +1,10 @@
-"""Общее для вкладок: контекст выбранного агрегата, форматирование, палитра статусов."""
+"""Общее для вкладок: контекст выбранного агрегата и форматирование чисел."""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
-
-
-WATER_EMOJI = {"пресная": "💧", "агрессивная": "🧪", "пластовая": "🛢️"}
-STATUS_BG = {"✓": "#d7f5dd", "⚠": "#fff3cd", "✗": "#f8d7da", "—": "#eeeeee"}
 
 
 @dataclass

@@ -51,7 +51,7 @@ def test_field_trip_object_selector_omits_telemetry_markers():
     at = AppTest.from_file(APP, default_timeout=180).run()
     at.radio[0].set_value("Выезд").run()
 
-    assert all(not option.startswith(("🟢", "⚪")) for option in at.selectbox[0].options)
+    assert all(not option.startswith(("●", "○")) for option in at.selectbox[0].options)
 
 
 def test_object_selector_marks_objects_without_telemetry():
@@ -59,8 +59,8 @@ def test_object_selector_marks_objects_without_telemetry():
     kns54 = next(option for option in at.selectbox[0].options if "КНС-54" in option)
     dns7 = next(option for option in at.selectbox[0].options if "ДНС-7с" in option)
 
-    assert kns54.startswith("🟢")
-    assert dns7.startswith("⚪")
+    assert kns54.startswith("●")
+    assert dns7.startswith("○")
 
 
 def test_telemetry_viewer_uses_a_date_range():

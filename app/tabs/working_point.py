@@ -1,4 +1,4 @@
-"""📈 Рабочая точка — Q-H (насос × трубопровод) и Q-η с фактической точкой."""
+"""Рабочая точка — Q-H (насос × трубопровод) и Q-η с фактической точкой."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def render(ctx: Ctx) -> None:
             height=420,
             margin=dict(t=46, b=10),
             legend=dict(orientation="h", y=-0.22),
-            plot_bgcolor="#f7fafd",
+            plot_bgcolor="#ffffff",
         )
         st.plotly_chart(fig, width="stretch")
     with cc[1]:
@@ -174,7 +174,7 @@ def render(ctx: Ctx) -> None:
             height=420,
             margin=dict(t=46, b=10),
             legend=dict(orientation="h", y=-0.22),
-            plot_bgcolor="#f7fafd",
+            plot_bgcolor="#ffffff",
         )
         st.plotly_chart(fig, width="stretch")
     st.caption(

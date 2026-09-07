@@ -50,7 +50,7 @@ def _matches(entered: str, expected: str) -> bool:
 def _render_login(expected: str) -> None:
     _, middle, _ = st.columns([1, 1.4, 1])
     with middle:
-        st.markdown("## ⚡ Энергоаудит ППД")
+        st.markdown("### Энергоаудит ППД")
         st.caption("Доступ к дашборду ограничен. Введите пароль.")
         with st.form("_ppd_login_form"):
             entered = st.text_input("Пароль", type="password", key=_INPUT_KEY)

@@ -49,17 +49,17 @@ from tabs import (
     telemetry,
     working_point,
 )
-from tabs.common import WATER_EMOJI, Ctx, fmt
+from tabs.common import Ctx, fmt
 
 
-st.set_page_config(page_title="Энергоаудит ППД", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Энергоаудит ППД", layout="wide")
 ui.inject_css()
 
 auth.require_password()
 
 # ───────────────────────── Sidebar: выбор объекта ─────────────────────────
 
-st.sidebar.title("⚡ Энергоаудит ППД")
+st.sidebar.title("Энергоаудит ППД")
 auth.render_logout()
 mode = st.sidebar.radio(
     "Режим", ("Анализ по телеметрии", "Выезд", "Просмотр телеметрии")
@@ -75,9 +75,8 @@ sel_ngdus = st.sidebar.multiselect("НГДУ", ngdus, default=ngdus)
 flt = [o for o in index if o["water"] in sel_waters and o["ngdu"] in sel_ngdus] or index
 
 obj_labels = {
-    f"{'' if mode == 'Выезд' else ('🟢 ' if o['has_telemetry'] else '⚪ ')}"
-    f"{o['name']} · {o['ngdu']}  ·  "
-    f"{WATER_EMOJI.get(o['water'], '')} {o['water']}": o["id"]
+    f"{'' if mode == 'Выезд' else ('● ' if o['has_telemetry'] else '○ ')}"
+    f"{o['name']} · {o['ngdu']} · {o['water']}": o["id"]
     for o in flt
 }
 object_options = list(obj_labels)
@@ -114,7 +113,7 @@ if mode == "Выезд":
         f"{obj.name} · {agg_id} · НГДУ {selected['ngdu']}",
         "Выездной аудит · YAML-паспорт",
         [
-            (f"{WATER_EMOJI.get(obj.water_type.value, '')} {obj.water_type.value} вода", ""),
+            (f"{obj.water_type.value} вода", ""),
             (f"ветка: {obj.branch.value}", ""),
             (f"насос: {audit.pump_kind}", ""),
             (f"КПД {fmt(audit.regime.eta_unit, 3)} / ном {fmt(audit.regime.eta_nom, 3)}", eta_tone),
@@ -122,11 +121,11 @@ if mode == "Выезд":
         ],
     )
     field_trip_tabs = [
-        ("📋 Обзор", overview),
-        ("📉 Карта потерь", losses),
-        ("📈 Рабочая точка", working_point),
-        ("💡 Мероприятия", measures),
-        ("🧮 Формулы", formulas),
+        ("Обзор", overview),
+        ("Карта потерь", losses),
+        ("Рабочая точка", working_point),
+        ("Мероприятия", measures),
+        ("Формулы", formulas),
     ]
     for tab, (_, module) in zip(
         st.tabs([item[0] for item in field_trip_tabs]), field_trip_tabs, strict=True
@@ -204,7 +203,7 @@ if _HAS_CALENDAR:
             key=calendar_key,
         )
 else:
-    st.sidebar.caption("⚠️ Компонент календаря недоступен — обычный выбор даты.")
+    st.sidebar.caption("Компонент календаря недоступен — обычный выбор даты.")
     selected_date = st.sidebar.date_input(
         "Дата телеметрии",
         value=st.session_state.get(selected_key, default_day),
@@ -311,7 +310,7 @@ ui.hero(
     f"{obj.name} · {agg_id} · НГДУ {selected['ngdu']}",
     f"Цифровой энергоаудит ППД · SQLite · сутки: {selected_date}",
     [
-        (f"{WATER_EMOJI.get(obj.water_type.value, '')} {obj.water_type.value} вода", ""),
+        (f"{obj.water_type.value} вода", ""),
         (f"ветка: {obj.branch.value}", ""),
         (f"насос: {audit.pump_kind}", ""),
         (f"КПД {fmt(audit.regime.eta_unit, 3)} / ном {fmt(audit.regime.eta_nom, 3)}", _eta_tone),
@@ -322,16 +321,16 @@ ui.hero(
 # ───────────────────────── Вкладки (от общего к частному) ─────────────────────────
 
 TABS = [
-    ("📋 Обзор", overview),
-    ("🎯 Режимный снимок", snapshot),
-    ("📊 Телеметрия", telemetry),
-    ("📈 Прогноз закачки", forecast),
-    ("🗺️ Схема ППД", scheme),
-    ("📉 Карта потерь", losses),
-    ("📈 Рабочая точка", working_point),
-    ("💡 Мероприятия", measures),
-    ("🧩 Новый объект", new_object),
-    ("🧮 Формулы", formulas),
+    ("Обзор", overview),
+    ("Режимный снимок", snapshot),
+    ("Телеметрия", telemetry),
+    ("Прогноз закачки", forecast),
+    ("Схема ППД", scheme),
+    ("Карта потерь", losses),
+    ("Рабочая точка", working_point),
+    ("Мероприятия", measures),
+    ("Новый объект", new_object),
+    ("Формулы", formulas),
 ]
 
 for tab, (_, module) in zip(st.tabs([t for t, _ in TABS]), TABS, strict=True):

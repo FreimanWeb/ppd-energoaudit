@@ -1,4 +1,4 @@
-"""🧮 Формулы — drill-down: как получено каждое число (номер формулы методики)."""
+"""Формулы — drill-down: как получено каждое число (номер формулы методики)."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def render(ctx: Ctx) -> None:
             cL, cR = st.columns([3, 1])
             cL.markdown(f"**({fid}) {_FORMULA_NAME.get(fid, '')}**")
             cR.markdown(
-                f"<div style='text-align:right;font-size:1.25em;color:#2f6098'>"
+                f"<div style='text-align:right;font-size:1.25em;color:#111827'>"
                 f"<b>{fmt(t['value'], 4)}</b></div>",
                 unsafe_allow_html=True,
             )
