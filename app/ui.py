@@ -37,8 +37,14 @@ _CSS = """
   --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --ink:#111827; --muted:#6b7280;
 }
 .stApp{ background:var(--bg); }
-#MainMenu, header[data-testid="stHeader"], footer{ visibility:hidden; height:0; }
-.block-container{ padding-top:1.2rem; padding-bottom:2.4rem; max-width:1320px; }
+/* Шапка Streamlit убрана до тонкой полосы, но не скрыта: внутри неё лежит
+   кнопка раскрытия свёрнутого сайдбара. Прячем только меню, Deploy и статус. */
+#MainMenu, footer, [data-testid="stDecoration"], [data-testid="stStatusWidget"],
+[data-testid="stToolbarActions"], [data-testid="stAppDeployButton"]{ display:none; }
+header[data-testid="stHeader"]{
+  background:transparent; box-shadow:none; height:2.6rem; min-height:0;
+}
+.block-container{ padding-top:.6rem; padding-bottom:2.4rem; max-width:1360px; }
 
 /* Хедер объекта */
 .pp-hero{
@@ -48,13 +54,13 @@ _CSS = """
 .pp-hero-sub{ font-size:.85rem; color:var(--muted); margin:4px 0 10px; }
 .pp-badges{ display:flex; gap:6px; flex-wrap:wrap; }
 .pp-badge{
-  display:inline-block; padding:2px 8px; border-radius:2px; font-size:.75rem;
-  font-weight:500; background:transparent; color:var(--muted);
-  border:1px solid var(--line);
+  display:inline-block; padding:3px 9px; border-radius:2px; font-size:.75rem;
+  font-weight:500; background:#f3f4f6; color:var(--ink);
+  border:1px solid #dfe3e8;
 }
-.pp-badge.ok{ color:var(--ok); border-color:#bfe3d0; }
-.pp-badge.warn{ color:#8a6200; border-color:#eddcae; }
-.pp-badge.bad{ color:var(--bad); border-color:#eec4c2; }
+.pp-badge.ok{ background:#e6f4ec; color:#1c6b48; border-color:#c6e4d4; }
+.pp-badge.warn{ background:#fdf3da; color:#7a5600; border-color:#eddcae; }
+.pp-badge.bad{ background:#fbe9e8; color:#a4302c; border-color:#eec4c2; }
 .pp-provenance{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
 
 /* KPI */
@@ -89,15 +95,19 @@ div[data-testid="stVerticalBlockBorderWrapper"]{ border-radius:2px; }
 .stDataFrame{ border:1px solid var(--line); border-radius:2px; overflow:hidden; }
 
 /* Сайдбар */
-section[data-testid="stSidebar"]{ background:var(--card); border-right:1px solid var(--line); }
+section[data-testid="stSidebar"]{ background:#f7f8f9; border-right:1px solid #dfe3e8; }
 section[data-testid="stSidebar"] .block-container{ padding-top:1.4rem; }
+section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+section[data-testid="stSidebar"] div[data-baseweb="input"]{
+  background:#ffffff; border-color:#c8cdd4; border-radius:2px;
+}
 
 /* Фильтры: вместо тёмных плашек — светлые теги с контуром */
 span[data-baseweb="tag"]{
-  background:#f3f4f6 !important; color:var(--ink) !important;
-  border:1px solid var(--line); border-radius:2px; font-weight:400;
+  background:#ffffff !important; color:var(--ink) !important;
+  border:1px solid #c8cdd4; border-radius:2px; font-weight:500;
 }
-span[data-baseweb="tag"] span[role="presentation"] svg{ fill:var(--muted); }
+span[data-baseweb="tag"] span[role="presentation"] svg{ fill:#4b5563; }
 
 /* Врезка с пояснением */
 .pp-note{ background:#fafafa; border:1px solid var(--line); border-left:2px solid var(--muted);

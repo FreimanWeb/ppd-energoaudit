@@ -76,7 +76,7 @@ flt = [o for o in index if o["water"] in sel_waters and o["ngdu"] in sel_ngdus] 
 
 obj_labels = {
     f"{'' if mode == 'Выезд' else ('● ' if o['has_telemetry'] else '○ ')}"
-    f"{o['name']} · {o['ngdu']} · {o['water']}": o["id"]
+    f"{o['name']} · {o['ngdu']}": o["id"]
     for o in flt
 }
 object_options = list(obj_labels)
