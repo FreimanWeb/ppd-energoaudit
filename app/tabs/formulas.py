@@ -51,11 +51,7 @@ def _subst_to_latex(s: str) -> str:
 def render(ctx: Ctx) -> None:
     st.subheader("Как получено каждое число — формулы методики")
     ui.provenance(("Расчёт по Методике", "ok"))
-    st.caption(
-        "Символьная формула (Методика, разд. 8) → подстановка фактических величин → "
-        "результат. Число в скобках — номер формулы методики. Полная карта "
-        "«формула → код → тест» — docs/formula_map.md."
-    )
+    st.caption("Формула → подстановка фактических величин → результат.")
     for fid in _ORDER:
         t = ctx.audit.trace.get(fid)
         if not t:

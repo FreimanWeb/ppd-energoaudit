@@ -139,20 +139,9 @@ if not dates:
     st.warning(f"Нет телеметрии для {selected['name']} / {agg_id}.")
     seed = lib.telemetry_seed_status()
     if seed.files_found == 0:
-        st.caption(
-            f"В каталоге `data/{lib.TELEMETRY_DIR.name}/` нет Excel-выгрузок "
-            f"({seed.reason}), поэтому телеметрии нет ни у одного объекта. "
-            "Положите туда файлы выгрузок и закоммитьте — приложение загрузит их "
-            "при следующем запуске. Расчёт по паспорту доступен в режиме «Выезд»."
-        )
+        st.caption("Расчёт по паспорту доступен в режиме «Выезд».")
     else:
-        st.caption(
-            f"Найдено файлов выгрузок: {seed.files_found}, загружено точек: {seed.stored}. "
-            "Для этого агрегата точек нет: имя файла должно содержать обозначение "
-            "объекта (например «КНС-54»), иначе он не опознаётся."
-        )
-    if seed.unreadable:
-        st.caption("Не удалось прочитать: " + ", ".join(seed.unreadable))
+        st.caption("Для этого агрегата точек телеметрии нет.")
     scada = lib.scada_seed_status()
     st.caption(
         f"Выгрузки АСУ ТП: файлов {scada.files_found}, строк загружено {scada.stored}"

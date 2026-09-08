@@ -111,10 +111,7 @@ def render(ctx: Ctx) -> None:
 
     st.markdown("### Годовой сценарий")
     ui.provenance(("Годовая оценка — сценарий, не факт", "warn"))
-    st.caption(
-        "Сценарий использует выбранное давление, суточные Q/W/T и T_год. "
-        "Он сопоставим с допущениями Excel-расчётов, но не подтверждает фактическую экономию."
-    )
+    st.caption("Сценарий по выбранному давлению, суточным Q/W/T и T_год.")
     first, second = st.columns(2)
     first.metric("ΔW по КПД, кВт·ч/год", fmt(audit.dw_efficiency, 0))
     second.metric("ΔW по дросселированию, кВт·ч/год", fmt(audit.dw_throttle, 0))

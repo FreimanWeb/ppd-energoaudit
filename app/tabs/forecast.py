@@ -25,18 +25,7 @@ PERIOD_LABELS = {1: "сутки", 7: "неделя", 30: "месяц"}
 
 def render(ctx: Ctx) -> None:
     st.subheader("Прогноз объёма закачки")
-    ui.note(
-        "Статистическая экстраполяция линейного тренда (МНК) по факту — "
-        "<b>не гидродинамическая модель пласта</b>. Не учитывает план ГТМ, "
-        "фонд скважин, ограничения приёмистости/давления нагнетания. "
-        "Используйте только как индикативный, а не проектный ориентир."
-    )
-    st.caption(
-        "Этот же прогноз питает экономику на вкладке «Мероприятия»: там его можно "
-        "включить как базу расчёта вместо постоянного текущего режима — "
-        "годовой эффект масштабируется прогнозным объёмом закачки, "
-        "и считаются NPV, IRR и дисконтированная окупаемость."
-    )
+    st.caption("Экстраполяция тренда по факту — ориентир, не проектный расчёт.")
 
     all_dates = lib.telemetry_dates(ctx.object_id, ctx.agg_id)
     if len(all_dates) < 3:
@@ -76,9 +65,7 @@ def render(ctx: Ctx) -> None:
     history = aggregate_daily_to_periods(values, days_per_period=period_days) if period_days > 1 else values
     if len(history) < 3:
         st.warning(
-            f"При периодичности «{PERIOD_LABELS[period_days]}» из выбранного диапазона получилось "
-            f"только {len(history)} полных периода(ов) — нужно ≥3. Расширьте период истории или "
-            "выберите более мелкую периодичность."
+            f"Полных периодов «{PERIOD_LABELS[period_days]}»: {len(history)} — нужно не менее 3."
         )
         return
 
@@ -118,5 +105,3 @@ def render(ctx: Ctx) -> None:
         x="Период:Q", y="Нижняя:Q", y2="Верхняя:Q",
     )
     st.altair_chart((band + line).properties(height=320), width="stretch")
-
-    st.caption(res.note)

@@ -81,11 +81,7 @@ def render_day(object_id: str, aggregate_id: str, selected_date: date) -> None:
         st.info("За выбранные сутки нет точек телеметрии.")
         return
 
-    st.caption(
-        "Давления и мощность показаны ступенями: значение действует до следующего изменения. "
-        "Точки давления для читаемости сведены к границам, минимуму и максимуму каждой минуты; "
-        "расчёты используют исходные данные. Q_сут, наработка и W не строятся."
-    )
+    st.caption("Ступенчатые ряды: значение действует до следующего изменения.")
     start = datetime.combine(selected_date, time.min)
     _render_charts(rows, start=start, end=start + timedelta(days=1), day=selected_date)
 
@@ -98,11 +94,7 @@ def render_period(object_id: str, aggregate_id: str, start_date: date, end_date:
         st.info("В выбранном периоде нет точек телеметрии.")
         return
 
-    st.caption(
-        "Давления и мощность показаны ступенями: значение действует до следующего изменения. "
-        "Точки давления для читаемости сведены к границам, минимуму и максимуму каждой минуты; "
-        "показатели станции отмечены отдельно."
-    )
+    st.caption("Ступенчатые ряды: значение действует до следующего изменения.")
     start = datetime.combine(start_date, time.min)
     end = datetime.combine(end_date + timedelta(days=1), time.min)
     _render_charts(rows, start=start, end=end)

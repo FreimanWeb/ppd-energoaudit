@@ -233,10 +233,7 @@ def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
 def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str | None]]) -> None:
     """Типовая параметрическая цепочка ППД, когда as-built топологии нет."""
     rm_s = ctx.agg.regime
-    st.caption(
-        "Типовая схема: параллельные ветви НА. As-built топология для этого объекта "
-        "пока не заведена (`config/topology/<id>.yaml`)."
-    )
+    st.caption("Типовая схема: параллельные ветви НА.")
     aggregates = ctx.obj.aggregates
     pump_y = [(len(aggregates) - 1) / 2 - index for index, _ in enumerate(aggregates)]
     stages = []
@@ -345,9 +342,8 @@ def render(ctx: Ctx) -> None:
         st.markdown(f"**{topo.get('title', 'Технологическая схема')}** — as-built по техсхеме")
         ui.provenance(("As-built схема", "ok"), ("Расчётные показатели", ""))
         st.caption(
-            "Наведите курсор на узел — что в нём происходит и фактические значения. "
-            "Насосы окрашены по КПД: зелёный — норма, жёлтый — пониженный, красный — низкий. "
-            "Золотая рамка — выбранный агрегат · оранжевый пунктир — дросселирование."
+            "Цвет насоса — КПД: зелёный норма, жёлтый пониженный, красный низкий. "
+            "Тёмная рамка — выбранный агрегат, пунктир — дросселирование."
         )
         st.plotly_chart(
             _topology_figure(topo, ctx.audit, ctx.agg_id, rm_s, pressure_labels),

@@ -45,13 +45,7 @@ def render(ctx: Ctx) -> None:
 
     runs = lib.crm_runs(ctx.object_id)
     if not runs:
-        st.info(
-            "Для этого объекта нет выгрузок CRM-прогноза. Модель обучается отдельным "
-            "инструментом (одна модель на объект), а её результат кладётся в "
-            f"`data/crm/{ctx.object_id}/<прогон>/` — файл "
-            "`forecast_by_equipment_and_total.csv` или `multioutput_forecast.csv`. "
-            "Рядом можно положить `model_metadata.json` и `run.json` с подписью прогона."
-        )
+        st.info("Нет данных прогноза для этого объекта.")
         return
 
     if len(runs) > 1:
@@ -156,19 +150,7 @@ def render(ctx: Ctx) -> None:
     st.altair_chart(chart.properties(height=340), width="stretch")
 
     st.caption(
-        "Прогноз в выгрузке идёт с шагом опроса; в сутки он сведён суммой интервалов. "
-        "Неполные сутки на краях горизонта отброшены"
-        + (
-            f" ({', '.join(day for day in forecast['partial_days'])})"
-            if forecast["partial_days"]
-            else ""
-        )
-        + ". Факт — метрика q_day из телеметрии по тем же агрегатам, что есть в модели"
-        + (
-            f" ({', '.join(units)})"
-            if choice == STATION and len(units) > 1
-            else ""
-        )
-        + ": остальные агрегаты объекта в сумму не входят, иначе ряды несопоставимы. "
-        "Пунктир — последние сутки телеметрии: правее сравнивать не с чем."
+        "Факт — по тем же агрегатам, что в модели"
+        + (f" ({', '.join(units)})" if choice == STATION and len(units) > 1 else "")
+        + ". Пунктир — последние сутки телеметрии."
     )
