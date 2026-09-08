@@ -26,7 +26,7 @@ _CAT_COLOR = {
 
 
 def _aggregate_pressure_text(snapshots, timestamp) -> str:
-    """Давления НА только в точном timestamp выбранного снимка."""
+    """Давления НА только в точный момент выбранного показателя."""
     p_in, p_out = _pressure_labels(snapshots, timestamp)
     if p_in is None or p_out is None:
         return "p_вх/p_вых: нет данных"
@@ -336,7 +336,7 @@ def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str |
 
 
 def render(ctx: Ctx) -> None:
-    st.subheader("Схема работы ППД")
+    st.subheader("Схема работы ППД — переход к CRM")
     rm_s = ctx.agg.regime
     topo = lib.get_topology(ctx.object_id)
     pressure_labels = _aggregate_pressure_labels(ctx)

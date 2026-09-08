@@ -196,7 +196,7 @@ def excluded_snapshots_by_manifold_pressure(
 
 
 def snapshot_selection_key(object_id: str, aggregate_id: str, day: date) -> str:
-    """Ключ выбранного снимка: один для вкладок «Анализ» и «Режимный снимок»."""
+    """Ключ выбранного момента: один для вкладок «Обзор» и «Режимный расчёт»."""
     return f"snapshot-{object_id}-{aggregate_id}-{day.isoformat()}"
 
 

@@ -22,7 +22,7 @@ def _kpi_rows(ctx: Ctx) -> None:
         ui.provenance(("Выездной замер из YAML", "warn"), ("Расчёт по Методике", ""))
     elif not ctx.scope.daily_pressure_coverage_is_complete:
         ui.provenance(
-            ("Режимный расчёт: снимок давления", "warn"),
+            ("Режим по показателю давления", "warn"),
             ("Суточный УРЭ: W / Q_сут", "ok"),
         )
     elif ctx.scope.daily_kpi_is_fact:
@@ -77,7 +77,6 @@ def _annual_kpis(ctx: Ctx) -> None:
         )
     elif ctx.scope.annual_runtime_is_assumed:
         ui.provenance(("Сценарий: T_год = 8760 ч", "warn"), ("Тариф и цель — конфиг", ""))
-        st.warning("Годовые значения не являются фактом: нет полного года ежедневной наработки.")
     else:
         ui.provenance(
             (f"Год телеметрии: T_год = {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"),
@@ -107,7 +106,7 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
 
     cc = st.columns([1.25, 1])
     with cc[0]:
-        st.markdown("**Структура потерь** — куда уходит подведённая мощность")
+        st.markdown("**Куда уходит подведённая мощность**")
         if p_el <= 0:
             st.info("Нет данных об электрической мощности.")
         else:
@@ -151,7 +150,7 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
             else:
                 st.caption("Детализация по статьям и ₽/год — вкладка «Карта потерь».")
     with cc[1]:
-        st.markdown("**Топ-мероприятия** — что даст наибольший эффект")
+        st.markdown("**Топ-мероприятия**")
         ui.provenance(("Эвристическая оценка", "warn"))
         evals = suggest_measures(audit, tariff)[:3]
         if not evals:
@@ -289,9 +288,9 @@ def _passport_and_regime(ctx: Ctx) -> None:
             "Δp, МПа": rm.p_out - rm.p_in,
         }
         if ctx.source != "field_trip":
-            snapshot_rows["Время снимка"] = ctx.snapshot_timestamp.strftime("%d.%m.%Y %H:%M:%S")
+            snapshot_rows["Время замера"] = ctx.snapshot_timestamp.strftime("%d.%m.%Y %H:%M:%S")
         table(
-            "Выездной замер" if ctx.source == "field_trip" else "Режимный снимок",
+            "Выездной замер" if ctx.source == "field_trip" else "Показатель давления",
             snapshot_rows,
         )
     with col2:
@@ -309,7 +308,11 @@ def _passport_and_regime(ctx: Ctx) -> None:
 
 
 def render(ctx: Ctx) -> None:
-    st.subheader("КПИ выездного замера" if ctx.source == "field_trip" else "Суточный KPI")
+    st.subheader(
+        "Энергоаудит выездного замера"
+        if ctx.source == "field_trip"
+        else "Суточный энергоаудит"
+    )
     _kpi_rows(ctx)
     if ctx.quality is not None and not ctx.quality.allows_economic_conclusions:
         st.warning("Потери, мероприятия и годовая экономия скрыты: режим непригоден для выводов.")
@@ -317,7 +320,7 @@ def render(ctx: Ctx) -> None:
         _passport_and_regime(ctx)
         return
     st.divider()
-    st.subheader("Режимный расчёт")
+    st.subheader("Потери и мероприятия")
     _loss_structure_and_measures(ctx)
     st.divider()
     _gauge_and_sec_bar(ctx)

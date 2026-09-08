@@ -44,7 +44,7 @@ def test_field_trip_mode_audits_yaml_object_without_telemetry():
     assert not at.exception
     assert any("Выездной аудит · YAML-паспорт" in item.value for item in at.markdown)
     assert not any("Телеметрия" in tab.label for tab in at.tabs)
-    assert not any("Режимный снимок" in tab.label for tab in at.tabs)
+    assert not any("Режимный расчёт" in tab.label for tab in at.tabs)
 
 
 def test_field_trip_object_selector_omits_telemetry_markers():
@@ -74,7 +74,7 @@ def test_telemetry_viewer_uses_a_date_range():
 def test_snapshot_is_not_a_sidebar_mode():
     at = AppTest.from_file(APP, default_timeout=180).run()
 
-    assert "Режимный снимок" not in at.radio[0].options
+    assert "Режимный расчёт" not in at.radio[0].options
 
 
 def test_snapshot_is_single_page_without_telemetry_fallback():
@@ -160,7 +160,7 @@ def test_unfit_regime_hides_loss_map_and_measures():
 def test_overview_separates_snapshot_and_daily_regime_data():
     source = Path("app/tabs/overview.py").read_text(encoding="utf-8")
 
-    assert '"Режимный снимок"' in source
+    assert '"Показатель давления"' in source
     assert '"Суточные данные"' in source
     assert '"Режим (замер)"' not in source
 

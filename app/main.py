@@ -1,7 +1,7 @@
 """Цифровой энергоаудит ППД — дашборд (Streamlit).
 
 Запуск:  streamlit run app/main.py
-Экраны (от общего к частному): Обзор · Режимный снимок · Телеметрия · Прогноз
+Экраны (от общего к частному): Обзор · Режимный расчёт · Телеметрия · Прогноз
 закачки · Схема ППД · Карта потерь · Рабочая точка · Мероприятия · Новый
 объект · Формулы.
 
@@ -233,7 +233,7 @@ if status == "insufficient":
 snapshots = lib.telemetry_snapshots(object_id, agg_id, start, end)
 if not snapshots:
     st.warning(
-        f"Нет пригодного режимного снимка за {selected_date}: нужна устойчивая пара "
+        f"Нет пригодного режима за {selected_date}: нужна устойчивая пара "
         "p_вх/p_вых, актуальная в момент положительной мощности."
     )
     telemetry.render_day(object_id, agg_id, selected_date)
@@ -323,7 +323,7 @@ ui.hero(
 
 TABS = [
     ("Обзор", overview),
-    ("Режимный снимок", snapshot),
+    ("Режимный расчёт", snapshot),
     ("Телеметрия", telemetry),
     ("Прогноз закачки", forecast),
     ("Прогноз CRM", crm),
