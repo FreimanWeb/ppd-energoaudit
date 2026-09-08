@@ -36,6 +36,14 @@ from ppd_audit.db_seed import (  # noqa: E402
     seed_telemetry_from_excel,
     seed_telemetry_from_scada,
 )
+from ppd_audit.ingest.crm_forecast import (  # noqa: E402
+    CRM_DIRNAME,
+    CrmForecastError,
+    aggregate_names,
+    discover_runs,
+    read_daily,
+)
+from ppd_audit.ingest.scada_txt import ScadaMapping  # noqa: E402
 from ppd_audit.measures.economics import (  # noqa: E402
     DEFAULT_HORIZON_YEARS,
     InjectionProfile,
@@ -62,6 +70,7 @@ WATER_ORDER = ["пресная", "агрессивная", "пластовая"]
 TELEMETRY_DIR = _ROOT / "data" / DEFAULT_TELEMETRY_DIRNAME
 SCADA_DIR = TELEMETRY_DIR / DEFAULT_SCADA_DIRNAME
 SCADA_TAGS = _ROOT / "config" / SCADA_TAGS_CONFIG
+CRM_DIR = _ROOT / "data" / CRM_DIRNAME
 
 
 @st.cache_resource(show_spinner="Первый запуск: читаем паспорта и выгрузки телеметрии…")
@@ -282,6 +291,51 @@ def daily_injection_series(
         if (not row["is_station"]) or day_key not in by_date:
             by_date[day_key] = row["value"]
     return sorted(by_date.items())
+
+
+@st.cache_data(show_spinner=False)
+def crm_runs(object_id: str) -> list[dict]:
+    """Прогоны CRM-прогноза для объекта: код, подпись, модель, события."""
+    return [
+        {
+            "code": run.code,
+            "title": run.title,
+            "events": run.events,
+            "object_id": run.object_id,
+            "model": run.model,
+        }
+        for run in discover_runs(CRM_DIR / object_id)
+    ]
+
+
+@st.cache_data(show_spinner="Читаем выгрузку CRM-прогноза…")
+def crm_daily_forecast(object_id: str, run_code: str) -> dict | None:
+    """Суточные объёмы прогноза по агрегатам и станции.
+
+    Коды узлов модели (``PUMP_001``) переводятся в коды агрегатов БД
+    (``НА-1``) по тому же ``config/scada_tags.yaml``, по которому грузится
+    телеметрия, — иначе прогноз не с чем было бы сводить.
+    """
+    runs = {run.code: run for run in discover_runs(CRM_DIR / object_id)}
+    run = runs.get(run_code)
+    if run is None:
+        return None
+    mapping = ScadaMapping.from_yaml(SCADA_TAGS)
+    try:
+        daily = read_daily(run, aggregate_names(mapping.objects, run.object_id))
+    except CrmForecastError as error:
+        return {"error": str(error)}
+    return {
+        "interval_hours": daily.interval_hours,
+        "by_unit": {
+            unit: sorted((day.isoformat(), value) for day, value in series.items())
+            for unit, series in daily.by_unit.items()
+        },
+        "total": sorted((day.isoformat(), value) for day, value in daily.total.items()),
+        "partial_days": [day.isoformat() for day in daily.partial_days],
+        "model": run.model,
+        "events": run.events,
+    }
 
 
 def injection_profile(

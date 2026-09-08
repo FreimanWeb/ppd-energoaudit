@@ -1,0 +1,43 @@
+{
+  "object_id": "0197",
+  "available_models": [
+    "Multi Bounded ARX",
+    "Multi Lagged ARX",
+    "Multi Hybrid ARX",
+    "Multi Canonical dynamic"
+  ],
+  "recommended_model": "Multi Hybrid ARX",
+  "recommended_event_model": "Multi Hybrid ARX",
+  "grid_start": "2025-07-01 00:00:00",
+  "grid_end": "2026-08-04 09:30:00",
+  "train_end": "2026-04-06 13:30:00",
+  "test_start": "2026-06-05 12:00:00",
+  "pump_cols": [
+    "PUMP_001_QVD_I3",
+    "PUMP_003_QVD_I3"
+  ],
+  "input_cols": [
+    "BG_QVD11",
+    "BG_QVD2",
+    "BG_QVD5",
+    "BG_QVD9"
+  ],
+  "controls": [
+    "PUMP_001_IND",
+    "PUMP_003_APWCN_I3",
+    "PUMP_003_RPWCN_I3",
+    "BG_PKOL",
+    "PUMP_001_APWCN_I3",
+    "PUMP_003_POUNA",
+    "PUMP_001_POUNA",
+    "PUMP_003_IND",
+    "PUMP_001_PINNA",
+    "PUMP_003_PINNA"
+  ],
+  "deployment_refit_end": "2026-08-04 09:30:00",
+  "autonomous_backtest_fit_end": "2026-06-05 11:30:00",
+  "autonomous_backtest_exogenous_window": "7d",
+  "autonomous_backtest_exogenous_damping": 0.25,
+  "exogenous_window": "7d",
+  "exogenous_damping": 0.25
+}

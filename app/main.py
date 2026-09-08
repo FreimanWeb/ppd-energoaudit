@@ -38,6 +38,7 @@ except ImportError:
     # дашборд, просто откатываемся на обычный st.date_input ниже.
     _HAS_CALENDAR = False
 from tabs import (
+    crm,
     forecast,
     formulas,
     losses,
@@ -325,6 +326,7 @@ TABS = [
     ("Режимный снимок", snapshot),
     ("Телеметрия", telemetry),
     ("Прогноз закачки", forecast),
+    ("Прогноз CRM", crm),
     ("Схема ППД", scheme),
     ("Карта потерь", losses),
     ("Рабочая точка", working_point),
