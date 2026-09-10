@@ -43,6 +43,12 @@ from ppd_audit.ingest.crm_forecast import (  # noqa: E402
     discover_runs,
     read_daily,
 )
+from ppd_audit.ingest.crm_wells import (  # noqa: E402
+    CrmWellsError,
+    discover_runs as discover_well_runs,
+    read_graph as read_wells_graph,
+    read_report as read_wells_report,
+)
 from ppd_audit.ingest.scada_txt import ScadaMapping  # noqa: E402
 from ppd_audit.measures.economics import (  # noqa: E402
     DEFAULT_HORIZON_YEARS,
@@ -335,6 +341,95 @@ def crm_daily_forecast(object_id: str, run_code: str) -> dict | None:
         "partial_days": [day.isoformat() for day in daily.partial_days],
         "model": run.model,
         "events": run.events,
+    }
+
+
+@st.cache_data(show_spinner=False)
+def crm_well_runs(object_id: str) -> list[dict]:
+    """Прогоны CRM по нагнетательным скважинам для объекта."""
+    return [
+        {"code": run.code, "title": run.title, "mode": run.mode}
+        for run in discover_well_runs(CRM_DIR / object_id)
+    ]
+
+
+@st.cache_data(show_spinner="Читаем прогноз по скважинам…")
+def crm_wells_report(object_id: str, run_code: str) -> dict | None:
+    """Помесячная закачка по скважинам: прогноз, база и факт."""
+    runs = {run.code: run for run in discover_well_runs(CRM_DIR / object_id)}
+    run = runs.get(run_code)
+    if run is None:
+        return None
+    try:
+        report = read_wells_report(run)
+    except CrmWellsError as error:
+        return {"error": str(error)}
+    return {
+        "months": [month.isoformat() for month in report.months],
+        "wells": list(report.wells),
+        "has_fact": report.has_fact,
+        "totals": [
+            {
+                "month": item.month.isoformat(),
+                "base": item.base,
+                "forecast": item.forecast,
+                "fact": item.fact,
+            }
+            for item in report.totals()
+        ],
+        "rows": [
+            {
+                "month": row.month.isoformat(),
+                "well": row.well,
+                "base": row.base,
+                "forecast": row.forecast,
+                "fact": row.fact,
+                "deviation": row.deviation_percent,
+                "share": row.share,
+                "r_ust": row.r_ust,
+                "r_ust_fact": row.r_ust_fact,
+            }
+            for row in report.rows
+        ],
+    }
+
+
+@st.cache_data(show_spinner=False)
+def crm_wells_graph(object_id: str, run_code: str, edge_limit: int = 60) -> dict | None:
+    """Граф взаимовлияния скважин: сильнейшие связи и центральности."""
+    runs = {run.code: run for run in discover_well_runs(CRM_DIR / object_id)}
+    run = runs.get(run_code)
+    if run is None:
+        return None
+    graph = read_wells_graph(run)
+    return {
+        "edges": [
+            {
+                "source": edge.source,
+                "target": edge.target,
+                "strength": edge.strength,
+                "signed": edge.signed,
+            }
+            for edge in graph.strongest(edge_limit)
+        ],
+        "by_well": {
+            well: [
+                {"target": edge.target, "strength": edge.strength, "signed": edge.signed}
+                for edge in graph.neighbours(well)
+            ]
+            for well in {edge.source for edge in graph.edges}
+        },
+        "centrality": [
+            {
+                "well": item.well,
+                "strength_sum": item.strength_sum,
+                "degree": item.degree,
+                "betweenness": item.betweenness,
+                "top_neighbor": item.top_neighbor,
+                "top_neighbor_strength": item.top_neighbor_strength,
+            }
+            for item in graph.centrality
+        ],
     }
 
 

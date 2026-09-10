@@ -39,6 +39,7 @@ except ImportError:
     _HAS_CALENDAR = False
 from tabs import (
     crm,
+    crm_wells,
     forecast,
     formulas,
     losses,
@@ -316,6 +317,7 @@ TABS = [
     ("Телеметрия", telemetry),
     ("Прогноз закачки", forecast),
     ("Прогноз CRM", crm),
+    ("Прогноз по скважинам", crm_wells),
     ("Схема ППД", scheme),
     ("Карта потерь", losses),
     ("Рабочая точка", working_point),
