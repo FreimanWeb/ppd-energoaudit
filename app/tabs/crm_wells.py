@@ -250,8 +250,6 @@ def render(ctx: Ctx) -> None:
         ]
     else:
         run_code = runs[0]["code"]
-    run = next(item for item in runs if item["code"] == run_code)
-
     report = lib.crm_wells_report(ctx.object_id, run_code)
     if report is None:
         st.warning("Прогон не найден. Обновите страницу.")
@@ -261,8 +259,6 @@ def render(ctx: Ctx) -> None:
         return
 
     badges = [(f"Скважин: {len(report['wells'])}", "")]
-    if run["mode"] == "heldout":
-        badges.append(("Проверка на скрытых месяцах", "warn"))
     if not report["has_fact"]:
         badges.append(("Факта за период нет", "warn"))
     ui.provenance(*badges)
