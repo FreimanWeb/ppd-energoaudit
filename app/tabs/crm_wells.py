@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, datetime, time
 
 import altair as alt
 import lib
@@ -30,7 +30,7 @@ def _month_label(value: str) -> str:
 def _totals_frame(totals: list[dict]) -> pd.DataFrame:
     records = []
     for item in totals:
-        month = _month_label(item["month"])
+        month = datetime.combine(date.fromisoformat(item["month"]), time.min)
         records.append({"Месяц": month, "Объём": item["base"], "Ряд": SERIES[0]})
         records.append({"Месяц": month, "Объём": item["forecast"], "Ряд": SERIES[1]})
         if item["fact"] is not None:
@@ -38,25 +38,33 @@ def _totals_frame(totals: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def _window(totals: list[dict]) -> tuple[datetime, datetime]:
+    """Период графика: от начала первого месяца до конца последнего."""
+    months = [date.fromisoformat(item["month"]) for item in totals]
+    last = months[-1]
+    end = date(last.year + last.month // 12, last.month % 12 + 1, 1)
+    return datetime.combine(months[0], time.min), datetime.combine(end, time.min)
+
+
 def _downtime_marks(totals: list[dict], downtime: list[dict]) -> pd.DataFrame:
-    """Простои, начавшиеся внутри показанных месяцев, — по одной метке на месяц."""
-    months = {_month_label(item["month"]) for item in totals}
-    records: dict[str, list[str]] = {}
+    """Простои, начавшиеся внутри показанного периода, с точным моментом."""
+    first, end = _window(totals)
+    records = []
     for item in downtime:
         if not item["since"]:
             continue
-        label = date.fromisoformat(item["since"]).strftime("%m.%Y")
-        if label not in months:
+        moment = datetime.fromisoformat(item["since"])
+        if not first <= moment < end:
             continue
-        records.setdefault(label, []).append(
-            f"{item['well']} — {item['reason']} (с {date.fromisoformat(item['since']):%d.%m})"
+        records.append(
+            {
+                "Момент": moment,
+                "Скважина": item["well"],
+                "Причина": item["reason"],
+                "Начало": moment.strftime("%d.%m.%Y %H:%M"),
+            }
         )
-    return pd.DataFrame(
-        [
-            {"Месяц": label, "Простои": len(items), "Причины": "; ".join(sorted(items))}
-            for label, items in records.items()
-        ]
-    )
+    return pd.DataFrame(records)
 
 
 def _totals_section(report: dict, downtime: list[dict]) -> None:
@@ -73,9 +81,15 @@ def _totals_section(report: dict, downtime: list[dict]) -> None:
         deviation = (last["forecast"] - last["fact"]) / last["fact"] * 100.0
         columns[2].metric("Отклонение", f"{deviation:+.1f} %".replace(".", ","))
 
-    order = [_month_label(item["month"]) for item in totals]
+    first, end = _window(totals)
+    axis = alt.Axis(
+        format="%m.%Y",
+        values=[datetime.combine(date.fromisoformat(item["month"]), time.min) for item in totals],
+        labelAngle=0,
+    )
+    scale = alt.Scale(domain=[first, end])
     chart = alt.Chart(_totals_frame(totals)).mark_line(point=True).encode(
-        x=alt.X("Месяц:O", title=None, sort=order),
+        x=alt.X("Месяц:T", title=None, axis=axis, scale=scale),
         y=alt.Y("Объём:Q", title="Закачка, м³/мес"),
         color=alt.Color(
             "Ряд:N",
@@ -85,7 +99,11 @@ def _totals_section(report: dict, downtime: list[dict]) -> None:
                 range=[ui.PALETTE["water_dark"], ui.PALETTE["accent"], ui.PALETTE["ok"]],
             ),
         ),
-        tooltip=["Месяц:O", alt.Tooltip("Объём:Q", format=",.0f"), "Ряд:N"],
+        tooltip=[
+            alt.Tooltip("Месяц:T", title="Месяц", format="%m.%Y"),
+            alt.Tooltip("Объём:Q", format=",.0f"),
+            "Ряд:N",
+        ],
     )
 
     marks = _downtime_marks(totals, downtime)
@@ -93,28 +111,29 @@ def _totals_section(report: dict, downtime: list[dict]) -> None:
         rules = alt.Chart(marks).mark_rule(
             strokeDash=[4, 4], color=ui.PALETTE["bad"], strokeWidth=1.5
         ).encode(
-            x=alt.X("Месяц:O", sort=order),
-            tooltip=["Месяц:O", "Простои:Q", "Причины:N"],
+            x=alt.X("Момент:T", axis=axis, scale=scale),
+            tooltip=["Скважина:N", "Причина:N", "Начало:N"],
         )
         labels = alt.Chart(marks).mark_text(
-            align="left", dx=5, dy=-6, baseline="top", color=ui.PALETTE["bad"], fontSize=11
+            align="left", dx=4, dy=-4, baseline="top", color=ui.PALETTE["bad"], fontSize=10
         ).encode(
-            x=alt.X("Месяц:O", sort=order),
+            x=alt.X("Момент:T", axis=axis, scale=scale),
             y=alt.value(0),
-            text=alt.Text("Простои:Q", format="d"),
+            text="Скважина:N",
         )
-        chart = rules + labels + chart
+        chart = chart + rules + labels
 
     st.altair_chart(chart.properties(height=320), width="stretch")
     if not marks.empty:
         st.caption(
-            "Пунктир — месяц, в котором начался простой; число рядом — сколько скважин. "
-            "Наведите курсор, чтобы увидеть причины."
+            "Пунктир — момент, когда скважина встала; подпись — её номер. "
+            "Наведите курсор, чтобы увидеть причину. "
+            "Кривая помесячная: точка месяца поставлена на его первое число."
         )
 
 
 def _since(value: str | None) -> str:
-    return "" if not value else f"{date.fromisoformat(value):%d.%m.%Y}"
+    return "" if not value else f"{datetime.fromisoformat(value):%d.%m.%Y %H:%M}"
 
 
 def _numbers(rows: list[dict], key: str, scale: float = 1.0) -> list[float | None]:

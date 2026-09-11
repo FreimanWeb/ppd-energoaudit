@@ -460,7 +460,7 @@ def well_downtime(object_id: str) -> list[dict]:
         {
             "well": record.well,
             "reason": record.reason,
-            "since": record.since.isoformat() if record.since else None,
+            "since": record.since.isoformat(timespec="minutes") if record.since else None,
             "runtime_hours": record.runtime_hours,
         }
         for record in records

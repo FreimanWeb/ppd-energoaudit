@@ -35,7 +35,7 @@ class Downtime:
 
     well: str
     reason: str
-    since: date | None = None
+    since: datetime | None = None
     runtime_hours: float | None = None
 
 
@@ -48,11 +48,12 @@ def normalize_well(name: str) -> str:
     return str(name or "").strip().split("/")[0].strip()
 
 
-def _as_date(value: Any) -> date | None:
+def _as_datetime(value: Any) -> datetime | None:
+    """Момент начала простоя; в сводке он указан с точностью до минуты."""
     if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
         return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
     text = str(value or "").strip()
     if not text:
         return None
@@ -65,7 +66,7 @@ def _as_date(value: Any) -> date | None:
         "%d.%m.%Y",
     ):
         try:
-            return datetime.strptime(text, fmt).date()
+            return datetime.strptime(text, fmt)
         except ValueError:
             continue
     return None
@@ -119,7 +120,7 @@ def read_downtime(path: Path) -> list[Downtime]:
             Downtime(
                 well=well,
                 reason=reason,
-                since=_as_date(cell(row, SINCE_COLUMN)),
+                since=_as_datetime(cell(row, SINCE_COLUMN)),
                 runtime_hours=_as_float(cell(row, RUNTIME_COLUMN)),
             )
         )
@@ -141,7 +142,7 @@ def started_in(records: list[Downtime], first: date, last: date) -> list[Downtim
         (
             record
             for record in records
-            if record.since is not None and first <= record.since <= last
+            if record.since is not None and first <= record.since.date() <= last
         ),
         key=lambda record: (record.since, record.well),
     )

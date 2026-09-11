@@ -49,7 +49,7 @@ def test_reads_wells_with_a_reason(tmp_path):
 
     assert [r.well for r in records] == ["2031", "2161"]
     assert records[0].reason == "Перестрел пласта"
-    assert records[0].since == date(2026, 4, 1)
+    assert records[0].since == datetime(2026, 4, 1, 10, 55)
     assert records[1].runtime_hours == pytest.approx(432.0)
 
 
@@ -76,10 +76,10 @@ def test_bore_suffix_is_normalised_on_read(tmp_path):
     assert read_downtime(path)[0].well == "3592Д"
 
 
-def test_text_dates_are_accepted(tmp_path):
+def test_text_dates_keep_the_time(tmp_path):
     path = _book(tmp_path, [["8", "1", "2031", None, "Ремонт", "09.06.2026 12:20", 0]])
 
-    assert read_downtime(path)[0].since == date(2026, 6, 9)
+    assert read_downtime(path)[0].since == datetime(2026, 6, 9, 12, 20)
 
 
 def test_unreadable_date_becomes_none_not_an_error(tmp_path):
@@ -110,7 +110,7 @@ def test_column_order_is_taken_from_the_header(tmp_path):
 
     assert record.well == "2031"
     assert record.reason == "Перестрел пласта"
-    assert record.since == date(2026, 4, 1)
+    assert record.since == datetime(2026, 4, 1)
 
 
 def test_by_well_is_keyed_by_number():
@@ -121,9 +121,9 @@ def test_by_well_is_keyed_by_number():
 
 def test_started_in_keeps_only_the_window_and_sorts_by_date():
     records = [
-        Downtime("2163Н", "Консервация", date(2023, 6, 9)),
-        Downtime("2161", "Ожид.обвязки", date(2026, 6, 9)),
-        Downtime("2031", "Перестрел пласта", date(2026, 4, 1)),
+        Downtime("2163Н", "Консервация", datetime(2023, 6, 9)),
+        Downtime("2161", "Ожид.обвязки", datetime(2026, 6, 9, 12, 20)),
+        Downtime("2031", "Перестрел пласта", datetime(2026, 4, 1, 10, 55)),
         Downtime("2077", "Исследование", None),
     ]
     selected = started_in(records, date(2026, 4, 1), date(2026, 7, 31))
@@ -133,7 +133,7 @@ def test_started_in_keeps_only_the_window_and_sorts_by_date():
 
 def test_started_in_includes_both_edges():
     records = [
-        Downtime("a", "x", date(2026, 4, 1)),
-        Downtime("b", "x", date(2026, 7, 31)),
+        Downtime("a", "x", datetime(2026, 4, 1, 0, 5)),
+        Downtime("b", "x", datetime(2026, 7, 31, 23, 50)),
     ]
     assert len(started_in(records, date(2026, 4, 1), date(2026, 7, 31))) == 2
