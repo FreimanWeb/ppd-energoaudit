@@ -38,7 +38,28 @@ def _totals_frame(totals: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-def _totals_section(report: dict) -> None:
+def _downtime_marks(totals: list[dict], downtime: list[dict]) -> pd.DataFrame:
+    """Простои, начавшиеся внутри показанных месяцев, — по одной метке на месяц."""
+    months = {_month_label(item["month"]) for item in totals}
+    records: dict[str, list[str]] = {}
+    for item in downtime:
+        if not item["since"]:
+            continue
+        label = date.fromisoformat(item["since"]).strftime("%m.%Y")
+        if label not in months:
+            continue
+        records.setdefault(label, []).append(
+            f"{item['well']} — {item['reason']} (с {date.fromisoformat(item['since']):%d.%m})"
+        )
+    return pd.DataFrame(
+        [
+            {"Месяц": label, "Простои": len(items), "Причины": "; ".join(sorted(items))}
+            for label, items in records.items()
+        ]
+    )
+
+
+def _totals_section(report: dict, downtime: list[dict]) -> None:
     totals = report["totals"]
     last = totals[-1]
     columns = st.columns(3)
@@ -52,8 +73,9 @@ def _totals_section(report: dict) -> None:
         deviation = (last["forecast"] - last["fact"]) / last["fact"] * 100.0
         columns[2].metric("Отклонение", f"{deviation:+.1f} %".replace(".", ","))
 
+    order = [_month_label(item["month"]) for item in totals]
     chart = alt.Chart(_totals_frame(totals)).mark_line(point=True).encode(
-        x=alt.X("Месяц:O", title=None, sort=None),
+        x=alt.X("Месяц:O", title=None, sort=order),
         y=alt.Y("Объём:Q", title="Закачка, м³/мес"),
         color=alt.Color(
             "Ряд:N",
@@ -65,7 +87,34 @@ def _totals_section(report: dict) -> None:
         ),
         tooltip=["Месяц:O", alt.Tooltip("Объём:Q", format=",.0f"), "Ряд:N"],
     )
+
+    marks = _downtime_marks(totals, downtime)
+    if not marks.empty:
+        rules = alt.Chart(marks).mark_rule(
+            strokeDash=[4, 4], color=ui.PALETTE["bad"], strokeWidth=1.5
+        ).encode(
+            x=alt.X("Месяц:O", sort=order),
+            tooltip=["Месяц:O", "Простои:Q", "Причины:N"],
+        )
+        labels = alt.Chart(marks).mark_text(
+            align="left", dx=5, dy=-6, baseline="top", color=ui.PALETTE["bad"], fontSize=11
+        ).encode(
+            x=alt.X("Месяц:O", sort=order),
+            y=alt.value(0),
+            text=alt.Text("Простои:Q", format="d"),
+        )
+        chart = rules + labels + chart
+
     st.altair_chart(chart.properties(height=320), width="stretch")
+    if not marks.empty:
+        st.caption(
+            "Пунктир — месяц, в котором начался простой; число рядом — сколько скважин. "
+            "Наведите курсор, чтобы увидеть причины."
+        )
+
+
+def _since(value: str | None) -> str:
+    return "" if not value else f"{date.fromisoformat(value):%d.%m.%Y}"
 
 
 def _numbers(rows: list[dict], key: str, scale: float = 1.0) -> list[float | None]:
@@ -89,7 +138,7 @@ def _texts(rows: list[dict], key: str, digits: int = 0, sign: bool = False) -> l
     return out
 
 
-def _wells_section(ctx: Ctx, report: dict) -> None:
+def _wells_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
     months = report["months"]
     month = st.selectbox(
         "Месяц",
@@ -99,6 +148,7 @@ def _wells_section(ctx: Ctx, report: dict) -> None:
         key=f"crm-wells-month-{ctx.object_id}",
     )
     rows = [row for row in report["rows"] if row["month"] == month]
+    reasons = {lib.well_key(item["well"]): item for item in downtime}
     frame = pd.DataFrame(
         {
             "Скважина": [row["well"] for row in rows],
@@ -107,6 +157,13 @@ def _wells_section(ctx: Ctx, report: dict) -> None:
             "Отклонение, %": _texts(rows, "deviation", digits=1, sign=True),
             "Доля, %": _numbers(rows, "share", scale=100.0),
             "Руст, атм": _numbers(rows, "r_ust"),
+            "Причина простоя": [
+                reasons.get(lib.well_key(row["well"]), {}).get("reason", "") for row in rows
+            ],
+            "Простой с": [
+                _since(reasons.get(lib.well_key(row["well"]), {}).get("since"))
+                for row in rows
+            ],
         }
     )
     st.dataframe(
@@ -121,7 +178,9 @@ def _wells_section(ctx: Ctx, report: dict) -> None:
     )
 
 
-def _graph_figure(wells: list[str], edges: list[dict], selected: str) -> go.Figure:
+def _graph_figure(
+    wells: list[str], edges: list[dict], selected: str, idle: set[str]
+) -> go.Figure:
     """Скважины по кругу; линия — связь, толщина — сила влияния."""
     positions = {
         well: (
@@ -165,7 +224,9 @@ def _graph_figure(wells: list[str], edges: list[dict], selected: str) -> go.Figu
             text=wells,
             textposition="middle center",
             textfont={"size": 9, "color": "#111827"},
-            hovertext=wells,
+            hovertext=[
+                f"{w} — простой: {idle[w]}" if w in idle else w for w in wells
+            ],
             hoverinfo="text",
             showlegend=False,
             marker={
@@ -174,11 +235,15 @@ def _graph_figure(wells: list[str], edges: list[dict], selected: str) -> go.Figu
                     "#cfe0f7" if w == selected else ("#eef2f7" if w in linked else "#ffffff")
                     for w in wells
                 ],
+                "symbol": ["square" if w in idle else "circle" for w in wells],
                 "line": {
                     "color": [
-                        ui.PALETTE["primary"] if w == selected else "#d1d5db" for w in wells
+                        ui.PALETTE["primary"]
+                        if w == selected
+                        else (ui.PALETTE["bad"] if w in idle else "#d1d5db")
+                        for w in wells
                     ],
-                    "width": [2 if w == selected else 1 for w in wells],
+                    "width": [2 if w == selected or w in idle else 1 for w in wells],
                 },
             },
         )
@@ -194,7 +259,7 @@ def _graph_figure(wells: list[str], edges: list[dict], selected: str) -> go.Figu
     return figure
 
 
-def _graph_section(ctx: Ctx, report: dict, graph: dict) -> None:
+def _graph_section(ctx: Ctx, report: dict, graph: dict, downtime: list[dict]) -> None:
     if not graph or not graph["edges"]:
         st.caption("Связи скважин в этом прогоне не сохранены.")
         return
@@ -205,10 +270,16 @@ def _graph_section(ctx: Ctx, report: dict, graph: dict) -> None:
         "Скважина", wells, key=f"crm-wells-graph-{ctx.object_id}"
     )
 
+    keys = {lib.well_key(well): well for well in wells}
+    idle = {
+        keys[lib.well_key(item["well"])]: item["reason"]
+        for item in downtime
+        if lib.well_key(item["well"]) in keys
+    }
     left, right = st.columns([1.6, 1])
     with left:
         st.plotly_chart(
-            _graph_figure(wells, graph["edges"], selected),
+            _graph_figure(wells, graph["edges"], selected, idle),
             width="stretch",
             config={"displayModeBar": False},
         )
@@ -263,11 +334,17 @@ def render(ctx: Ctx) -> None:
         badges.append(("Факта за период нет", "warn"))
     ui.provenance(*badges)
 
-    _totals_section(report)
+    downtime = lib.well_downtime(ctx.object_id)
+    _totals_section(report, downtime)
     st.divider()
     st.markdown("**Закачка по скважинам**")
-    _wells_section(ctx, report)
+    _wells_section(ctx, report, downtime)
     st.divider()
     st.markdown("**Взаимовлияние скважин**")
-    st.caption("Линия — связь по данным модели, толщина — сила влияния.")
-    _graph_section(ctx, report, lib.crm_wells_graph(ctx.object_id, run_code, EDGE_LIMIT))
+    st.caption(
+        "Линия — связь по данным модели, толщина — сила влияния. "
+        "Квадрат в красной рамке — скважина с причиной простоя."
+    )
+    _graph_section(
+        ctx, report, lib.crm_wells_graph(ctx.object_id, run_code, EDGE_LIMIT), downtime
+    )

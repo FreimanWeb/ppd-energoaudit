@@ -49,6 +49,12 @@ from ppd_audit.ingest.crm_wells import (  # noqa: E402
     read_graph as read_wells_graph,
     read_report as read_wells_report,
 )
+from ppd_audit.ingest.downtime import (  # noqa: E402
+    DOWNTIME_DIRNAME,
+    DowntimeError,
+    normalize_well,
+    read_downtime,
+)
 from ppd_audit.ingest.scada_txt import ScadaMapping  # noqa: E402
 from ppd_audit.measures.economics import (  # noqa: E402
     DEFAULT_HORIZON_YEARS,
@@ -77,6 +83,7 @@ TELEMETRY_DIR = _ROOT / "data" / DEFAULT_TELEMETRY_DIRNAME
 SCADA_DIR = TELEMETRY_DIR / DEFAULT_SCADA_DIRNAME
 SCADA_TAGS = _ROOT / "config" / SCADA_TAGS_CONFIG
 CRM_DIR = _ROOT / "data" / CRM_DIRNAME
+DOWNTIME_DIR = _ROOT / "data" / DOWNTIME_DIRNAME
 
 
 @st.cache_resource(show_spinner="Первый запуск: читаем паспорта и выгрузки телеметрии…")
@@ -431,6 +438,33 @@ def crm_wells_graph(object_id: str, run_code: str, edge_limit: int = 60) -> dict
             for item in graph.centrality
         ],
     }
+
+
+def well_key(name: str) -> str:
+    """Ключ сопоставления скважины между сводкой простоев и выгрузкой CRM.
+
+    В одном источнике скважина записана как «3592Д», в другом — «3592Д/2»:
+    хвост после косой черты означает ствол, и по нему ряды расходятся.
+    """
+    return normalize_well(name)
+
+
+@st.cache_data(show_spinner=False)
+def well_downtime(object_id: str) -> list[dict]:
+    """Причины простоев скважин объекта из промысловой сводки."""
+    try:
+        records = read_downtime(DOWNTIME_DIR / f"{object_id}.xlsx")
+    except DowntimeError:
+        return []
+    return [
+        {
+            "well": record.well,
+            "reason": record.reason,
+            "since": record.since.isoformat() if record.since else None,
+            "runtime_hours": record.runtime_hours,
+        }
+        for record in records
+    ]
 
 
 def injection_profile(
