@@ -141,3 +141,18 @@ def test_long_run_does_not_blow_up_coordinates():
     positions = spring_layout(nodes, edges, iterations=1000)
 
     assert all(abs(x) <= 1.001 and abs(y) <= 1.001 for x, y in positions.values())
+
+
+def test_a_disconnected_node_does_not_squash_the_rest():
+    """Узел без связей уезжал далеко и растягивал масштаб: остальные схлопывались."""
+    core = ["a", "b", "c", "d", "e", "f"]
+    nodes = [*core, "одинокая"]
+    edges = [(first, second, 0.6) for first in core for second in core if first < second]
+    positions = spring_layout(nodes, edges)
+
+    spread = [
+        _distance(positions, first, second)
+        for index, first in enumerate(core)
+        for second in core[index + 1 :]
+    ]
+    assert min(spread) > 0.1

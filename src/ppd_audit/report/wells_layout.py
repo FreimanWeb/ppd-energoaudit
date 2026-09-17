@@ -22,7 +22,12 @@ MIN_DISTANCE = 1e-4
 # Отталкивание против притяжения. Связей рисуется много, и при равном балансе
 # всё стягивается в один комок: узлы налезают друг на друга и подписи не читаются.
 REPULSION = 2.2
-ATTRACTION_BASE = 0.08
+ATTRACTION_BASE = 0.05
+
+# Притяжение к центру. Без него узел без связей толкается наружу каждый шаг и
+# улетает сколь угодно далеко: он один растягивает масштаб, а весь остальной
+# граф схлопывается в точку. Гравитация держит такие узлы на краю картинки.
+GRAVITY = 1.4
 
 
 def _circle(nodes: Sequence[str]) -> dict[str, list[float]]:
@@ -102,6 +107,8 @@ def spring_layout(
             shift[target][1] += dy / distance * force
 
         for node in nodes:
+            shift[node][0] -= positions[node][0] * GRAVITY
+            shift[node][1] -= positions[node][1] * GRAVITY
             dx, dy = shift[node]
             step = max(math.hypot(dx, dy), MIN_DISTANCE)
             limit = min(step, temperature)
