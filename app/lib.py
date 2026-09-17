@@ -411,17 +411,12 @@ def crm_wells_graph(object_id: str, run_code: str, edge_limit: int = 60) -> dict
     graph = read_wells_graph(run)
     return {
         "edges": [
-            {
-                "source": edge.source,
-                "target": edge.target,
-                "strength": edge.strength,
-                "signed": edge.signed,
-            }
+            {"source": edge.source, "target": edge.target, "strength": edge.strength}
             for edge in graph.strongest(edge_limit)
         ],
         "by_well": {
             well: [
-                {"target": edge.target, "strength": edge.strength, "signed": edge.signed}
+                {"target": edge.target, "strength": edge.strength}
                 for edge in graph.neighbours(well)
             ]
             for well in {edge.source for edge in graph.edges}

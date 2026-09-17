@@ -117,9 +117,11 @@ span[data-baseweb="tag"] span[role="presentation"] svg{ fill:#4b5563; }
 """
 
 
-# Расходящаяся шкала: синий — одна сторона, красный — другая, серый в нуле.
-# Пара проверена на различимость, в том числе при дальтонизме.
-DIVERGING = ("#d9534f", "#e5e7eb", "#2f80ed")
+# Шкала силы: зелёный — слабая, красный — сильная. Светлота падает от начала
+# к концу, поэтому порядок читается и при дальтонизме, и в чёрно-белой печати.
+# Жёлтый сдвинут к 0,55: слабых связей большинство, и на равномерной шкале
+# почти всё сливалось бы в жёлтый.
+SEQUENTIAL = ((0.0, "#3f9e63"), (0.55, "#e0a106"), (1.0, "#b3372f"))
 
 
 def _mix(first: str, second: str, weight: float) -> str:
@@ -130,13 +132,16 @@ def _mix(first: str, second: str, weight: float) -> str:
     return "#" + "".join(f"{part:02x}" for part in parts)
 
 
-def diverging_color(value: float, limit: float) -> str:
-    """Цвет знакового значения: насыщенность — модуль, оттенок — знак."""
+def strength_color(value: float, limit: float) -> str:
+    """Цвет величины: от зелёного на слабых к красному на сильных."""
     if limit <= 0:
-        return DIVERGING[1]
-    share = min(abs(value) / limit, 1.0)
-    pole = DIVERGING[2] if value >= 0 else DIVERGING[0]
-    return _mix(DIVERGING[1], pole, share)
+        return SEQUENTIAL[0][1]
+    share = min(max(value, 0.0) / limit, 1.0)
+    for (left, first), (right, second) in zip(SEQUENTIAL, SEQUENTIAL[1:], strict=False):
+        if share <= right:
+            span = right - left
+            return _mix(first, second, (share - left) / span if span else 0.0)
+    return SEQUENTIAL[-1][1]
 
 
 def inject_css() -> None:

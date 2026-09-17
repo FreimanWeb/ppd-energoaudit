@@ -188,24 +188,24 @@ def test_graph_is_empty_when_files_are_absent(tmp_path):
 
 def test_neighbours_are_sorted_by_strength():
     graph = WellsGraph(edges=(
-        Edge("2015", "2017", 0.3, 0.1),
-        Edge("2015", "2019", 0.8, -0.2),
-        Edge("2077", "2015", 0.9, 0.4),
+        Edge("2015", "2017", 0.3),
+        Edge("2015", "2019", 0.8),
+        Edge("2077", "2015", 0.9),
     ))
     assert [e.target for e in graph.neighbours("2015")] == ["2019", "2017"]
 
 
 def test_neighbours_respect_the_limit():
-    edges = tuple(Edge("2015", str(i), i / 10, 0.1) for i in range(1, 8))
+    edges = tuple(Edge("2015", str(i), i / 10) for i in range(1, 8))
     assert len(WellsGraph(edges=edges).neighbours("2015", limit=3)) == 3
 
 
 def test_strongest_drops_the_mirror_edge():
     """Пайплайн пишет связь дважды — в обе стороны; на схеме нужна одна линия."""
     graph = WellsGraph(edges=(
-        Edge("2162", "2163", 0.82, 0.29),
-        Edge("2163", "2162", 0.82, 0.26),
-        Edge("2165", "2166", 0.73, 0.26),
+        Edge("2162", "2163", 0.82),
+        Edge("2163", "2162", 0.82),
+        Edge("2165", "2166", 0.73),
     ))
     strongest = graph.strongest()
 
@@ -217,5 +217,5 @@ def test_strongest_drops_the_mirror_edge():
 
 
 def test_strongest_respects_the_limit():
-    edges = tuple(Edge(str(i), str(i + 100), i / 100, 0.1) for i in range(1, 20))
+    edges = tuple(Edge(str(i), str(i + 100), i / 100) for i in range(1, 20))
     assert len(WellsGraph(edges=edges).strongest(limit=5)) == 5

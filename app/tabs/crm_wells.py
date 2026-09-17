@@ -223,16 +223,14 @@ def _wells_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
     )
 
 
-def _edge_value(edge: dict) -> float:
-    """Знаковая сила связи: модуль — сила, знак — направление влияния."""
-    return -edge["strength"] if edge["signed"] < 0 else edge["strength"]
-
-
 def _graph_figure(
-    wells: list[str], edges: list[dict], selected: str, idle: set[str]
+    wells: list[str], edges: list[dict], selected: str, idle: set[str], limit: float
 ) -> go.Figure:
-    """Скважины по кругу; цвет и толщина линии — сила и знак связи."""
-    limit = max((edge["strength"] for edge in edges), default=0.0)
+    """Скважины по кругу; цвет и толщина линии — сила связи выбранной скважины.
+
+    Шкала своя у каждой скважины: у одних сильнейшая связь 0,8, у других 0,2,
+    и общая шкала красила бы половину объектов в один оттенок.
+    """
     positions = {
         well: (
             math.cos(2 * math.pi * index / len(wells)),
@@ -260,9 +258,11 @@ def _graph_figure(
                 mode="lines",
                 hoverinfo="skip",
                 showlegend=False,
-                opacity=1.0 if touches else 0.35,
+                opacity=1.0 if touches else 0.45,
                 line={
-                    "color": ui.diverging_color(_edge_value(edge), limit),
+                    "color": (
+                        ui.strength_color(edge["strength"], limit) if touches else "#e5e7eb"
+                    ),
                     "width": 1.0 + 3.0 * edge["strength"] if touches else 0.9,
                 },
             )
@@ -308,12 +308,8 @@ def _graph_figure(
             hoverinfo="skip",
             showlegend=False,
             marker={
-                "colorscale": [
-                    [0.0, ui.DIVERGING[0]],
-                    [0.5, ui.DIVERGING[1]],
-                    [1.0, ui.DIVERGING[2]],
-                ],
-                "cmin": -limit,
+                "colorscale": [list(stop) for stop in ui.SEQUENTIAL],
+                "cmin": 0.0,
                 "cmax": limit,
                 "color": [0],
                 "showscale": True,
@@ -323,8 +319,8 @@ def _graph_figure(
                     "x": 0.5,
                     "thickness": 8,
                     "len": 0.55,
-                    "tickvals": [-limit, 0, limit],
-                    "ticktext": ["встречно", "нет", "совместно"],
+                    "tickvals": [0.0, limit],
+                    "ticktext": ["слабая", f"сильная ({limit:.2f})".replace(".", ",")],
                     "tickfont": {"size": 10},
                     "outlinewidth": 0,
                 },
@@ -353,6 +349,8 @@ def _graph_section(ctx: Ctx, report: dict, graph: dict, downtime: list[dict]) ->
         "Скважина", wells, key=f"crm-wells-graph-{ctx.object_id}"
     )
 
+    neighbours = graph["by_well"].get(selected, [])
+    limit = max((item["strength"] for item in neighbours), default=0.0)
     keys = {lib.well_key(well): well for well in wells}
     idle = {
         keys[lib.well_key(item["well"])]: item["reason"]
@@ -362,18 +360,16 @@ def _graph_section(ctx: Ctx, report: dict, graph: dict, downtime: list[dict]) ->
     left, right = st.columns([1.6, 1])
     with left:
         st.plotly_chart(
-            _graph_figure(wells, graph["edges"], selected, idle),
+            _graph_figure(wells, graph["edges"], selected, idle, limit),
             width="stretch",
             config={"displayModeBar": False},
         )
     with right:
-        neighbours = graph["by_well"].get(selected, [])
         if not neighbours:
             st.caption("У этой скважины нет сохранённых связей.")
             return
         st.markdown(f"**Связи скважины {selected}**")
-        limit = max((item["strength"] for item in neighbours), default=0.0)
-        colors = [ui.diverging_color(_edge_value(item), limit) for item in neighbours]
+        colors = [ui.strength_color(item["strength"], limit) for item in neighbours]
         frame = pd.DataFrame(
             {
                 "Скважина": [item["target"] for item in neighbours],

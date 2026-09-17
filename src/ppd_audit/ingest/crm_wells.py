@@ -98,12 +98,11 @@ class MonthTotals:
 
 @dataclass(frozen=True)
 class Edge:
-    """Связь двух скважин: сила и знак взаимовлияния."""
+    """Связь двух скважин: сила взаимовлияния."""
 
     source: str
     target: str
     strength: float
-    signed: float
 
 
 @dataclass(frozen=True)
@@ -278,7 +277,6 @@ def read_graph(run: WellRun) -> WellsGraph:
                     source=source,
                     target=target,
                     strength=parse_value(record.get("combined_strength")) or 0.0,
-                    signed=parse_value(record.get("combined_signed")) or 0.0,
                 )
             )
 
