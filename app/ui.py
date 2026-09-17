@@ -117,6 +117,28 @@ span[data-baseweb="tag"] span[role="presentation"] svg{ fill:#4b5563; }
 """
 
 
+# Расходящаяся шкала: синий — одна сторона, красный — другая, серый в нуле.
+# Пара проверена на различимость, в том числе при дальтонизме.
+DIVERGING = ("#d9534f", "#e5e7eb", "#2f80ed")
+
+
+def _mix(first: str, second: str, weight: float) -> str:
+    """Смешать два цвета: weight=0 — первый, weight=1 — второй."""
+    a = tuple(int(first[index : index + 2], 16) for index in (1, 3, 5))
+    b = tuple(int(second[index : index + 2], 16) for index in (1, 3, 5))
+    parts = (round(x + (y - x) * weight) for x, y in zip(a, b, strict=True))
+    return "#" + "".join(f"{part:02x}" for part in parts)
+
+
+def diverging_color(value: float, limit: float) -> str:
+    """Цвет знакового значения: насыщенность — модуль, оттенок — знак."""
+    if limit <= 0:
+        return DIVERGING[1]
+    share = min(abs(value) / limit, 1.0)
+    pole = DIVERGING[2] if value >= 0 else DIVERGING[0]
+    return _mix(DIVERGING[1], pole, share)
+
+
 def inject_css() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 

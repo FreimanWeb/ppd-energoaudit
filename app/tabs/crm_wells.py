@@ -21,10 +21,27 @@ from tabs.common import Ctx, fmt
 
 SERIES = ("Базовый прогноз", "Сценарий", "Факт")
 EDGE_LIMIT = 60
+ALL_WELLS = "Все скважины (сумма)"
 
 
 def _month_label(value: str) -> str:
     return date.fromisoformat(value).strftime("%m.%Y")
+
+
+def _series(report: dict, well: str | None) -> list[dict]:
+    """Помесячный ряд: сумма по объекту либо одна скважина."""
+    if well is None:
+        return report["totals"]
+    return [
+        {
+            "month": row["month"],
+            "base": row["base"] or 0.0,
+            "forecast": row["forecast"] or 0.0,
+            "fact": row["fact"],
+        }
+        for row in report["rows"]
+        if row["well"] == well
+    ]
 
 
 def _totals_frame(totals: list[dict]) -> pd.DataFrame:
@@ -67,8 +84,23 @@ def _downtime_marks(totals: list[dict], downtime: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-def _totals_section(report: dict, downtime: list[dict]) -> None:
-    totals = report["totals"]
+def _totals_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
+    choice = st.selectbox(
+        "Показатель",
+        [ALL_WELLS, *report["wells"]],
+        key=f"crm-wells-series-{ctx.object_id}",
+    )
+    well = None if choice == ALL_WELLS else choice
+    totals = _series(report, well)
+    if not totals:
+        st.info("За этот период по скважине нет строк.")
+        return
+
+    marks_source = (
+        downtime
+        if well is None
+        else [item for item in downtime if lib.well_key(item["well"]) == lib.well_key(well)]
+    )
     last = totals[-1]
     columns = st.columns(3)
     columns[0].metric(
@@ -106,7 +138,7 @@ def _totals_section(report: dict, downtime: list[dict]) -> None:
         ],
     )
 
-    marks = _downtime_marks(totals, downtime)
+    marks = _downtime_marks(totals, marks_source)
     if not marks.empty:
         rules = alt.Chart(marks).mark_rule(
             strokeDash=[4, 4], color=ui.PALETTE["bad"], strokeWidth=1.5
@@ -124,12 +156,6 @@ def _totals_section(report: dict, downtime: list[dict]) -> None:
         chart = chart + rules + labels
 
     st.altair_chart(chart.properties(height=320), width="stretch")
-    if not marks.empty:
-        st.caption(
-            "Пунктир — момент, когда скважина встала; подпись — её номер. "
-            "Наведите курсор, чтобы увидеть причину. "
-            "Кривая помесячная: точка месяца поставлена на его первое число."
-        )
 
 
 def _since(value: str | None) -> str:
@@ -197,10 +223,16 @@ def _wells_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
     )
 
 
+def _edge_value(edge: dict) -> float:
+    """Знаковая сила связи: модуль — сила, знак — направление влияния."""
+    return -edge["strength"] if edge["signed"] < 0 else edge["strength"]
+
+
 def _graph_figure(
     wells: list[str], edges: list[dict], selected: str, idle: set[str]
 ) -> go.Figure:
-    """Скважины по кругу; линия — связь, толщина — сила влияния."""
+    """Скважины по кругу; цвет и толщина линии — сила и знак связи."""
+    limit = max((edge["strength"] for edge in edges), default=0.0)
     positions = {
         well: (
             math.cos(2 * math.pi * index / len(wells)),
@@ -228,9 +260,10 @@ def _graph_figure(
                 mode="lines",
                 hoverinfo="skip",
                 showlegend=False,
+                opacity=1.0 if touches else 0.35,
                 line={
-                    "color": ui.PALETTE["accent"] if touches else "#e5e7eb",
-                    "width": 1.0 + 2.5 * edge["strength"] if touches else 0.8,
+                    "color": ui.diverging_color(_edge_value(edge), limit),
+                    "width": 1.0 + 3.0 * edge["strength"] if touches else 0.9,
                 },
             )
         )
@@ -259,7 +292,7 @@ def _graph_figure(
                     "color": [
                         ui.PALETTE["primary"]
                         if w == selected
-                        else (ui.PALETTE["bad"] if w in idle else "#d1d5db")
+                        else (ui.PALETTE["muted"] if w in idle else "#d1d5db")
                         for w in wells
                     ],
                     "width": [2 if w == selected or w in idle else 1 for w in wells],
@@ -267,9 +300,40 @@ def _graph_figure(
             },
         )
     )
+    figure.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            hoverinfo="skip",
+            showlegend=False,
+            marker={
+                "colorscale": [
+                    [0.0, ui.DIVERGING[0]],
+                    [0.5, ui.DIVERGING[1]],
+                    [1.0, ui.DIVERGING[2]],
+                ],
+                "cmin": -limit,
+                "cmax": limit,
+                "color": [0],
+                "showscale": True,
+                "colorbar": {
+                    "orientation": "h",
+                    "y": -0.02,
+                    "x": 0.5,
+                    "thickness": 8,
+                    "len": 0.55,
+                    "tickvals": [-limit, 0, limit],
+                    "ticktext": ["встречно", "нет", "совместно"],
+                    "tickfont": {"size": 10},
+                    "outlinewidth": 0,
+                },
+            },
+        )
+    )
     figure.update_layout(
         height=460,
-        margin={"l": 10, "r": 10, "t": 10, "b": 10},
+        margin={"l": 10, "r": 10, "t": 10, "b": 44},
         plot_bgcolor="#ffffff",
         paper_bgcolor="#ffffff",
         xaxis={"visible": False, "range": [-1.25, 1.25]},
@@ -308,20 +372,21 @@ def _graph_section(ctx: Ctx, report: dict, graph: dict, downtime: list[dict]) ->
             st.caption("У этой скважины нет сохранённых связей.")
             return
         st.markdown(f"**Связи скважины {selected}**")
+        limit = max((item["strength"] for item in neighbours), default=0.0)
+        colors = [ui.diverging_color(_edge_value(item), limit) for item in neighbours]
+        frame = pd.DataFrame(
+            {
+                "Скважина": [item["target"] for item in neighbours],
+                "Сила": [item["strength"] for item in neighbours],
+            }
+        )
         st.dataframe(
-            pd.DataFrame(
-                {
-                    "Скважина": [item["target"] for item in neighbours],
-                    "Сила": [item["strength"] for item in neighbours],
-                    "Знак": [
-                        "совместно" if item["signed"] >= 0 else "встречно"
-                        for item in neighbours
-                    ],
-                }
+            frame.style.format({"Сила": "{:.2f}"}).apply(
+                lambda _: [f"background-color: {color}" for color in colors],
+                subset=["Сила"],
             ),
             width="stretch",
             hide_index=True,
-            column_config={"Сила": st.column_config.NumberColumn(format="%.2f")},
         )
 
 
@@ -354,16 +419,13 @@ def render(ctx: Ctx) -> None:
     ui.provenance(*badges)
 
     downtime = lib.well_downtime(ctx.object_id)
-    _totals_section(report, downtime)
+    _totals_section(ctx, report, downtime)
     st.divider()
     st.markdown("**Закачка по скважинам**")
     _wells_section(ctx, report, downtime)
     st.divider()
     st.markdown("**Взаимовлияние скважин**")
-    st.caption(
-        "Линия — связь по данным модели, толщина — сила влияния. "
-        "Квадрат в красной рамке — скважина с причиной простоя."
-    )
+    st.caption("Цвет и толщина — сила связи; квадрат — скважина с причиной простоя.")
     _graph_section(
         ctx, report, lib.crm_wells_graph(ctx.object_id, run_code, EDGE_LIMIT), downtime
     )
