@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import math
 from datetime import date, datetime, time
 
 import altair as alt
@@ -16,6 +15,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import ui
 
+from ppd_audit.report.wells_layout import spring_layout
 from tabs.common import Ctx, fmt
 
 
@@ -226,18 +226,14 @@ def _wells_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
 def _graph_figure(
     wells: list[str], edges: list[dict], selected: str, idle: set[str], limit: float
 ) -> go.Figure:
-    """Скважины по кругу; цвет и толщина линии — сила связи выбранной скважины.
+    """Граф связей: раскладка силами, цвет и толщина — сила связи.
 
     Шкала своя у каждой скважины: у одних сильнейшая связь 0,8, у других 0,2,
     и общая шкала красила бы половину объектов в один оттенок.
     """
-    positions = {
-        well: (
-            math.cos(2 * math.pi * index / len(wells)),
-            math.sin(2 * math.pi * index / len(wells)),
-        )
-        for index, well in enumerate(wells)
-    }
+    positions = spring_layout(
+        wells, [(edge["source"], edge["target"], edge["strength"]) for edge in edges]
+    )
     linked = {
         edge["target"] if edge["source"] == selected else edge["source"]
         for edge in edges
@@ -274,7 +270,7 @@ def _graph_figure(
             y=[positions[w][1] for w in wells],
             mode="markers+text",
             text=wells,
-            textposition="middle center",
+            textposition="bottom center",
             textfont={"size": 9, "color": "#111827"},
             hovertext=[
                 f"{w} — простой: {idle[w]}" if w in idle else w for w in wells
@@ -282,7 +278,7 @@ def _graph_figure(
             hoverinfo="text",
             showlegend=False,
             marker={
-                "size": 26,
+                "size": [18 if w == selected else 13 for w in wells],
                 "color": [
                     "#cfe0f7" if w == selected else ("#eef2f7" if w in linked else "#ffffff")
                     for w in wells
@@ -328,12 +324,12 @@ def _graph_figure(
         )
     )
     figure.update_layout(
-        height=460,
+        height=560,
         margin={"l": 10, "r": 10, "t": 10, "b": 44},
         plot_bgcolor="#ffffff",
         paper_bgcolor="#ffffff",
-        xaxis={"visible": False, "range": [-1.25, 1.25]},
-        yaxis={"visible": False, "range": [-1.25, 1.25], "scaleanchor": "x"},
+        xaxis={"visible": False, "range": [-1.15, 1.15]},
+        yaxis={"visible": False, "range": [-1.15, 1.15], "scaleanchor": "x"},
     )
     return figure
 
