@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 
-_TEST_DB = Path(tempfile.gettempdir()) / "ppd-audit-tests.sqlite"
+_TEST_DB = Path(tempfile.gettempdir()) / f"ppd-audit-tests-{os.getpid()}.sqlite"
 _TEST_DB.unlink(missing_ok=True)
 
 os.environ.setdefault("PPD_DATABASE_PATH", str(_TEST_DB))

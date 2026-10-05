@@ -6,26 +6,14 @@ from datetime import date, datetime, time, timedelta
 
 import altair as alt
 import lib
-import pandas as pd
 import streamlit as st
 import ui
 
-from ppd_audit.services.telemetry_series import telemetry_series
+from ppd_audit.services.telemetry_series import (
+    reduce_pressure_points as _reduce_pressure_points,
+    telemetry_series,
+)
 from tabs.common import Ctx
-
-
-def _reduce_pressure_points(frame: pd.DataFrame) -> pd.DataFrame:
-    """Сохранить границы и экстремумы каждой минуты для каждого показателя."""
-    points = frame.assign(_bucket=frame["Время"].dt.floor("min"))
-    groups = points.groupby(["Показатель", "_bucket"], group_keys=False)
-    extreme_indices = pd.concat([groups["Значение"].idxmin(), groups["Значение"].idxmax()])
-    return (
-        pd.concat([groups.head(1), points.loc[extreme_indices], groups.tail(1)])
-        .drop_duplicates(subset=["Показатель", "Время"])
-        .sort_values(["Показатель", "Время"])
-        .drop(columns="_bucket")
-        .reset_index(drop=True)
-    )
 
 
 def _line_chart(frame, *, day: date | None = None, pressure: bool = False):
@@ -42,7 +30,8 @@ def _line_chart(frame, *, day: date | None = None, pressure: bool = False):
             ]
         )
     return (
-        alt.Chart(frame)
+        alt
+        .Chart(frame)
         .mark_line(point=True, interpolate="step-after" if pressure else "linear")
         .encode(
             x=x,

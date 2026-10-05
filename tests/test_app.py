@@ -11,6 +11,7 @@ import pytest
 
 
 pytest.importorskip("streamlit")
+from app_fixture import app_database  # noqa: F401
 from streamlit.testing.v1 import AppTest
 
 
@@ -85,19 +86,52 @@ def test_snapshot_is_single_page_without_telemetry_fallback():
 
 
 def test_analysis_and_snapshot_share_the_latest_pressure_snapshot():
-    main = Path(APP).read_text(encoding="utf-8")
-    snapshot = Path("app/tabs/snapshot.py").read_text(encoding="utf-8")
+    at = _analysis_app()
+    assert not at.exception
+    selector = next(item for item in at.selectbox if item.label == "Показатель давления")
+    assert selector.value == "2025-06-01T23:30:00"
+    assert at.session_state["snapshot-kns54an-НА-2-2025-06-01"] == selector.value
+    for index, pressure in ((len(selector.options) - 1, "10,500"), (0, "10,400")):
+        selector.select_index(index).run()
+        selector = next(item for item in at.selectbox if item.label == "Показатель давления")
+        timestamp = selector.value
+        pressure_metric = next(item for item in at.metric if item.label == "p_вых, МПа")
+        assert pressure_metric.value == pressure
+        overview_table = next(
+            item.value
+            for item in at.dataframe
+            if "Параметр" in item.value.columns and "p_вых, МПа" in item.value["Параметр"].values
+        )
+        row = overview_table.loc[overview_table["Параметр"] == "p_вых, МПа"]
+        assert row.iloc[0]["Значение"] == pressure
+        assert at.session_state["snapshot-kns54an-НА-2-2025-06-01"] == timestamp
 
-    assert "st.session_state.setdefault(snapshot_key, snapshots[-1].timestamp.isoformat())" in main
-    assert "lib.get_snapshot_audit(" in main
-    assert "snapshot_key = lib.snapshot_selection_key(" in snapshot
+
+def _analysis_app() -> AppTest:
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    at.selectbox[1].set_value("НА-2").run()
+    at.session_state["telemetry-date-kns54an-НА-2-picker"] = {
+        "selected_date": "2025-06-01",
+        "visible_month": "2025-06",
+    }
+    return at.run()
 
 
 def test_fallback_scheme_draws_each_aggregate_as_a_parallel_branch():
-    source = Path("app/tabs/scheme.py").read_text(encoding="utf-8")
+    from xml.etree import ElementTree
 
-    assert "aggregates = ctx.obj.aggregates" in source
-    assert "параллельные ветви НА" in source
+    at = _analysis_app()
+    assert not at.exception
+    content = next(item.value for item in at.markdown if 'class="ppd-scheme"' in item.value)
+    svg = ElementTree.fromstring(content[content.index("<svg ") : content.index("</svg>") + 6])
+    nodes = [element for element in svg.iter() if element.get("data-node")]
+    edges = {(element.get("data-from"), element.get("data-to")) for element in svg.iter()}
+    for index, aggregate in enumerate(("НА-1", "НА-2")):
+        pump = next(node for node in nodes if node.get("data-node") == f"pump-{index}")
+        assert aggregate in "".join(pump.itertext())
+        assert ("src", f"pump-{index}") in edges
+        assert (f"pump-{index}", "man") in edges
+    assert len([node for node in nodes if node.get("data-selected") == "true"]) == 1
 
 
 def test_clarifications_have_human_readable_efficiency_labels():
@@ -165,12 +199,31 @@ def test_overview_separates_snapshot_and_daily_regime_data():
     assert '"Режим (замер)"' not in source
 
 
-def test_clarifications_are_scoped_to_selected_aggregate():
-    main = Path(APP).read_text(encoding="utf-8")
-    lib = Path("app/lib.py").read_text(encoding="utf-8")
-
-    assert "lib.open_clarifications(object_id, agg_id)" in main
-    assert "database().clarifications(object_id, aggregate_id)" in lib
+def test_clarifications_are_scoped_to_selected_aggregate(request):
+    db = request.getfixturevalue("app_database")
+    db.upsert_clarification(
+        "kns54an",
+        "НА-1",
+        field="pump_eta_nom",
+        provisional_value="0.55",
+        reason="Только НА-1",
+    )
+    db.upsert_clarification(
+        "kns54an",
+        "НА-2",
+        field="motor_eta_nom",
+        provisional_value="0.96",
+        reason="Только НА-2",
+    )
+    try:
+        at = _analysis_app()
+        assert not at.exception
+        captions = " ".join(item.value for item in at.caption)
+        assert "Только НА-2" in captions and "КПД ЭД = 0.96" in captions
+        assert "Только НА-1" not in captions
+    finally:
+        for aggregate, field in (("НА-1", "pump_eta_nom"), ("НА-2", "motor_eta_nom")):
+            db.resolve_clarification("kns54an", aggregate, field=field)
 
 
 def test_missing_snapshot_still_renders_telemetry():
@@ -282,3 +335,30 @@ def test_object_with_unallocated_station_telemetry_shows_message():
 
     assert any("Нет пригодного режима" in element.value for element in at.warning)
     assert any(item.value == "Телеметрия за сутки" for item in at.subheader)
+
+
+def test_unfit_regime_behavior_hides_loss_map_and_measures(request):
+    from datetime import datetime
+
+    db = request.getfixturevalue("app_database")
+    db.add_measurement("kns54an", "НА-2", datetime(2025, 6, 1), "q_day", 96000, "м³/сут")
+    try:
+        at = _analysis_app()
+        assert not at.exception
+        assert any("Режим непригоден для экономических выводов" in item.value for item in at.error)
+        for label in ("Карта потерь", "Мероприятия"):
+            tab = next(item for item in at.tabs if item.label == label)
+            assert tab.get("warning")
+            assert not tab.get("dataframe")
+            assert not tab.get("plotly_chart")
+    finally:
+        db.add_measurement("kns54an", "НА-2", datetime(2025, 6, 1), "q_day", 960, "м³/сут")
+
+
+def test_incomplete_day_keeps_telemetry_without_yaml_fact_fallback():
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    assert not at.exception
+    assert any("Нет пригодного режима" in item.value for item in at.warning)
+    assert _has_telemetry_chart(at)
+    assert not at.metric
+    assert not at.tabs

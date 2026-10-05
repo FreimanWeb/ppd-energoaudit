@@ -132,6 +132,14 @@ def test_unfit_snapshot_has_no_loss_conclusions(dashboard):
     assert response.status_code == 200, response.text
     assert response.json()["quality"]["status"] == "unfit"
     assert response.json()["losses"] == []
+    assert all(value is None for value in response.json()["annual_summary"].values())
+
+
+def test_snapshot_date_max_is_a_client_error(dashboard):
+    response = dashboard[0].get(
+        "/objects/fixture/aggregates/НА-02/snapshots", params={"day": "9999-12-31"}
+    )
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize("day", ["not-a-date", "2026-07-24T00:00:00", "20260724"])
@@ -179,3 +187,42 @@ def test_config_topology_keeps_source_and_links_real_aggregates(dashboard):
     assert body["is_typical"] is False
     assert any(node.get("agg") == "Н-4" for node in body["nodes"])
     assert all("from" in edge and "to" in edge for edge in body["edges"])
+
+
+def test_snapshot_view_retains_math_and_exposes_passport_and_annual_basis(dashboard):
+    response = dashboard[0].post(
+        "/objects/fixture/aggregates/НА-02/snapshot-audit",
+        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("source") == "telemetry"
+    assert body["passport"]["pump"]["model"] == "ЦНС 40-1000"
+    assert body["passport"]["motor"]["p_nom"] == 400
+    assert body["regime"]["rho"] == 1000
+    assert body["audit"]["metrics"]["flow_m3h"] == pytest.approx(24)
+    assert body["audit"]["metrics"]["p_hydraulic_kw"] == pytest.approx(9.2 * 24 / 3.6)
+    assert body["audit"]["metrics"]["sec_fact_kwh_m3"] == pytest.approx(8.75)
+    assert body["annual_summary"]["efficiency_money_krub"] == pytest.approx(
+        body["audit"]["metrics"]["dw_efficiency_kwh_year"] * body["tariff"] / 1000
+    )
+
+
+def test_snapshot_trace_includes_shared_formula_presentation(dashboard):
+    response = dashboard[0].post(
+        "/objects/fixture/aggregates/НА-02/snapshot-audit",
+        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
+    )
+    assert response.status_code == 200
+    entry = response.json()["audit"]["trace"]["8"]
+    assert entry.get("latex"), "math presentation must be available to both frontends"
+    assert entry.get("name") == "Фактический напор, м"
+    assert entry["formula"] and entry["subst"]
+
+
+def test_snapshot_exposes_shared_pump_assessment(dashboard):
+    response = dashboard[0].post(
+        "/objects/fixture/aggregates/НА-02/snapshot-audit",
+        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
+    )
+    assert response.json().get("pump_assessment") == {"name": "низкий КПД", "tone": "bad"}

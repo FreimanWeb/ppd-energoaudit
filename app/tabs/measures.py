@@ -17,12 +17,12 @@ import pandas as pd
 import streamlit as st
 import ui
 
+from ppd_audit.measures import HorizonEvaluation
+from ppd_audit.services.analysis import base_annual_injection, measure_analysis
 from tabs.common import Ctx, fmt
 
 
-HORIZON_HELP = (
-    "Сколько лет считать денежный поток. Прогноз закачки строится ровно на этот срок."
-)
+HORIZON_HELP = "Сколько лет считать денежный поток. Прогноз закачки строится ровно на этот срок."
 RATE_HELP = (
     "Годовая ставка дисконтирования для NPV и дисконтированной окупаемости. "
     "Задаётся инвестиционной политикой предприятия."
@@ -91,8 +91,7 @@ def _annual_runtime_caption(ctx: Ctx) -> None:
 def _render_annual_registry(evals) -> None:
     if not evals:
         st.info(
-            "В текущем каталоге нет применимого мероприятия. "
-            "Это не означает, что потери в норме."
+            "В текущем каталоге нет применимого мероприятия. Это не означает, что потери в норме."
         )
         return
     st.dataframe(
@@ -102,14 +101,15 @@ def _render_annual_registry(evals) -> None:
             "Экономия, кВт·ч/год": [fmt(e.energy_saving_kwh, 0) for e in evals],
             "Экономия, тыс. ₽/год": [fmt(e.money_saving_krub, 1) for e in evals],
             "CAPEX, тыс. ₽": [
-                "требует оценки" if e.cls == SCENARIO_LABEL else fmt(e.capex_krub, 0)
-                for e in evals
+                "требует оценки" if e.cls == SCENARIO_LABEL else fmt(e.capex_krub, 0) for e in evals
             ],
             "Окупаемость, лет": [
                 (
                     "требует оценки"
                     if e.cls == SCENARIO_LABEL
-                    else fmt(e.payback_years, 2) if e.payback_years else "—"
+                    else fmt(e.payback_years, 2)
+                    if e.payback_years
+                    else "—"
                 )
                 for e in evals
             ],
@@ -124,14 +124,13 @@ def _render_annual_registry(evals) -> None:
 
 def _base_annual_injection(ctx: Ctx) -> float:
     """Q_год базового режима, м³: подача × годовая наработка."""
-    return float(ctx.audit.regime.q) * float(ctx.scope.annual_runtime_hours)
+    return base_annual_injection(ctx.audit, ctx.scope)
 
 
 def _render_horizon_economics(ctx: Ctx, *, default_horizon: int) -> None:
     from ppd_audit.measures import (
         DEFAULT_DISCOUNT_RATE,
         InjectionProfile,
-        suggest_measures_over_horizon,
     )
 
     col1, col2 = st.columns(2)
@@ -160,15 +159,21 @@ def _render_horizon_economics(ctx: Ctx, *, default_horizon: int) -> None:
     discount_rate = float(rate_percent) / 100.0
 
     base_annual = _base_annual_injection(ctx)
-    profile = lib.injection_profile(
-        ctx.object_id, ctx.agg_id, base_annual, horizon_years=horizon
+    profile = lib.injection_profile(ctx.object_id, ctx.agg_id, base_annual, horizon_years=horizon)
+    analysis = measure_analysis(
+        ctx.audit,
+        ctx.scope,
+        ctx.tariff,
+        profile,
+        horizon_years=horizon,
+        discount_rate=discount_rate,
+        basis="forecast",
+        quality=ctx.quality,
+        constraints=lib.constraints(),
     )
     if profile is None:
-        st.warning(
-            "Прогноз закачки не построен: мало данных. "
-            "Экономика посчитана при постоянном объёме закачки."
-        )
-        profile = InjectionProfile.flat(base_annual, horizon)
+        st.warning(analysis["notes"][1])
+    profile = InjectionProfile(**analysis["profile"])
 
     st.caption(
         "Эффект каждого года масштабируется прогнозным объёмом закачки. "
@@ -176,57 +181,54 @@ def _render_horizon_economics(ctx: Ctx, *, default_horizon: int) -> None:
     )
     if profile.extrapolated_tail:
         st.caption(
-            "Горизонт длиннее построенного прогноза — хвост продлён последним "
-            "прогнозным периодом."
+            "Горизонт длиннее построенного прогноза — хвост продлён последним прогнозным периодом."
         )
 
     _render_profile_summary(profile, horizon)
     _render_profile_chart(profile)
 
-    evals = suggest_measures_over_horizon(
-        ctx.audit, profile, tariff=ctx.tariff, discount_rate=discount_rate
-    )
+    from ppd_audit.measures.economics import CashflowYear
+
+    evals = [
+        HorizonEvaluation(**{**item, "years": [CashflowYear(**year) for year in item["years"]]})
+        for item in analysis["horizon"]
+    ]
     if not evals:
         st.info(
-            "В текущем каталоге нет применимого мероприятия. "
-            "Это не означает, что потери в норме."
+            "В текущем каталоге нет применимого мероприятия. Это не означает, что потери в норме."
         )
         return
 
     st.markdown(f"**ТЭО на горизонте {horizon} лет** — при ставке {fmt(rate_percent, 1)} %/год")
     st.dataframe(
-        pd.DataFrame(
-            {
-                "Мероприятие": [e.name for e in evals],
-                "Класс": [e.cls for e in evals],
-                "Эффект 1-го года, тыс. ₽": [fmt(e.years[0].money_saving_krub, 1) for e in evals],
-                f"Экономия за {horizon} лет, тыс. ₽": [fmt(e.total_money_krub, 1) for e in evals],
-                "CAPEX, тыс. ₽": [
-                    "требует оценки" if e.cls == SCENARIO_LABEL else fmt(e.capex_krub, 0)
-                    for e in evals
-                ],
-                "NPV, тыс. ₽": [
-                    "требует оценки" if e.cls == SCENARIO_LABEL else fmt(e.npv_krub, 1)
-                    for e in evals
-                ],
-                "IRR, %": [
-                    (
-                        "требует оценки"
-                        if e.cls == SCENARIO_LABEL
-                        else (fmt(e.irr * 100.0, 1) if e.irr is not None else "—")
-                    )
-                    for e in evals
-                ],
-                "Окупаемость диск., лет": [
-                    (
-                        "требует оценки"
-                        if e.cls == SCENARIO_LABEL
-                        else _payback_label(e.discounted_payback_years, horizon)
-                    )
-                    for e in evals
-                ],
-            }
-        ),
+        pd.DataFrame({
+            "Мероприятие": [e.name for e in evals],
+            "Класс": [e.cls for e in evals],
+            "Эффект 1-го года, тыс. ₽": [fmt(e.years[0].money_saving_krub, 1) for e in evals],
+            f"Экономия за {horizon} лет, тыс. ₽": [fmt(e.total_money_krub, 1) for e in evals],
+            "CAPEX, тыс. ₽": [
+                "требует оценки" if e.cls == SCENARIO_LABEL else fmt(e.capex_krub, 0) for e in evals
+            ],
+            "NPV, тыс. ₽": [
+                "требует оценки" if e.cls == SCENARIO_LABEL else fmt(e.npv_krub, 1) for e in evals
+            ],
+            "IRR, %": [
+                (
+                    "требует оценки"
+                    if e.cls == SCENARIO_LABEL
+                    else (fmt(e.irr * 100.0, 1) if e.irr is not None else "—")
+                )
+                for e in evals
+            ],
+            "Окупаемость диск., лет": [
+                (
+                    "требует оценки"
+                    if e.cls == SCENARIO_LABEL
+                    else _payback_label(e.discounted_payback_years, horizon)
+                )
+                for e in evals
+            ],
+        }),
         width="stretch",
         hide_index=True,
     )
@@ -264,15 +266,14 @@ def _render_profile_summary(profile, horizon: int) -> None:
 
 def _render_profile_chart(profile) -> None:
     """Прогнозный профиль закачки по годам — одна серия, столбцы от нуля."""
-    frame = pd.DataFrame(
-        {
-            "Год": [str(i + 1) for i in range(profile.horizon_years)],
-            "Объём": profile.annual_m3,
-            "К базе": [round(r, 3) for r in profile.ratios()],
-        }
-    )
+    frame = pd.DataFrame({
+        "Год": [str(i + 1) for i in range(profile.horizon_years)],
+        "Объём": profile.annual_m3,
+        "К базе": [round(r, 3) for r in profile.ratios()],
+    })
     bars = (
-        alt.Chart(frame)
+        alt
+        .Chart(frame)
         .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, size=38)
         .encode(
             x=alt.X("Год:N", title="Год горизонта", axis=alt.Axis(labelAngle=0)),
@@ -286,7 +287,8 @@ def _render_profile_chart(profile) -> None:
         )
     )
     base_rule = (
-        alt.Chart(pd.DataFrame({"База": [profile.base_annual_m3]}))
+        alt
+        .Chart(pd.DataFrame({"База": [profile.base_annual_m3]}))
         .mark_rule(strokeDash=[6, 4], strokeWidth=2, color=ui.PALETTE["muted"])
         .encode(
             y="База:Q",
@@ -337,7 +339,8 @@ def _render_cashflow_detail(evals, horizon: int) -> None:
     # на одном только цвете.
     domain = ["Накопленный", "Накопленный дисконтированный"]
     lines = (
-        alt.Chart(long)
+        alt
+        .Chart(long)
         .mark_line(point=alt.OverlayMarkDef(size=60), strokeWidth=2)
         .encode(
             x=alt.X("Год:O", title="Год горизонта", axis=alt.Axis(labelAngle=0)),
@@ -364,7 +367,8 @@ def _render_cashflow_detail(evals, horizon: int) -> None:
     if chosen.capex_krub > 0 and chosen.cls != SCENARIO_LABEL:
         capex_frame = pd.DataFrame({"CAPEX": [chosen.capex_krub]})
         layers.append(
-            alt.Chart(capex_frame)
+            alt
+            .Chart(capex_frame)
             .mark_rule(strokeDash=[2, 3], strokeWidth=2, color=ui.PALETTE["muted"])
             .encode(
                 y="CAPEX:Q",
@@ -372,27 +376,24 @@ def _render_cashflow_detail(evals, horizon: int) -> None:
             )
         )
         layers.append(
-            alt.Chart(capex_frame)
+            alt
+            .Chart(capex_frame)
             .mark_text(align="left", dx=6, dy=-8, color=ui.PALETTE["muted"], fontSize=12)
             .encode(y="CAPEX:Q", text=alt.value("CAPEX"))
         )
     st.altair_chart(alt.layer(*layers).properties(height=300), width="stretch")
 
     st.dataframe(
-        pd.DataFrame(
-            {
-                "Год": [y.year for y in chosen.years],
-                "Закачка, м³": [fmt(y.injection_m3, 0) for y in chosen.years],
-                "К базе, ×": [fmt(y.volume_ratio, 3) for y in chosen.years],
-                "Экономия, кВт·ч": [fmt(y.energy_saving_kwh, 0) for y in chosen.years],
-                "Экономия, тыс. ₽": [fmt(y.money_saving_krub, 1) for y in chosen.years],
-                "Коэф. дисконта": [fmt(y.discount_factor, 4) for y in chosen.years],
-                "Дисконт., тыс. ₽": [fmt(y.discounted_krub, 1) for y in chosen.years],
-                "Накопл. диск., тыс. ₽": [
-                    fmt(y.cumulative_discounted_krub, 1) for y in chosen.years
-                ],
-            }
-        ),
+        pd.DataFrame({
+            "Год": [y.year for y in chosen.years],
+            "Закачка, м³": [fmt(y.injection_m3, 0) for y in chosen.years],
+            "К базе, ×": [fmt(y.volume_ratio, 3) for y in chosen.years],
+            "Экономия, кВт·ч": [fmt(y.energy_saving_kwh, 0) for y in chosen.years],
+            "Экономия, тыс. ₽": [fmt(y.money_saving_krub, 1) for y in chosen.years],
+            "Коэф. дисконта": [fmt(y.discount_factor, 4) for y in chosen.years],
+            "Дисконт., тыс. ₽": [fmt(y.discounted_krub, 1) for y in chosen.years],
+            "Накопл. диск., тыс. ₽": [fmt(y.cumulative_discounted_krub, 1) for y in chosen.years],
+        }),
         width="stretch",
         hide_index=True,
     )
@@ -418,10 +419,21 @@ def _render_setpoint_optimizer(ctx: Ctx, optimize_setpoint) -> None:
             ctx.object_id, ctx.agg_id, _base_annual_injection(ctx), horizon_years=int(horizon)
         )
         if profile is not None:
-            total_kwh = (opt.saving_kwh_year or 0.0) * sum(profile.ratios())
+            analysis = measure_analysis(
+                ctx.audit,
+                ctx.scope,
+                ctx.tariff,
+                profile,
+                horizon_years=int(horizon),
+                basis="forecast",
+                quality=ctx.quality,
+                constraints=lib.constraints(),
+            )
+            total_kwh = analysis["optimized_horizon"]["energy_kwh"]
+            money = analysis["optimized_horizon"]["money_krub"]
             st.caption(
                 f"С учётом прогноза закачки за {int(horizon)} лет: "
-                f"{fmt(total_kwh, 0)} кВт·ч ≈ {fmt(total_kwh * ctx.tariff / 1000.0, 1)} тыс. ₽ "
+                f"{fmt(total_kwh, 0)} кВт·ч ≈ {fmt(money, 1)} тыс. ₽ "
                 "(без дисконтирования)."
             )
 

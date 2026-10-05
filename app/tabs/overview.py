@@ -69,7 +69,10 @@ def _kpi_rows(ctx: Ctx) -> None:
 
 
 def _annual_kpis(ctx: Ctx) -> None:
+    from ppd_audit.services.analysis import annual_summary
+
     audit, tariff = ctx.audit, ctx.tariff
+    summary = annual_summary(audit, tariff)
     if ctx.source == "field_trip" and not ctx.scope.annual_runtime_is_assumed:
         ui.provenance(
             (f"T_год из YAML: {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"),
@@ -90,7 +93,7 @@ def _annual_kpis(ctx: Ctx) -> None:
     )
     c[1].metric(
         "ΔW по КПД, тыс. ₽/год",
-        fmt(audit.dw_efficiency * tariff / 1000, 1),
+        fmt(summary["efficiency_money_krub"], 1),
         help="Те же потери в деньгах по тарифу.",
     )
 
@@ -168,7 +171,9 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
                         "Окуп., лет": (
                             "требует оценки"
                             if e.cls == "сценарная оценка"
-                            else fmt(e.payback_years, 1) if e.payback_years else "без CAPEX"
+                            else fmt(e.payback_years, 1)
+                            if e.payback_years
+                            else "без CAPEX"
                         ),
                     }
                     for e in evals
@@ -309,9 +314,7 @@ def _passport_and_regime(ctx: Ctx) -> None:
 
 def render(ctx: Ctx) -> None:
     st.subheader(
-        "Энергоаудит выездного замера"
-        if ctx.source == "field_trip"
-        else "Суточный энергоаудит"
+        "Энергоаудит выездного замера" if ctx.source == "field_trip" else "Суточный энергоаудит"
     )
     _kpi_rows(ctx)
     if ctx.quality is not None and not ctx.quality.allows_economic_conclusions:

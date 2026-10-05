@@ -10,7 +10,10 @@ from fastapi import APIRouter, HTTPException
 from ..config import load_constraints
 from ..core.losses import build_loss_map
 from ..db import AuditDatabase
+from ..services import catalog, telemetry_view
+from ..services.analysis import annual_summary, efficiency_assessment
 from ..services.result_scope import result_scope
+from ..services.scheme_data import scheme_pressures
 from ..services.telemetry_audit import object_from_database, run_snapshot_audit, telemetry_snapshots
 from .contracts import (
     AggregateSummary,
@@ -47,6 +50,8 @@ def _day_window(day: str) -> tuple[datetime, datetime]:
         parsed = date.fromisoformat(day)
         if parsed.isoformat() != day:
             raise ValueError("дата должна иметь формат YYYY-MM-DD")
+        if parsed == date.max:
+            raise ValueError("конец суток выходит за допустимый диапазон")
         start = datetime.combine(parsed, time.min)
         return start, start + timedelta(days=1)
     except ValueError as exc:
@@ -60,6 +65,10 @@ def _snapshot_response(snapshot) -> dict:
         "p_out_mpa": snapshot.p_out_mpa,
         "p_bg_mpa": snapshot.p_bg_mpa,
         "power_kw": snapshot.power_kw,
+        "power_age_seconds": snapshot.power_age.total_seconds() if snapshot.power_age else 0,
+        "p_bg_age_seconds": snapshot.p_bg_age.total_seconds()
+        if snapshot.p_bg_age is not None
+        else None,
     }
 
 
@@ -67,17 +76,7 @@ def _snapshot_response(snapshot) -> dict:
 def aggregates(object_id: str) -> list[dict]:
     database = _database()
     _require_ids(database, object_id)
-    result = []
-    for aggregate in database.aggregates(object_id):
-        dates = database.telemetry_dates(object_id, aggregate["code"])
-        at = datetime.combine(dates[-1], time.min) if dates else datetime.now()
-        try:
-            passport = database.active_passport(object_id, aggregate["code"], at)
-            pump_model = passport["pump_model"]
-        except KeyError:
-            pump_model = None
-        result.append({**aggregate, "pump_model": pump_model, "has_telemetry": bool(dates)})
-    return result
+    return catalog.aggregate_index(database, object_id)
 
 
 @router.get(
@@ -88,7 +87,8 @@ def dates(object_id: str, aggregate_id: str) -> dict:
     database = _database()
     _require_ids(database, object_id, aggregate_id)
     days = database.telemetry_dates(object_id, aggregate_id)
-    default = database.last_day_with_daily_totals(object_id, aggregate_id)
+    default = telemetry_view.last_usable_day(database, object_id, aggregate_id)
+    default = default or database.last_day_with_daily_totals(object_id, aggregate_id)
     default = default or (days[-1] if days else None)
     return {
         "dates": [day.isoformat() for day in days],
@@ -109,6 +109,22 @@ def snapshots(object_id: str, aggregate_id: str, day: str) -> list[dict]:
             _snapshot_response(snapshot)
             for snapshot in telemetry_snapshots(database, object_id, aggregate_id, start, end)
         ]
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+
+
+@router.get("/objects/{object_id}/scheme-pressures")
+def branch_pressures(object_id: str, day: str, timestamp: str) -> dict[str, dict[str, float]]:
+    database = _database()
+    _require_ids(database, object_id)
+    start, end = _day_window(day)
+    try:
+        selected = datetime.fromisoformat(timestamp)
+        if selected.tzinfo is not None:
+            raise ValueError("телеметрия использует локальное время без UTC offset")
+        if not start <= selected < end:
+            raise ValueError("снимок должен принадлежать выбранным суткам")
+        return scheme_pressures(database, object_id, selected)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc)) from exc
 
@@ -200,28 +216,30 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
     scope = result_scope(
         regime,
         None if result.annual_runtime_is_assumed else regime.t_year,
+        daily_pressure_coverage_is_complete=False,
     )
+    constraints = load_constraints()
+    tariff = constraints.economics.get("tariff_rub_kwh", 4.68)
     losses = []
     if result.quality.allows_economic_conclusions:
-        tariff = load_constraints().economics.get("tariff_rub_kwh", 4.68)
         losses = [asdict(item) for item in build_loss_map(result.audit, tariff).items]
     return {
         "audit": _to_response(obj, result.audit),
+        "pump_assessment": efficiency_assessment(
+            result.audit.regime.eta_unit, result.audit.regime.eta_nom
+        ),
         "snapshot": _snapshot_response(result.snapshot),
         "quality": asdict(result.quality),
         "sources": result.sources,
         "scope": asdict(scope),
-        "regime": {
-            key: getattr(regime, key)
-            for key in (
-                "p_in",
-                "p_out",
-                "p_bg",
-                "q_day",
-                "t",
-                "w",
-                "t_year",
-            )
-        },
+        "regime": regime.model_dump(mode="json"),
         "losses": losses,
+        "source": "telemetry",
+        "passport": result.audit.spec.model_dump(mode="json", exclude={"regime", "reference"}),
+        "annual_summary": {
+            key: value if result.quality.allows_economic_conclusions else None
+            for key, value in annual_summary(result.audit, tariff).items()
+        },
+        "tariff": tariff,
+        "target_sec": constraints.kpi.get("target_sec_2035"),
     }

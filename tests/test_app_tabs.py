@@ -6,6 +6,7 @@ import pytest
 
 
 pytest.importorskip("streamlit")
+from app_fixture import app_database  # noqa: F401
 from streamlit.testing.v1 import AppTest
 
 

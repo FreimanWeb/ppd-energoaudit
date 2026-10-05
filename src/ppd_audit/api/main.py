@@ -10,7 +10,9 @@ from fastapi import FastAPI, HTTPException, status
 from ..core.audit import AuditResult
 from ..db import AuditDatabase, default_database_path
 from ..db_seed import bootstrap_database
+from ..services import catalog
 from ..services.audit import run_energy_audit
+from ..services.formula_view import formula_entries
 from ..services.telemetry_audit import run_telemetry_audit
 from ..spec import ObjectSpec
 from ..telemetry import (
@@ -19,7 +21,10 @@ from ..telemetry import (
     map_telemetry_to_calculation_input,
     validate_telemetry,
 )
+from .analysis_routes import router as analysis_router
+from .auth_routes import AuthenticationMiddleware, router as auth_router
 from .contracts import (
+    CatalogPlantSummary,
     EnergyAuditMetrics,
     EnergyAuditRequest,
     EnergyAuditResponse,
@@ -28,10 +33,15 @@ from .contracts import (
     TelemetryStored,
 )
 from .dashboard import router as dashboard_router
+from .data_routes import router as data_router
 
 
 app = FastAPI(title="PPD Energoaudit API", version="0.1.0")
 app.include_router(dashboard_router)
+app.include_router(data_router)
+app.include_router(analysis_router)
+app.include_router(auth_router)
+app.add_middleware(AuthenticationMiddleware)
 
 
 @app.get("/health")
@@ -47,6 +57,22 @@ def _database() -> AuditDatabase:
 @app.get("/objects", response_model=list[PlantSummary])
 def list_objects() -> list[dict]:
     return _database().plants()
+
+
+@app.get("/catalog/objects", response_model=list[CatalogPlantSummary])
+def list_catalog_objects() -> list[dict]:
+    return [
+        {
+            "code": item["id"],
+            "name": item["name"],
+            "ngdu_name": item["ngdu"],
+            "water_type": item["water"],
+            "branch": item["branch"],
+            "is_example": False,
+            "has_telemetry": item["has_telemetry"],
+        }
+        for item in catalog.object_index(_database())
+    ]
 
 
 def _to_response(spec: ObjectSpec, result: AuditResult) -> EnergyAuditResponse:
@@ -74,7 +100,7 @@ def _to_response(spec: ObjectSpec, result: AuditResult) -> EnergyAuditResponse:
             sec_optimal_kwh_m3=result.sec_optimal,
             dw_throttle_kwh_year=result.dw_throttle,
         ),
-        trace=result.trace,
+        trace=formula_entries(result.trace),
     )
 
 

@@ -16,6 +16,7 @@ import streamlit as st
 import ui
 
 from ppd_audit.report.wells_layout import spring_layout
+from ppd_audit.services import crm_view
 from tabs.common import Ctx, fmt
 
 
@@ -30,18 +31,7 @@ def _month_label(value: str) -> str:
 
 def _series(report: dict, well: str | None) -> list[dict]:
     """Помесячный ряд: сумма по объекту либо одна скважина."""
-    if well is None:
-        return report["totals"]
-    return [
-        {
-            "month": row["month"],
-            "base": row["base"] or 0.0,
-            "forecast": row["forecast"] or 0.0,
-            "fact": row["fact"],
-        }
-        for row in report["rows"]
-        if row["well"] == well
-    ]
+    return crm_view.well_monthly_series(report, well)
 
 
 def _totals_frame(totals: list[dict]) -> pd.DataFrame:
@@ -57,31 +47,26 @@ def _totals_frame(totals: list[dict]) -> pd.DataFrame:
 
 def _window(totals: list[dict]) -> tuple[datetime, datetime]:
     """Период графика: от начала первого месяца до конца последнего."""
-    months = [date.fromisoformat(item["month"]) for item in totals]
-    last = months[-1]
-    end = date(last.year + last.month // 12, last.month % 12 + 1, 1)
-    return datetime.combine(months[0], time.min), datetime.combine(end, time.min)
+    return crm_view.monthly_window(totals)
+
+
+def _marks_frame(downtime: list[dict]) -> pd.DataFrame:
+    """Подписи готовых маркеров для Altair."""
+    records = []
+    for item in downtime:
+        moment = datetime.fromisoformat(item["since"])
+        records.append({
+            "Момент": moment,
+            "Скважина": item["well"],
+            "Причина": item["reason"],
+            "Начало": moment.strftime("%d.%m.%Y %H:%M"),
+        })
+    return pd.DataFrame(records)
 
 
 def _downtime_marks(totals: list[dict], downtime: list[dict]) -> pd.DataFrame:
     """Простои, начавшиеся внутри показанного периода, с точным моментом."""
-    first, end = _window(totals)
-    records = []
-    for item in downtime:
-        if not item["since"]:
-            continue
-        moment = datetime.fromisoformat(item["since"])
-        if not first <= moment < end:
-            continue
-        records.append(
-            {
-                "Момент": moment,
-                "Скважина": item["well"],
-                "Причина": item["reason"],
-                "Начало": moment.strftime("%d.%m.%Y %H:%M"),
-            }
-        )
-    return pd.DataFrame(records)
+    return _marks_frame(crm_view.downtime_in_window(totals, downtime))
 
 
 def _totals_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
@@ -91,67 +76,72 @@ def _totals_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
         key=f"crm-wells-series-{ctx.object_id}",
     )
     well = None if choice == ALL_WELLS else choice
-    totals = _series(report, well)
+    view = crm_view.monthly_view(report, downtime, well)
+    totals = view["series"]
     if not totals:
         st.info("За этот период по скважине нет строк.")
         return
 
-    marks_source = (
-        downtime
-        if well is None
-        else [item for item in downtime if lib.well_key(item["well"]) == lib.well_key(well)]
-    )
-    last = totals[-1]
+    last = view["last"]
     columns = st.columns(3)
-    columns[0].metric(
-        f"Прогноз за {_month_label(last['month'])}, м³", fmt(last["forecast"], 0)
-    )
-    columns[1].metric(
-        "Факт, м³", fmt(last["fact"], 0) if last["fact"] is not None else "—"
-    )
+    columns[0].metric(f"Прогноз за {_month_label(last['month'])}, м³", fmt(last["forecast"], 0))
+    columns[1].metric("Факт, м³", fmt(last["fact"], 0) if last["fact"] is not None else "—")
     if last["fact"]:
         deviation = (last["forecast"] - last["fact"]) / last["fact"] * 100.0
         columns[2].metric("Отклонение", f"{deviation:+.1f} %".replace(".", ","))
 
-    first, end = _window(totals)
+    first, end = [datetime.fromisoformat(value) for value in view["window"]]
     axis = alt.Axis(
         format="%m.%Y",
         values=[datetime.combine(date.fromisoformat(item["month"]), time.min) for item in totals],
         labelAngle=0,
     )
     scale = alt.Scale(domain=[first, end])
-    chart = alt.Chart(_totals_frame(totals)).mark_line(point=True).encode(
-        x=alt.X("Месяц:T", title=None, axis=axis, scale=scale),
-        y=alt.Y("Объём:Q", title="Закачка, м³/мес"),
-        color=alt.Color(
-            "Ряд:N",
-            title=None,
-            scale=alt.Scale(
-                domain=list(SERIES),
-                range=[ui.PALETTE["water_dark"], ui.PALETTE["accent"], ui.PALETTE["ok"]],
+    chart = (
+        alt
+        .Chart(_totals_frame(totals))
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("Месяц:T", title=None, axis=axis, scale=scale),
+            y=alt.Y("Объём:Q", title="Закачка, м³/мес"),
+            color=alt.Color(
+                "Ряд:N",
+                title=None,
+                scale=alt.Scale(
+                    domain=list(SERIES),
+                    range=[ui.PALETTE["water_dark"], ui.PALETTE["accent"], ui.PALETTE["ok"]],
+                ),
             ),
-        ),
-        tooltip=[
-            alt.Tooltip("Месяц:T", title="Месяц", format="%m.%Y"),
-            alt.Tooltip("Объём:Q", format=",.0f"),
-            "Ряд:N",
-        ],
+            tooltip=[
+                alt.Tooltip("Месяц:T", title="Месяц", format="%m.%Y"),
+                alt.Tooltip("Объём:Q", format=",.0f"),
+                "Ряд:N",
+            ],
+        )
     )
 
-    marks = _downtime_marks(totals, marks_source)
+    marks = _marks_frame(view["downtime_marks"])
     if not marks.empty:
-        rules = alt.Chart(marks).mark_rule(
-            strokeDash=[4, 4], color=ui.PALETTE["bad"], strokeWidth=1.5
-        ).encode(
-            x=alt.X("Момент:T", axis=axis, scale=scale),
-            tooltip=["Скважина:N", "Причина:N", "Начало:N"],
+        rules = (
+            alt
+            .Chart(marks)
+            .mark_rule(strokeDash=[4, 4], color=ui.PALETTE["bad"], strokeWidth=1.5)
+            .encode(
+                x=alt.X("Момент:T", axis=axis, scale=scale),
+                tooltip=["Скважина:N", "Причина:N", "Начало:N"],
+            )
         )
-        labels = alt.Chart(marks).mark_text(
-            align="left", dx=4, dy=-4, baseline="top", color=ui.PALETTE["bad"], fontSize=10
-        ).encode(
-            x=alt.X("Момент:T", axis=axis, scale=scale),
-            y=alt.value(0),
-            text="Скважина:N",
+        labels = (
+            alt
+            .Chart(marks)
+            .mark_text(
+                align="left", dx=4, dy=-4, baseline="top", color=ui.PALETTE["bad"], fontSize=10
+            )
+            .encode(
+                x=alt.X("Момент:T", axis=axis, scale=scale),
+                y=alt.value(0),
+                text="Скважина:N",
+            )
         )
         chart = chart + rules + labels
 
@@ -194,23 +184,20 @@ def _wells_section(ctx: Ctx, report: dict, downtime: list[dict]) -> None:
     )
     rows = [row for row in report["rows"] if row["month"] == month]
     reasons = {lib.well_key(item["well"]): item for item in downtime}
-    frame = pd.DataFrame(
-        {
-            "Скважина": [row["well"] for row in rows],
-            "Прогноз, м³/мес": _numbers(rows, "forecast"),
-            "Факт, м³/мес": _texts(rows, "fact"),
-            "Отклонение, %": _texts(rows, "deviation", digits=1, sign=True),
-            "Доля, %": _numbers(rows, "share", scale=100.0),
-            "Руст, атм": _numbers(rows, "r_ust"),
-            "Причина простоя": [
-                reasons.get(lib.well_key(row["well"]), {}).get("reason", "") for row in rows
-            ],
-            "Простой с": [
-                _since(reasons.get(lib.well_key(row["well"]), {}).get("since"))
-                for row in rows
-            ],
-        }
-    )
+    frame = pd.DataFrame({
+        "Скважина": [row["well"] for row in rows],
+        "Прогноз, м³/мес": _numbers(rows, "forecast"),
+        "Факт, м³/мес": _texts(rows, "fact"),
+        "Отклонение, %": _texts(rows, "deviation", digits=1, sign=True),
+        "Доля, %": _numbers(rows, "share", scale=100.0),
+        "Руст, атм": _numbers(rows, "r_ust"),
+        "Причина простоя": [
+            reasons.get(lib.well_key(row["well"]), {}).get("reason", "") for row in rows
+        ],
+        "Простой с": [
+            _since(reasons.get(lib.well_key(row["well"]), {}).get("since")) for row in rows
+        ],
+    })
     st.dataframe(
         frame.sort_values("Прогноз, м³/мес", ascending=False),
         width="stretch",
@@ -256,9 +243,7 @@ def _graph_figure(
                 showlegend=False,
                 opacity=1.0 if touches else 0.45,
                 line={
-                    "color": (
-                        ui.strength_color(edge["strength"], limit) if touches else "#e5e7eb"
-                    ),
+                    "color": (ui.strength_color(edge["strength"], limit) if touches else "#e5e7eb"),
                     "width": 1.0 + 3.0 * edge["strength"] if touches else 0.9,
                 },
             )
@@ -272,9 +257,7 @@ def _graph_figure(
             text=wells,
             textposition="bottom center",
             textfont={"size": 9, "color": "#111827"},
-            hovertext=[
-                f"{w} — простой: {idle[w]}" if w in idle else w for w in wells
-            ],
+            hovertext=[f"{w} — простой: {idle[w]}" if w in idle else w for w in wells],
             hoverinfo="text",
             showlegend=False,
             marker={
@@ -341,9 +324,7 @@ def _graph_section(ctx: Ctx, report: dict, graph: dict, downtime: list[dict]) ->
 
     ranked = [item["well"] for item in graph["centrality"]]
     wells = ranked + [well for well in report["wells"] if well not in ranked]
-    selected = st.selectbox(
-        "Скважина", wells, key=f"crm-wells-graph-{ctx.object_id}"
-    )
+    selected = st.selectbox("Скважина", wells, key=f"crm-wells-graph-{ctx.object_id}")
 
     neighbours = graph["by_well"].get(selected, [])
     limit = max((item["strength"] for item in neighbours), default=0.0)
@@ -366,12 +347,10 @@ def _graph_section(ctx: Ctx, report: dict, graph: dict, downtime: list[dict]) ->
             return
         st.markdown(f"**Связи скважины {selected}**")
         colors = [ui.strength_color(item["strength"], limit) for item in neighbours]
-        frame = pd.DataFrame(
-            {
-                "Скважина": [item["target"] for item in neighbours],
-                "Сила": [item["strength"] for item in neighbours],
-            }
-        )
+        frame = pd.DataFrame({
+            "Скважина": [item["target"] for item in neighbours],
+            "Сила": [item["strength"] for item in neighbours],
+        })
         st.dataframe(
             frame.style.format({"Сила": "{:.2f}"}).apply(
                 lambda _: [f"background-color: {color}" for color in colors],
@@ -418,6 +397,4 @@ def render(ctx: Ctx) -> None:
     st.divider()
     st.markdown("**Взаимовлияние скважин**")
     st.caption("Цвет и толщина — сила связи; квадрат — скважина с причиной простоя.")
-    _graph_section(
-        ctx, report, lib.crm_wells_graph(ctx.object_id, run_code, EDGE_LIMIT), downtime
-    )
+    _graph_section(ctx, report, lib.crm_wells_graph(ctx.object_id, run_code, EDGE_LIMIT), downtime)

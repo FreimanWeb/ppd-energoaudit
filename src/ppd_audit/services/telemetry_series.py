@@ -89,3 +89,18 @@ def telemetry_series(
         unit: pd.DataFrame(points).sort_values(["Показатель", "Время"]).reset_index(drop=True)
         for unit, points in grouped.items()
     }
+
+
+def reduce_pressure_points(frame: pd.DataFrame) -> pd.DataFrame:
+    """Сохранить границы и экстремумы каждой минуты для каждого показателя."""
+    points = frame.assign(_bucket=frame["Время"].dt.floor("min"))
+    groups = points.groupby(["Показатель", "_bucket"], group_keys=False)
+    extreme_indices = pd.concat([groups["Значение"].idxmin(), groups["Значение"].idxmax()])
+    return (
+        pd
+        .concat([groups.head(1), points.loc[extreme_indices], groups.tail(1)])
+        .drop_duplicates(subset=["Показатель", "Время"])
+        .sort_values(["Показатель", "Время"])
+        .drop(columns="_bucket")
+        .reset_index(drop=True)
+    )

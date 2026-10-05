@@ -2,89 +2,63 @@
 
 from __future__ import annotations
 
-import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 import ui
 
+from ppd_audit.services.analysis import working_point
 from tabs.common import Ctx, fmt
-
-
-def _pump_qh_curve(p):
-    """Q-H: паспортная кривая или модельная парабола (центробежный). → (qs, hs, паспорт?) | None."""
-    if p.curve_qh:
-        return [c[0] for c in p.curve_qh], [c[1] for c in p.curve_qh], True
-    if p.kind.value == "объёмный" or not (p.q_nom and p.h_nom):
-        return None
-    h0 = 1.22 * p.h_nom  # напор при закрытой задвижке ~1,22·H_ном
-    a = (h0 - p.h_nom) / (p.q_nom**2)
-    qs = np.linspace(0, 1.5 * p.q_nom, 41)
-    return qs, h0 - a * qs**2, False
-
-
-def _system_curve(q_work, h_fact, p_in, p_bg, rho, q_nom):
-    """Характеристика трубопровода H = H_ст + k·Q², проходящая через рабочую точку."""
-    if not q_work or h_fact is None:
-        return None
-    h_st = ((p_bg - p_in) * 1e6 / (rho * 9.81)) if (p_bg and p_bg > p_in) else 0.35 * h_fact
-    h_st = max(0.0, min(h_st, 0.95 * h_fact))
-    k = (h_fact - h_st) / (q_work**2)
-    qs = np.linspace(0, 1.5 * (q_nom or q_work), 41)
-    return qs, h_st + k * qs**2
 
 
 def render(ctx: Ctx) -> None:
     st.subheader("Рабочая точка: насос × трубопровод")
     ui.provenance(("Паспортная или модельная кривая", "warn"))
-    p, audit = ctx.agg.pump, ctx.audit
-    reg = audit.regime
-    rmp = ctx.agg.regime
-    q_work = rmp.flow()
-    volumetric = p.kind.value == "объёмный"
+    curves = working_point(ctx.audit)
+    point, nominal = curves["point"], curves["nominal"]
+    q_work = point["q"]
+    volumetric = curves["pump_kind"] == "объёмный"
     if volumetric:
-        st.caption(
-            "Плунжерный насос: паспортная кривая Q-H неприменима, показаны факт. точки."
-        )
+        st.caption("Плунжерный насос: паспортная кривая Q-H неприменима, показаны факт. точки.")
 
     cc = st.columns(2)
     with cc[0]:
         fig = go.Figure()
-        pc = _pump_qh_curve(p)
-        if pc:
-            qs, hs, is_pass = pc
+        if curves["qh"]:
+            qs = [item["q"] for item in curves["qh"]]
+            hs = [item["h"] for item in curves["qh"]]
+            is_pass = curves["origin"]["qh"] == "passport"
             fig.add_trace(
                 go.Scatter(
                     x=qs,
                     y=hs,
                     mode="lines",
                     name="Кривая насоса · паспорт" if is_pass else "Кривая насоса · модель",
-                    line=dict(color="#1f4e79", width=3, dash=None if is_pass else "dot"),
+                    line={"color": "#1f4e79", "width": 3, "dash": None if is_pass else "dot"},
                 )
             )
-        sc = _system_curve(q_work, reg.h_fact, rmp.p_in, rmp.p_bg, rmp.rho, p.q_nom)
-        if sc and not volumetric:
+        if curves["system"]:
             fig.add_trace(
                 go.Scatter(
-                    x=sc[0],
-                    y=sc[1],
+                    x=[item["q"] for item in curves["system"]],
+                    y=[item["h"] for item in curves["system"]],
                     mode="lines",
                     name="Характеристика трубопровода",
-                    line=dict(color="#2e9e6b", width=2.5, dash="dash"),
+                    line={"color": "#2e9e6b", "width": 2.5, "dash": "dash"},
                 )
             )
-        if p.q_nom and p.h_nom and not volumetric:
+        if nominal["q"] and nominal["h"]:
             fig.add_trace(
                 go.Scatter(
-                    x=[p.q_nom],
-                    y=[p.h_nom],
+                    x=[nominal["q"]],
+                    y=[nominal["h"]],
                     mode="markers+text",
                     text=["номинал"],
                     textposition="top center",
                     name="Номинал",
-                    marker=dict(size=13, color="#2f80ed", symbol="diamond"),
+                    marker={"size": 13, "color": "#2f80ed", "symbol": "diamond"},
                 )
             )
-        h_due = audit.h_due or (audit.spec.reference.h_due if audit.spec.reference else None)
+        h_due = curves["due"]["h"]
         if h_due:
             fig.add_trace(
                 go.Scatter(
@@ -92,20 +66,23 @@ def render(ctx: Ctx) -> None:
                     y=[h_due],
                     mode="markers",
                     name="Должный напор (29)",
-                    marker=dict(size=12, color="#e0a106"),
+                    marker={"size": 12, "color": "#e0a106"},
                 )
             )
         fig.add_trace(
             go.Scatter(
                 x=[q_work],
-                y=[reg.h_fact],
+                y=[point["h"]],
                 mode="markers+text",
                 text=["раб. точка"],
                 textposition="bottom center",
                 name="Факт",
-                marker=dict(
-                    size=16, color="#d9534f", symbol="x", line=dict(width=2, color="#9c2b27")
-                ),
+                marker={
+                    "size": 16,
+                    "color": "#d9534f",
+                    "symbol": "x",
+                    "line": {"width": 2, "color": "#9c2b27"},
+                },
             )
         )
         fig.update_layout(
@@ -113,57 +90,50 @@ def render(ctx: Ctx) -> None:
             xaxis_title="Q, м³/ч",
             yaxis_title="H, м",
             height=420,
-            margin=dict(t=46, b=10),
-            legend=dict(orientation="h", y=-0.22),
+            margin={"t": 46, "b": 10},
+            legend={"orientation": "h", "y": -0.22},
             plot_bgcolor="#ffffff",
         )
         st.plotly_chart(fig, width="stretch")
     with cc[1]:
         fig = go.Figure()
-        if p.curve_qeta:
+        if curves["qeta"]:
+            is_pass = curves["origin"]["qeta"] == "passport"
             fig.add_trace(
                 go.Scatter(
-                    x=[c[0] for c in p.curve_qeta],
-                    y=[c[1] for c in p.curve_qeta],
+                    x=[item["q"] for item in curves["qeta"]],
+                    y=[item["eta"] for item in curves["qeta"]],
                     mode="lines",
-                    name="Q-η · паспорт",
-                    line=dict(color="#1f4e79", width=3),
+                    name="Q-η · паспорт" if is_pass else "Q-η · модель",
+                    line={"color": "#1f4e79", "width": 3, "dash": None if is_pass else "dot"},
                 )
             )
-        elif p.q_nom and p.eta_nom and not volumetric:
-            qe = np.linspace(0.2 * p.q_nom, 1.4 * p.q_nom, 31)
+        if nominal["q"] and nominal["eta"]:
             fig.add_trace(
                 go.Scatter(
-                    x=qe,
-                    y=p.eta_nom * (1 - 0.9 * ((qe - p.q_nom) / p.q_nom) ** 2),
-                    mode="lines",
-                    name="Q-η · модель",
-                    line=dict(color="#1f4e79", width=3, dash="dot"),
-                )
-            )
-        if p.q_nom and p.eta_nom and not volumetric:
-            fig.add_trace(
-                go.Scatter(
-                    x=[p.q_nom],
-                    y=[p.eta_nom],
+                    x=[nominal["q"]],
+                    y=[nominal["eta"]],
                     mode="markers+text",
                     text=["номинал"],
                     textposition="top center",
                     name="Номинал",
-                    marker=dict(size=13, color="#2f80ed", symbol="diamond"),
+                    marker={"size": 13, "color": "#2f80ed", "symbol": "diamond"},
                 )
             )
         fig.add_trace(
             go.Scatter(
                 x=[q_work],
-                y=[reg.eta_unit],
+                y=[point["eta"]],
                 mode="markers+text",
                 text=["факт"],
                 textposition="bottom center",
                 name="КПД факт",
-                marker=dict(
-                    size=16, color="#d9534f", symbol="x", line=dict(width=2, color="#9c2b27")
-                ),
+                marker={
+                    "size": 16,
+                    "color": "#d9534f",
+                    "symbol": "x",
+                    "line": {"width": 2, "color": "#9c2b27"},
+                },
             )
         )
         fig.update_layout(
@@ -171,12 +141,12 @@ def render(ctx: Ctx) -> None:
             xaxis_title="Q, м³/ч",
             yaxis_title="η, о.е.",
             height=420,
-            margin=dict(t=46, b=10),
-            legend=dict(orientation="h", y=-0.22),
+            margin={"t": 46, "b": 10},
+            legend={"orientation": "h", "y": -0.22},
             plot_bgcolor="#ffffff",
         )
         st.plotly_chart(fig, width="stretch")
     st.caption(
-        f"Рабочая подача Q = {fmt(q_work, 2)} м³/ч · напор факт {fmt(reg.h_fact, 1)} м · "
-        f"КПД факт {fmt(reg.eta_unit, 3)}. Пунктир — модельные кривые (нет паспортных координат)."
+        f"Рабочая подача Q = {fmt(q_work, 2)} м³/ч · напор факт {fmt(point['h'], 1)} м · "
+        f"КПД факт {fmt(point['eta'], 3)}. Пунктир — модельные кривые (нет паспортных координат)."
     )

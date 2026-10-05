@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from datetime import timedelta
 from html import escape
 from pathlib import Path
 
@@ -11,6 +10,7 @@ import lib
 import streamlit as st
 import ui
 
+from ppd_audit.services.scheme_data import scheme_pressures
 from tabs.common import Ctx, fmt
 
 
@@ -33,12 +33,14 @@ def _pressure_labels(snapshots, timestamp) -> tuple[str | None, str | None]:
 
 
 def _aggregate_pressure_labels(ctx: Ctx) -> dict[str, tuple[str | None, str | None]]:
-    start = ctx.snapshot_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    pressures = scheme_pressures(lib.database(), ctx.object_id, ctx.snapshot_timestamp)
     return {
-        aggregate.id: _pressure_labels(
-            lib.telemetry_snapshots(ctx.object_id, aggregate.id, start, start + timedelta(days=1)),
-            ctx.snapshot_timestamp,
+        aggregate.id: (
+            f"p_вх={fmt(pressures[aggregate.id]['p_in_mpa'], 2)} МПа",
+            f"p_вых={fmt(pressures[aggregate.id]['p_out_mpa'], 2)} МПа",
         )
+        if aggregate.id in pressures
+        else (None, None)
         for aggregate in ctx.obj.aggregates
     }
 
@@ -53,8 +55,9 @@ def _node_hover(n, typ, au, rm):
     elif typ == "pump" and au is not None:
         r = au.regime
         kz = au.trace.get("24", {}).get("value")
-        ratio = (r.eta_unit / r.eta_nom) if r.eta_nom else 1.0
-        verdict = "норма" if ratio >= 0.9 else ("пониженный КПД" if ratio >= 0.78 else "низкий КПД")
+        from ppd_audit.services.analysis import efficiency_assessment
+
+        verdict = efficiency_assessment(r.eta_unit, r.eta_nom)["name"]
         lines += [
             "─────────────",
             "состояние: <b>в работе</b>",

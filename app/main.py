@@ -24,6 +24,8 @@ import lib
 import streamlit as st
 import ui
 
+from ppd_audit.services.analysis import efficiency_assessment
+
 
 try:
     from ppd_audit.telemetry_calendar import (
@@ -63,9 +65,7 @@ auth.require_password()
 
 st.sidebar.title("Энергоаудит ППД")
 auth.render_logout()
-mode = st.sidebar.radio(
-    "Режим", ("Анализ по телеметрии", "Выезд", "Просмотр телеметрии")
-)
+mode = st.sidebar.radio("Режим", ("Анализ по телеметрии", "Выезд", "Просмотр телеметрии"))
 index = lib.object_index()
 waters = sorted(
     {o["water"] for o in index},
@@ -97,8 +97,7 @@ if mode == "Выезд":
     except (ArithmeticError, KeyError, ValueError) as exc:
         st.warning(f"Невозможно рассчитать выезд для {selected['name']} / {agg_id}: {exc}")
         st.stop()
-    eta_ratio = audit.regime.eta_unit / audit.regime.eta_nom if audit.regime.eta_nom else 1.0
-    eta_tone = "ok" if eta_ratio >= 0.9 else ("warn" if eta_ratio >= 0.78 else "bad")
+    eta_tone = efficiency_assessment(audit.regime.eta_unit, audit.regime.eta_nom)["tone"]
     ctx = Ctx(
         object_id=object_id,
         agg_id=agg_id,
@@ -170,9 +169,7 @@ calendar_key = f"{selected_key}-picker"
 # По умолчанию открываем последние сутки с суточными итогами: у оборвавшегося
 # последнего дня выгрузки режим не строится.
 default_day = (
-    lib.last_usable_day(object_id, agg_id)
-    or lib.last_complete_day(object_id, agg_id)
-    or max(dates)
+    lib.last_usable_day(object_id, agg_id) or lib.last_complete_day(object_id, agg_id) or max(dates)
 )
 
 if _HAS_CALENDAR:
@@ -181,9 +178,7 @@ if _HAS_CALENDAR:
         fallback=st.session_state.get(selected_key, default_day),
     )
     visible_year, visible_month = visible_calendar_month(key=calendar_key, fallback=selected_date)
-    month_dates = [
-        day for day in dates if (day.year, day.month) == (visible_year, visible_month)
-    ]
+    month_dates = [day for day in dates if (day.year, day.month) == (visible_year, visible_month)]
     date_statuses = lib.telemetry_date_statuses(object_id, agg_id, month_dates)
     with st.sidebar:
         selected_date = render_calendar(
@@ -268,9 +263,7 @@ if clarifications:
                 "pump_eta_nom": "КПД насоса",
                 "motor_eta_nom": "КПД ЭД",
             }.get(item["field"], item["field"])
-            st.caption(
-                f"{field} = {item['provisional_value']}"
-            )
+            st.caption(f"{field} = {item['provisional_value']}")
             st.caption(item["reason"])
 
 ctx = Ctx(
@@ -295,8 +288,7 @@ if quality.status == "unfit":
 
 # ───────────────────────── Hero-хедер ─────────────────────────
 
-_eta_ratio = (audit.regime.eta_unit / audit.regime.eta_nom) if audit.regime.eta_nom else 1.0
-_eta_tone = "ok" if _eta_ratio >= 0.9 else ("warn" if _eta_ratio >= 0.78 else "bad")
+_eta_tone = efficiency_assessment(audit.regime.eta_unit, audit.regime.eta_nom)["tone"]
 ui.hero(
     f"{obj.name} · {agg_id} · НГДУ {selected['ngdu']}",
     f"Цифровой энергоаудит ППД · SQLite · сутки: {selected_date}",

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
+import os
 
 import streamlit as st
+
+from ppd_audit.services.authentication import configured_password as shared_password, matches
 
 
 SECRET_KEY = "app_password"
@@ -12,6 +13,8 @@ _INPUT_KEY = "_ppd_password_input"
 
 
 def configured_password() -> str | None:
+    if "PPD_APP_PASSWORD" in os.environ:
+        return shared_password()
     try:
         value = st.secrets.get(SECRET_KEY)
     except Exception:
@@ -41,10 +44,7 @@ def render_logout() -> None:
 
 
 def _matches(entered: str, expected: str) -> bool:
-    return hmac.compare_digest(
-        hashlib.sha256(entered.encode("utf-8")).digest(),
-        hashlib.sha256(expected.encode("utf-8")).digest(),
-    )
+    return matches(entered, expected)
 
 
 def _render_login(expected: str) -> None:

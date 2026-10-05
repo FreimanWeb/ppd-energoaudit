@@ -56,6 +56,10 @@ class PlantSummary(BaseModel):
     is_example: bool
 
 
+class CatalogPlantSummary(PlantSummary):
+    has_telemetry: bool
+
+
 class TelemetryStored(BaseModel):
     stored: int
 
@@ -83,6 +87,8 @@ class SnapshotResponse(BaseModel):
     p_out_mpa: float
     p_bg_mpa: float | None
     power_kw: float
+    power_age_seconds: float | None = None
+    p_bg_age_seconds: float | None = None
 
 
 class TopologyNode(BaseModel):
@@ -141,6 +147,10 @@ class RegimeResponse(BaseModel):
     t: float | None
     w: float | None
     t_year: float | None
+    rho: float = 1000
+    q_fact: float | None = None
+    p_electric: float | None = None
+    nu: float | None = None
 
 
 class LossResponse(BaseModel):
@@ -153,6 +163,7 @@ class LossResponse(BaseModel):
 
 
 class SnapshotAuditResponse(BaseModel):
+    pump_assessment: dict[str, str]
     audit: EnergyAuditResponse
     snapshot: SnapshotResponse
     quality: QualityResponse
@@ -160,3 +171,8 @@ class SnapshotAuditResponse(BaseModel):
     scope: ResultScopeResponse
     regime: RegimeResponse
     losses: list[LossResponse]
+    source: Literal["telemetry", "field_trip"] = "telemetry"
+    passport: dict = Field(default_factory=dict)
+    annual_summary: dict[str, float | None] = Field(default_factory=dict)
+    tariff: float = 4.68
+    target_sec: float | None = None
