@@ -196,15 +196,6 @@ CREATE INDEX IF NOT EXISTS ix_parameter_clarifications_aggregate
     ON parameter_clarifications (aggregate_id, status);
 """
 
-_SCHEMA_V9 = """
-ALTER TABLE telemetry_measurements ADD COLUMN source_kind TEXT;
-ALTER TABLE telemetry_measurements ADD COLUMN source_file TEXT;
-ALTER TABLE telemetry_measurements ADD COLUMN source_sheet TEXT;
-ALTER TABLE telemetry_measurements ADD COLUMN source_row INTEGER;
-ALTER TABLE telemetry_measurements ADD COLUMN source_tag TEXT;
-ALTER TABLE telemetry_measurements ADD COLUMN source_label TEXT;
-"""
-
 
 @dataclass(frozen=True)
 class TelemetryMeasurement:
@@ -304,7 +295,22 @@ class AuditDatabase:
                     )
                 connection.execute("PRAGMA user_version = 8")
             if version < 9:
-                connection.executescript(_SCHEMA_V9)
+                columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(telemetry_measurements)")
+                }
+                for column, column_type in (
+                    ("source_kind", "TEXT"),
+                    ("source_file", "TEXT"),
+                    ("source_sheet", "TEXT"),
+                    ("source_row", "INTEGER"),
+                    ("source_tag", "TEXT"),
+                    ("source_label", "TEXT"),
+                ):
+                    if column not in columns:
+                        connection.execute(
+                            f"ALTER TABLE telemetry_measurements ADD COLUMN {column} {column_type}"
+                        )
                 connection.execute("PRAGMA user_version = 9")
 
     def upsert_ngdu(self, name: str) -> None:

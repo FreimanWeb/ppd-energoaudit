@@ -238,3 +238,46 @@ def test_migration_merges_kns97_technical_places_and_renames_pr_aggregate(tmp_pa
 
     assert [aggregate["code"] for aggregate in db.aggregates("kns97pren")] == ["НА-2 ПР", "НА-3"]
     assert db.measurements("kns97pren", "НА-3")[0]["value"] == pytest.approx(200.0)
+
+
+@pytest.mark.parametrize("existing_columns", [False, True])
+def test_v9_migration_upgrades_v8_and_preserves_source_metadata(tmp_path, existing_columns):
+    db = AuditDatabase(tmp_path / "audit.sqlite")
+    db.migrate()
+    db.upsert_plant("kns54", "КНС-54", "Азнакаевскнефть", "пресная", "кнс")
+    db.upsert_aggregate("kns54", "НА-1", "работа")
+    metadata = {
+        "source_kind": "scada", "source_file": "source.xlsx", "source_sheet": "НА-1",
+        "source_row": 17, "source_tag": "power", "source_label": "Мощность",
+    }
+    db.add_measurement(
+        "kns54", "НА-1", datetime(2025, 6, 1), "power", 100.0, "кВт", **metadata
+    )
+    with db._connection() as connection:
+        if not existing_columns:
+            for column in metadata:
+                connection.execute(f"ALTER TABLE telemetry_measurements DROP COLUMN {column}")
+        connection.execute("PRAGMA user_version = 8")
+
+    db.migrate()
+    db.migrate()
+
+    measurement = db.measurements("kns54", "НА-1")[0]
+    assert measurement["value"] == 100.0
+    assert {key: measurement[key] for key in metadata} == (
+        metadata if existing_columns else dict.fromkeys(metadata)
+    )
+    with db._connection() as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 9
+
+
+def test_v9_migration_does_not_hide_missing_telemetry_table(tmp_path):
+    import sqlite3
+
+    db = AuditDatabase(tmp_path / "broken.sqlite")
+    with db._connection() as connection:
+        connection.execute("PRAGMA user_version = 8")
+    with pytest.raises(sqlite3.OperationalError, match="no such table"):
+        db.migrate()
+    with db._connection() as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
