@@ -84,7 +84,7 @@ def test_telemetry_validate_endpoint_returns_normalized_input():
 
     response = validate_telemetry_submission(submission)
 
-    assert "/telemetry/validate" in {route.path for route in app.routes}
+    assert "/telemetry/validate" in app.openapi()["paths"]
     assert response.validation.ok is True
     assert response.normalized_by_aggregate["Н-4"].q_day == 2400
     assert response.normalized_by_aggregate["Н-4"].t == 24

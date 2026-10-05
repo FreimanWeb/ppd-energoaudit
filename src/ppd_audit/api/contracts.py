@@ -7,6 +7,7 @@ duplicating the plant passport schema.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -62,3 +63,100 @@ class TelemetryStored(BaseModel):
 class TelemetryAuditWindow(BaseModel):
     start: datetime
     end: datetime
+
+
+class AggregateSummary(BaseModel):
+    code: str
+    role: str
+    pump_model: str | None = None
+    has_telemetry: bool
+
+
+class TelemetryDates(BaseModel):
+    dates: list[str]
+    default_date: str | None = None
+
+
+class SnapshotResponse(BaseModel):
+    timestamp: str
+    p_in_mpa: float
+    p_out_mpa: float
+    p_bg_mpa: float | None
+    power_kw: float
+
+
+class TopologyNode(BaseModel):
+    id: str
+    type: str
+    x: float
+    y: float
+    label: str
+    sub: str | None = None
+    agg: str | None = None
+    hint: str | None = None
+
+
+class TopologyEdge(BaseModel):
+    from_: str = Field(alias="from")
+    to: str
+    kind: str | None = None
+
+
+class TopologyResponse(BaseModel):
+    title: str
+    source: str
+    is_typical: bool
+    nodes: list[TopologyNode]
+    edges: list[TopologyEdge]
+
+
+class SnapshotAuditRequest(BaseModel):
+    day: str
+    timestamp: str
+
+
+class QualityIssueResponse(BaseModel):
+    code: str
+    message: str
+    severity: Literal["warning", "error"]
+
+
+class QualityResponse(BaseModel):
+    status: Literal["ready", "assumptions", "unfit"]
+    issues: list[QualityIssueResponse]
+    basis: dict[str, str]
+
+
+class ResultScopeResponse(BaseModel):
+    annual_runtime_hours: float
+    annual_runtime_is_assumed: bool
+    daily_kpi_is_fact: bool
+
+
+class RegimeResponse(BaseModel):
+    p_in: float
+    p_out: float
+    p_bg: float | None
+    q_day: float | None
+    t: float | None
+    w: float | None
+    t_year: float | None
+
+
+class LossResponse(BaseModel):
+    name: str
+    power_kw: float
+    share: float
+    annual_kwh: float | None
+    annual_rub: float | None
+    category: str
+
+
+class SnapshotAuditResponse(BaseModel):
+    audit: EnergyAuditResponse
+    snapshot: SnapshotResponse
+    quality: QualityResponse
+    sources: dict[str, str]
+    scope: ResultScopeResponse
+    regime: RegimeResponse
+    losses: list[LossResponse]

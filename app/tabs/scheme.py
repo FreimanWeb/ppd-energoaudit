@@ -2,27 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
+from html import escape
+from pathlib import Path
 
 import lib
-import plotly.graph_objects as go
 import streamlit as st
 import ui
 
 from tabs.common import Ctx, fmt
-
-
-_CAT_COLOR = {
-    "source": "#f3f4f6",
-    "prep": "#f3f4f6",
-    "meter": "#f9fafb",
-    "pump": "#e5e7eb",
-    "manifold": "#eef0f2",
-    "valve": "#f3f4f6",
-    "wells": "#f3f4f6",
-    "reservoir": "#f9fafb",
-    "node": "#f3f4f6",
-}
 
 
 def _aggregate_pressure_text(snapshots, timestamp) -> str:
@@ -89,65 +78,65 @@ def _node_hover(n, typ, au, rm):
     return "<br>".join(lines)
 
 
-def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
-    """Интерактивная as-built схема: трубопроводы + узлы с hover и подсветкой.
-
-    Насосы подсвечиваются по КПД (зелёный/жёлтый/красный), выбранный агрегат — золотой
-    рамкой. Наведение на узел показывает, что в нём происходит, и фактические значения.
-    """
+def _topology_svg(topo, selected_audit, sel_agg, rm, pressure_labels) -> str:
+    """Предметная схема оборудования; топология и давления остаются исходными."""
     nodes = topo.get("nodes", [])
-    pos = {n["id"]: (n["x"], n["y"]) for n in nodes}
-    nodes_by_id = {n["id"]: n for n in nodes}
-
-    pumps = {
-        n["id"]: selected_audit
-        for n in nodes
-        if n.get("type") == "pump" and n.get("agg") == sel_agg
+    by_id = {node["id"]: node for node in nodes}
+    max_y = max((node["y"] for node in nodes), default=0)
+    min_x = min((node["x"] for node in nodes), default=0)
+    pos = {
+        node["id"]: (
+            110 + (node["x"] - min_x) * 220,
+            100 + (max_y - node["y"]) * 150 + (160 if node.get("type") == "reservoir" else 0),
+        )
+        for node in nodes
     }
-
-    def eta_fill(au):
-        r = (au.regime.eta_unit / au.regime.eta_nom) if au.regime.eta_nom else 1.0
-        return "#cfe8dc" if r >= 0.9 else ("#f6e3b4" if r >= 0.78 else "#f2cecb")
-
-    fig = go.Figure()
-    # --- трубопроводы: двухслойная «труба», дросселирование — оранжевый пунктир ---
-    for e in topo.get("edges", []):
-        if e.get("from") not in pos or e.get("to") not in pos:
+    width = max((x for x, _ in pos.values()), default=600) + 140
+    height = max(
+        (y + (190 if by_id[key].get("type") == "wells" else 90) for key, (_, y) in pos.items()),
+        default=250,
+    )
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+        'role="img" aria-label="Технологическая схема ППД" class="ppd-equipment">',
+        "<title>Система ППД: оборудование, водоводы, скважины и пласт</title>",
+        (Path(__file__).resolve().parents[2] / "shared" / "ppd-symbols.svg").read_text(),
+        '<rect width="100%" height="100%" rx="12" fill="#f8fbfa"/>',
+    ]
+    pump_pos = [pos[n["id"]] for n in nodes if n.get("type") == "pump"]
+    if pump_pos:
+        x0 = min(x for x, _ in pump_pos) - 100
+        y0 = min(y for _, y in pump_pos) - 70
+        hall_height = max(y for _, y in pump_pos) - y0 + 70
+        parts.append(
+            f'<rect x="{x0}" y="{y0}" width="200" height="{hall_height}" '
+            'rx="10" fill="#edf4f1" stroke="#d8e3df"/>'
+            f'<text x="{x0 + 12}" y="{y0 + 18}" class="ppd-hall">МАШИННЫЙ ЗАЛ</text>'
+        )
+    # Соединения рисуются раньше оборудования, чтобы трубы не проходили поверх него.
+    for edge in topo.get("edges", []):
+        source, target = by_id.get(edge.get("from")), by_id.get(edge.get("to"))
+        if source is None or target is None:
             continue
-        x0, y0 = pos[e["from"]]
-        x1, y1 = pos[e["to"]]
-        source, target = nodes_by_id[e["from"]], nodes_by_id[e["to"]]
-        thr = e.get("kind") == "throttle"
-        outer, inner = ("#b8860b", "#f3cf5a") if thr else ("#9ca3af", "#e5e7eb")
-        dash = "dash" if thr else None
-        for w, c in ((9, outer), (4, inner)):
-            fig.add_trace(
-                go.Scatter(
-                    x=[x0, x1],
-                    y=[y0, y1],
-                    mode="lines",
-                    hoverinfo="skip",
-                    showlegend=False,
-                    line=dict(color=c, width=w, dash=dash),
-                )
-            )
-        fig.add_annotation(
-            x=x1,
-            y=y1,
-            ax=x0,
-            ay=y0,
-            xref="x",
-            yref="y",
-            axref="x",
-            ayref="y",
-            text="",
-            showarrow=True,
-            arrowhead=3,
-            arrowwidth=1.4,
-            arrowcolor="#9ca3af",
-            standoff=38,
-            startstandoff=34,
-            opacity=0.85,
+        x0, y0 = pos[source["id"]]
+        x1, y1 = pos[target["id"]]
+        if source.get("type") == "wells":
+            y0 += 160
+        else:
+            x0 += 72 if source.get("type") == "pump" else 40
+        x1 -= 72 if target.get("type") == "pump" else 40
+        if target.get("type") == "reservoir":
+            x1 += 40
+        middle = (x0 + x1) / 2
+        throttled = edge.get("kind") == "throttle"
+        color = "#c58b25" if throttled else "#4a5d57"
+        dash = ' stroke-dasharray="7 4"' if throttled else ""
+        parts.append(
+            f'<g data-from="{escape(source["id"], quote=True)}" '
+            f'data-to="{escape(target["id"], quote=True)}">'
+            f'<path d="M{x0} {y0} H{middle} V{y1} H{x1}" '
+            f'fill="none" stroke="{color}" stroke-width="3"{dash} '
+            'marker-end="url(#ppd-flow)"/>'
         )
         if target.get("type") == "pump":
             label = pressure_labels.get(target.get("agg"), (None, None))[0]
@@ -156,206 +145,128 @@ def _topology_figure(topo, selected_audit, sel_agg, rm, pressure_labels):
         else:
             label = None
         if label:
-            fig.add_annotation(
-                x=(x0 + x1) / 2,
-                y=(y0 + y1) / 2,
-                text=label,
-                showarrow=False,
-                font={"size": 10, "color": "#13212e"},
-                bgcolor="white",
+            label_y = y1 - 40 if target.get("type") == "pump" else y0 - 40
+            parts.append(
+                f'<text x="{middle}" y="{label_y}" class="ppd-pressure">{escape(label)}</text>'
             )
-
-    # --- узлы: боксы + подписи + прозрачный hover-слой ---
-    hx, hy, htext = [], [], []
-    for n in nodes:
-        x, y = pos[n["id"]]
-        typ = n.get("type", "node")
-        au = pumps.get(n["id"])
-        fill = eta_fill(au) if au is not None else _CAT_COLOR.get(typ, "#e0e0e0")
-        border, bw = (
-            ("#1f2937", 2.4) if (n.get("agg") and n["agg"] == sel_agg) else ("#d1d5db", 1.0)
+        parts.append("</g>")
+    # Пласт находится позади скважины и её перфорации.
+    for node in sorted(nodes, key=lambda n: n.get("type") != "reservoir"):
+        x, y = pos[node["id"]]
+        typ = node.get("type", "node")
+        selected = bool(node.get("agg") and node["agg"] == sel_agg)
+        audit = selected_audit if selected and typ == "pump" else None
+        fill = "white"
+        if audit is not None:
+            ratio = audit.regime.eta_unit / audit.regime.eta_nom if audit.regime.eta_nom else 1
+            fill = "#cfe8dc" if ratio >= 0.9 else ("#f6e3b4" if ratio >= 0.78 else "#f2cecb")
+        symbol = (
+            typ
+            if typ in {"source", "prep", "meter", "pump", "valve", "wells", "reservoir"}
+            else "manifold"
         )
-        fig.add_shape(
-            type="rect",
-            x0=x - 0.40,
-            x1=x + 0.40,
-            y0=y - 0.30,
-            y1=y + 0.30,
-            line=dict(color=border, width=bw),
-            fillcolor=fill,
-            layer="above",
+        if typ == "manifold" and "выкид" in node.get("label", "").lower():
+            symbol = "meter"
+        if typ == "prep" and "ёмк" in node.get("label", "").lower():
+            symbol = "source"
+        hover = _node_hover(node, typ, audit, rm).replace("<br>", "\n")
+        hover = re.sub(r"</?b>", "", hover)
+        parts.append(
+            f'<g data-node="{escape(node["id"], quote=True)}" '
+            f'data-selected="{str(selected).lower()}" transform="translate({x} {y})" '
+            f'style="color:{"#1f4e4a" if selected else "#4a5d57"};--pump-fill:{fill}">'
+            f"<title>{escape(hover)}</title>"
+            f'<use href="#ppd-{symbol}"/>'
         )
-        fig.add_annotation(
-            x=x,
-            y=y + 0.07,
-            showarrow=False,
-            font=dict(size=11, color="#13212e"),
-            text="<b>" + str(n.get("label", "")).split("\n")[0] + "</b>",
-        )
-        sub = n.get("sub") or " ".join(str(n.get("label", "")).split("\n")[1:])
+        label_y = -45 if typ == "wells" else (8 if typ == "reservoir" else 55)
+        label = str(node.get("label", "")).replace("\n", " ")
+        parts.append(f'<text y="{label_y}" class="ppd-label">{escape(label)}</text>')
+        sub = str(node.get("sub", "")).replace("\n", " ")
         if sub:
-            fig.add_annotation(
-                x=x,
-                y=y - 0.14,
-                showarrow=False,
-                font=dict(size=8, color="#3c4a57"),
-                text=str(sub).replace("\n", " "),
+            parts.append(f'<text y="{label_y + 17}" class="ppd-sub">{escape(sub)}</text>')
+        if selected:
+            parts.append(
+                '<rect x="-82" y="-33" width="164" height="66" '
+                'rx="8" fill="none" stroke="#c58b25" stroke-width="2"/>'
             )
-        hx.append(x)
-        hy.append(y)
-        htext.append(_node_hover(n, typ, au, rm))
-    fig.add_trace(
-        go.Scatter(
-            x=hx,
-            y=hy,
-            mode="markers",
-            showlegend=False,
-            hoverinfo="text",
-            hovertext=htext,
-            marker=dict(size=54, color="rgba(0,0,0,0)"),
-        )
-    )
-
-    xs = [n["x"] for n in nodes] or [0]
-    ys = [n["y"] for n in nodes] or [0]
-    fig.update_xaxes(visible=False, range=[min(xs) - 0.85, max(xs) + 0.85])
-    fig.update_yaxes(visible=False, range=[min(ys) - 1.0, max(ys) + 1.0])
-    fig.update_layout(
-        height=480,
-        margin=dict(t=8, b=8, l=8, r=8),
-        plot_bgcolor="white",
-        hoverlabel=dict(bgcolor="white", font_size=12),
-        showlegend=False,
-    )
-    return fig
+        parts.append("</g>")
+    parts.append("</svg>")
+    return "".join(parts)
 
 
-def _fallback_chain(ctx: Ctx, pressure_labels: dict[str, tuple[str | None, str | None]]) -> None:
-    """Типовая параметрическая цепочка ППД, когда as-built топологии нет."""
-    rm_s = ctx.agg.regime
-    st.caption("Типовая схема: параллельные ветви НА.")
-    aggregates = ctx.obj.aggregates
-    pump_y = [(len(aggregates) - 1) / 2 - index for index, _ in enumerate(aggregates)]
-    stages = []
-    if rm_s.p_bg:
-        stages.append(("БГ / гребёнка", f"p_БГ={fmt(rm_s.p_bg, 2)} МПа", "#f3f4f6"))
-    stages.append(("ЗРА / штуцеры", "дросселирование", "#f6e3b4"))
-    stages.append(("Нагнетательные\nскважины", "приёмистость P–Q", "#f3f4f6"))
-    stages.append(("Пласт", "отклик (CRM)", "#f9fafb"))
-
-    fig_s = go.Figure()
-
-    def box(x, y, title, sub, color, *, selected: bool = False):
-        fig_s.add_shape(
-            type="rect",
-            x0=x - 0.45,
-            x1=x + 0.45,
-            y0=y - 0.36,
-            y1=y + 0.36,
-            line={
-                "color": "#1f2937" if selected else "#d1d5db",
-                "width": 2 if selected else 1,
-            },
-            fillcolor=color,
-        )
-        fig_s.add_annotation(
-            x=x,
-            y=y + 0.13,
-            showarrow=False,
-            font={"size": 12},
-            text="<b>" + title.replace("\n", "<br>") + "</b>",
-        )
-        fig_s.add_annotation(
-            x=x,
-            y=y - 0.18,
-            showarrow=False,
-            font={"size": 10, "color": "#333"},
-            text=sub.replace("\n", "<br>"),
-        )
-
-    def arrow(x0, y0, x1, y1, label: str | None = None):
-        fig_s.add_annotation(
-            x=x1,
-            y=y1,
-            ax=x0,
-            ay=y0,
-            xref="x",
-            yref="y",
-            axref="x",
-            ayref="y",
-            text="",
-            showarrow=True,
-            arrowhead=2,
-            arrowwidth=2,
-            arrowcolor="#9ca3af",
-        )
-        if label:
-            fig_s.add_annotation(
-                x=(x0 + x1) / 2,
-                y=(y0 + y1) / 2,
-                showarrow=False,
-                font={"size": 10, "color": "#13212e"},
-                text=label,
-                bgcolor="white",
-            )
-
-    box(0, 0, "Источник /\nводоподготовка", "приём воды", "#f3f4f6")
-    for aggregate, y in zip(ctx.obj.aggregates, pump_y, strict=True):
-        selected = aggregate.id == ctx.agg_id
-        box(
-            1.5,
-            y,
-            aggregate.id,
-            aggregate.pump.model,
-            "#e5e7eb",
-            selected=selected,
-        )
-        p_in, p_out = pressure_labels[aggregate.id]
-        arrow(0.45, 0, 1.05, y, p_in)
-        arrow(1.95, y, 2.55, 0, p_out)
-
-    for index, (title, sub, color) in enumerate(stages):
-        x = 3 + index
-        box(x, 0, title, sub, color)
-        arrow(x - 0.55, 0, x - 0.45, 0)
-
-    fig_s.update_xaxes(visible=False, range=[-0.7, len(stages) + 3.0])
-    fig_s.update_yaxes(
-        visible=False,
-        range=[min(pump_y, default=0) - 0.8, max(pump_y, default=0) + 0.8],
-    )
-    fig_s.update_layout(
-        height=max(260, 120 * len(aggregates)),
-        margin={"t": 10, "b": 10, "l": 10, "r": 10},
-        plot_bgcolor="white",
-    )
-    st.plotly_chart(fig_s, width="stretch")
+def _fallback_topology(ctx: Ctx) -> dict:
+    """Та же предметная схема для объектов без описания топологии."""
+    nodes = [{"id": "src", "type": "source", "x": 0, "y": 0, "label": "Приём воды"}]
+    edges = []
+    count = len(ctx.obj.aggregates)
+    for index, aggregate in enumerate(ctx.obj.aggregates):
+        node_id = f"pump-{index}"
+        nodes.append({
+            "id": node_id,
+            "type": "pump",
+            "agg": aggregate.id,
+            "x": 1,
+            "y": (count - 1) / 2 - index,
+            "label": aggregate.id,
+            "sub": aggregate.pump.model or "",
+        })
+        edges.extend([{"from": "src", "to": node_id}, {"from": node_id, "to": "man"}])
+    nodes.extend([
+        {"id": "man", "type": "meter", "x": 2, "y": 0, "label": "Выход из станции"},
+        {
+            "id": "comb",
+            "type": "manifold",
+            "x": 3,
+            "y": 0,
+            "label": "Блок гребёнок",
+            "sub": f"p_БГ={fmt(ctx.agg.regime.p_bg, 2)} МПа"
+            if ctx.agg.regime.p_bg is not None
+            else "",
+        },
+        {"id": "valve", "type": "valve", "x": 4, "y": 0, "label": "ЗРА / штуцеры"},
+        {"id": "wells", "type": "wells", "x": 5, "y": 0, "label": "Нагнетательные скважины"},
+        {"id": "res", "type": "reservoir", "x": 6, "y": 0, "label": "Пласт / призабойная зона"},
+    ])
+    edges.extend([
+        {"from": "man", "to": "comb"},
+        {"from": "comb", "to": "valve"},
+        {"from": "valve", "to": "wells", "kind": "throttle"},
+        {"from": "wells", "to": "res"},
+    ])
+    return {"nodes": nodes, "edges": edges}
 
 
 def render(ctx: Ctx) -> None:
-    st.subheader("Схема работы ППД — переход к CRM")
-    rm_s = ctx.agg.regime
+    st.subheader("Схема работы ППД — оборудование и водоводы")
     topo = lib.get_topology(ctx.object_id)
-    pressure_labels = _aggregate_pressure_labels(ctx)
-
     if topo:
-        st.markdown(f"**{topo.get('title', 'Технологическая схема')}** — as-built по техсхеме")
-        ui.provenance(("As-built схема", "ok"), ("Расчётные показатели", ""))
-        st.caption(
-            "Цвет насоса — КПД: зелёный норма, жёлтый пониженный, красный низкий. "
-            "Тёмная рамка — выбранный агрегат, пунктир — дросселирование."
-        )
-        st.plotly_chart(
-            _topology_figure(topo, ctx.audit, ctx.agg_id, rm_s, pressure_labels),
-            width="stretch",
-            config={"displayModeBar": False},
-        )
-        st.caption(
-            f"Источник: {topo.get('source', 'технологическая схема объекта')}. "
-            f"Факт. режим выбранного агрегата: p_вх={fmt(rm_s.p_in, 2)} · p_вых={fmt(rm_s.p_out, 2)}"
-            + (f" · p_БГ={fmt(rm_s.p_bg, 2)}" if rm_s.p_bg else "")
-            + f" МПа · Q={fmt(rm_s.q_day, 0)} м³/сут."
-        )
+        st.markdown(f"**{topo.get('title', 'Технологическая схема')}**")
+        ui.provenance(("Схема по технологическим материалам", "ok"), ("Расчётные показатели", ""))
+        st.caption(f"Источник: {topo.get('source', 'технологическая схема объекта')}.")
     else:
+        topo = _fallback_topology(ctx)
         ui.provenance(("Типовая схема", "warn"), ("Расчётные показатели", ""))
-        _fallback_chain(ctx, pressure_labels)
+        st.caption("Типовая цепочка: ветви агрегатов из паспорта; расположение водоводов условное.")
+    st.caption(
+        "Насос: зелёный — КПД близок к номинальному, жёлтый — понижен, красный — низкий. "
+        "Золотая рамка — выбранный агрегат; пунктир — участок дросселирования. "
+        "Подробности — при наведении на оборудование."
+    )
+    svg = _topology_svg(
+        topo, ctx.audit, ctx.agg_id, ctx.agg.regime, _aggregate_pressure_labels(ctx)
+    )
+    st.markdown(
+        """<style>
+        .ppd-scheme {overflow-x:auto;border:1px solid #d8e3df;border-radius:12px;}
+        .ppd-equipment {display:block;width:100%;min-width:1000px;font-family:Segoe UI,Arial;}
+        .ppd-equipment text {fill:#26332f;text-anchor:middle;}
+        .ppd-label {font-size:13px;font-weight:600;}
+        .ppd-sub {font-size:11px;fill:#5a6b66!important;}
+        .ppd-pressure {font-size:11px;paint-order:stroke;stroke:#f8fbfa;stroke-width:5px;}
+        .ppd-hall {font-size:11px;font-weight:700;
+                   text-anchor:start!important;fill:#1f4e4a!important;}
+        .ppd-equipment [data-node]:hover {filter:drop-shadow(0 0 3px #b9ccc5);}
+        </style>"""
+        + f'<div class="ppd-scheme">{svg}</div>',
+        unsafe_allow_html=True,
+    )

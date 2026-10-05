@@ -5,7 +5,7 @@ UV ?= uv
 
 .DEFAULT_GOAL := help
 
-.PHONY: help format lint fix test verify app api ingest reports clean-reports
+.PHONY: help format lint fix test verify app api web web-build web-check ingest reports clean-reports
 
 help: ## Показать доступные команды
 	@echo "PPD Energoaudit: make <цель>"
@@ -16,6 +16,9 @@ help: ## Показать доступные команды
 	@echo "  verify        сверить модель с xlsx и отчётами"
 	@echo "  app           запустить Streamlit-дашборд"
 	@echo "  api           запустить FastAPI"
+	@echo "  web           запустить React frontend"
+	@echo "  web-build     собрать React frontend"
+	@echo "  web-check     проверить TypeScript и frontend tests"
 	@echo "  ingest        legacy ДНС-7с (требует отсутствующие исходные Excel)"
 	@echo "  reports       пересобрать кэш .docx-отчётов"
 	@echo "  clean-reports удалить кэш конвертированных отчётов"
@@ -43,7 +46,17 @@ app:
 	$(UV) run streamlit run app/main.py
 
 api:
-	$(UV) run uvicorn ppd_audit.api.main:app --reload
+	$(UV) run --extra api uvicorn ppd_audit.api.main:app --reload --host 127.0.0.1 --port 8000
+
+web:
+	npm run dev
+
+web-build:
+	npm run build
+
+web-check:
+	npm run typecheck
+	npm run test:frontend
 
 ingest:
 	$(UV) run python -m ppd_audit.ingest dns7s

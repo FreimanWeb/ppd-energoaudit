@@ -27,9 +27,11 @@ from .contracts import (
     TelemetryAuditWindow,
     TelemetryStored,
 )
+from .dashboard import router as dashboard_router
 
 
 app = FastAPI(title="PPD Energoaudit API", version="0.1.0")
+app.include_router(dashboard_router)
 
 
 @app.get("/health")
