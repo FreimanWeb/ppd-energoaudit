@@ -7,12 +7,14 @@ export function Scheme({
   topology,
   aggregate,
   audit,
+  pressures,
   selected,
   onSelect,
 }: {
   topology: Topology;
   aggregate: string;
   audit?: Audit;
+  pressures?: Record<string, {p_in_mpa: number; p_out_mpa: number}>;
   selected: string;
   onSelect: (node: Equipment) => void;
 }) {
@@ -114,6 +116,7 @@ export function Scheme({
               edge,
               aggregate,
               audit?.snapshot ?? null,
+              pressures,
             );
             return (
               <g
@@ -153,22 +156,10 @@ export function Scheme({
             )
             .map((node) => {
               const chosenPump = node.type === "pump" && node.agg === aggregate;
-              const metrics =
-                chosenPump && audit?.quality.status !== "unfit"
-                  ? audit?.audit.metrics
-                  : undefined;
-              const ratio =
-                metrics?.eta_unit && metrics.eta_nom
-                  ? metrics.eta_unit / metrics.eta_nom
-                  : null;
-              const fill =
-                ratio === null
-                  ? "white"
-                  : ratio >= 0.9
-                    ? "#cfe8dc"
-                    : ratio >= 0.78
-                      ? "#f6e3b4"
-                      : "#f2cecb";
+              const tone = chosenPump && audit?.quality.status !== "unfit"
+                ? audit?.pump_assessment.tone
+                : undefined;
+              const fill = ({ok: "#cfe8dc", warn: "#f6e3b4", bad: "#f2cecb"} as Record<string,string>)[tone ?? ""] ?? "white";
               let symbol = [
                 "source",
                 "prep",

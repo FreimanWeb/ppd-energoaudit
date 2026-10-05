@@ -19,3 +19,6 @@ data/review
 src/ppd_audit/telemetry_calendar/frontend/node_modules/
 node_modules/
 frontend/dist/
+
+frontend/test-results/
+frontend/playwright-report/

@@ -43,8 +43,16 @@ export function layoutTopology(topology) {
 
 /** @param {ReturnType<typeof layoutTopology>['edges'][number]} edge
  * @param {string} aggregate
- * @param {import('./types').Snapshot | null} snapshot */
-export function pressureForEdge(edge, aggregate, snapshot) {
+ * @param {import('./types').Snapshot | null} snapshot
+ * @param {Record<string, {p_in_mpa:number,p_out_mpa:number}> | undefined} pressures */
+export function pressureForEdge(edge, aggregate, snapshot, pressures) {
+  if (pressures) {
+    if (edge.target.type === "pump")
+      return pressures[edge.target.agg]?.p_in_mpa ?? null;
+    if (edge.source.type === "pump")
+      return pressures[edge.source.agg]?.p_out_mpa ?? null;
+    return null;
+  }
   if (!snapshot) return null;
   if (edge.target.type === "pump" && edge.target.agg === aggregate)
     return snapshot.p_in_mpa;

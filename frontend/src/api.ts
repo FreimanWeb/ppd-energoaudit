@@ -21,6 +21,8 @@ export function useResource<T>(url: string | null, body?: string) {
     })
       .then(async (response) => {
         if (!response.ok) {
+          if (response.status === 401)
+            window.dispatchEvent(new Event("ppd:unauthorized"));
           const detail = await response.json().catch(() => null);
           throw new Error(
             typeof detail?.detail === "string"

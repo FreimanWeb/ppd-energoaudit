@@ -34,3 +34,11 @@ test("all pump branches and actual edges survive layout", () => {
     9,
   );
 });
+
+
+test("parallel pump pressure labels use each branch at the shared timestamp", () => {
+  const edge = {target: {type: "pump", agg: "b"}, source: {type: "source"}};
+  const pressures = {a: {p_in_mpa: 1, p_out_mpa: 9}, b: {p_in_mpa: 2, p_out_mpa: 12}};
+  assert.equal(pressureForEdge(edge, "a", pressures.a, pressures), 2);
+  assert.equal(pressureForEdge({...edge, target: {type: "pump", agg: "missing"}}, "a", pressures.a, pressures), null);
+});

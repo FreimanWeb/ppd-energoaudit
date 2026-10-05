@@ -9,7 +9,8 @@
     "dev:api": "uv run --frozen --extra api uvicorn ppd_audit.api.main:app --reload --host 127.0.0.1 --port 8000",
     "build": "npm run build --workspace frontend",
     "typecheck": "npm run typecheck --workspace frontend",
-    "test:frontend": "npm run test --workspace frontend"
+    "test:frontend": "npm run test --workspace frontend",
+    "test:e2e": "npm run test:e2e --workspace frontend --"
   },
   "engines": {
     "node": ">=22.12.0"
