@@ -516,26 +516,24 @@ class AuditDatabase:
         source_tag: str | None = None,
         source_label: str | None = None,
     ) -> None:
-        self.add_measurements(
-            [
-                TelemetryMeasurement(
-                    plant_code=plant_code,
-                    aggregate_code=aggregate_code,
-                    timestamp=timestamp,
-                    metric=metric,
-                    value=value,
-                    unit=unit,
-                    quality=quality,
-                    technical_place_code=technical_place_code,
-                    source_kind=source_kind,
-                    source_file=source_file,
-                    source_sheet=source_sheet,
-                    source_row=source_row,
-                    source_tag=source_tag,
-                    source_label=source_label,
-                )
-            ]
-        )
+        self.add_measurements([
+            TelemetryMeasurement(
+                plant_code=plant_code,
+                aggregate_code=aggregate_code,
+                timestamp=timestamp,
+                metric=metric,
+                value=value,
+                unit=unit,
+                quality=quality,
+                technical_place_code=technical_place_code,
+                source_kind=source_kind,
+                source_file=source_file,
+                source_sheet=source_sheet,
+                source_row=source_row,
+                source_tag=source_tag,
+                source_label=source_label,
+            )
+        ])
 
     def add_measurements(self, measurements: Iterator[TelemetryMeasurement]) -> int:
         """Идемпотентно записать canonical telemetry пачкой."""
@@ -575,22 +573,20 @@ class AuditDatabase:
                         else None
                     )
                     ids[key] = (plant_id, place_id, aggregate_id)
-                rows.append(
-                    (
-                        *ids[key],
-                        self._iso(measurement.timestamp),
-                        measurement.metric,
-                        measurement.value,
-                        measurement.unit,
-                        measurement.quality,
-                        measurement.source_kind,
-                        measurement.source_file,
-                        measurement.source_sheet,
-                        measurement.source_row,
-                        measurement.source_tag,
-                        measurement.source_label,
-                    )
-                )
+                rows.append((
+                    *ids[key],
+                    self._iso(measurement.timestamp),
+                    measurement.metric,
+                    measurement.value,
+                    measurement.unit,
+                    measurement.quality,
+                    measurement.source_kind,
+                    measurement.source_file,
+                    measurement.source_sheet,
+                    measurement.source_row,
+                    measurement.source_tag,
+                    measurement.source_label,
+                ))
             connection.executemany(
                 """
                 INSERT INTO telemetry_measurements(

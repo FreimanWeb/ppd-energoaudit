@@ -247,12 +247,14 @@ def test_v9_migration_upgrades_v8_and_preserves_source_metadata(tmp_path, existi
     db.upsert_plant("kns54", "КНС-54", "Азнакаевскнефть", "пресная", "кнс")
     db.upsert_aggregate("kns54", "НА-1", "работа")
     metadata = {
-        "source_kind": "scada", "source_file": "source.xlsx", "source_sheet": "НА-1",
-        "source_row": 17, "source_tag": "power", "source_label": "Мощность",
+        "source_kind": "scada",
+        "source_file": "source.xlsx",
+        "source_sheet": "НА-1",
+        "source_row": 17,
+        "source_tag": "power",
+        "source_label": "Мощность",
     }
-    db.add_measurement(
-        "kns54", "НА-1", datetime(2025, 6, 1), "power", 100.0, "кВт", **metadata
-    )
+    db.add_measurement("kns54", "НА-1", datetime(2025, 6, 1), "power", 100.0, "кВт", **metadata)
     with db._connection() as connection:
         if not existing_columns:
             for column in metadata:
