@@ -837,3 +837,11 @@ footer {
 .login-card .primary-button {margin-top:20px;width:100%;min-height:44px;}
 .primary-button:hover {background:#08684e;}
 @media(max-width:900px) {.mobile-logout {display:block;}}
+
+.nav-section { display: grid; gap: 4px; }
+.nav-section + .nav-section { margin-top: 18px; }
+.sidebar-nav .nav-section-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+}

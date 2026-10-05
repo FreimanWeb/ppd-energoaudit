@@ -42,3 +42,14 @@ test("calendar uses local ISO day strings, Monday weeks and leap years", async (
   assert.equal(days.length % 7, 0);
   assert.equal(monthDays("2025-02").filter(Boolean).length, 28);
 });
+
+
+test("sidebar sections preserve every route with a distinct icon", async () => {
+  const { navigationSections, pages } = await import("./navigation.mjs");
+  assert.ok(navigationSections, "sectioned navigation is missing");
+  assert.deepEqual(navigationSections.map(s => s.label), ["Состояние системы", "Прогнозирование", "Энергоэффективность", "Данные и методика"]);
+  assert.equal(pages.length, 13);
+  assert.equal(new Set(pages.map(p => p.id)).size, 13);
+  assert.equal(new Set(pages.map(p => p.icon)).size, 13);
+  assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
+});

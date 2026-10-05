@@ -10,7 +10,7 @@ import {
   SourcesView,
   LossesView,
 } from "./DashboardViews";
-import { pages, pageForMode, filterObjects } from "./navigation.mjs";
+import { pages, navigationSections, pageForMode, filterObjects } from "./navigation.mjs";
 import { TelemetryPage } from "./pages/Telemetry";
 import { ForecastPage } from "./pages/Forecast";
 import { CRMPage } from "./pages/CRM";
@@ -52,9 +52,18 @@ function Notice({ error, loading }: { error?: string; loading?: boolean }) {
 }
 const iconPaths = {
   overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
+  snapshot: "M4 17a9 9 0 1 1 16 0 M12 12l4-4 M6 12h1 M12 6v1 M17 12h1 M8 20h8",
+  telemetry: "M3 12h4l3-7 4 14 3-7h4",
   scheme: "M3 9h5v6H3z M16 3h5v6h-5z M16 15h5v6h-5z M8 12h4V6h4 M12 12v6h4",
-  losses: "M4 20V10h4v10 M10 20V4h4v16 M16 20v-7h4v7 M2 20h20",
-  sources: "M6 3h9l4 4v14H6z M15 3v5h4 M9 12h7 M9 16h7",
+  forecast: "M3 3v18h18 M6 16l5-6 4 3 6-8 M16 5h5v5",
+  crm: "M12 3 2 8l10 5 10-5z M2 12l10 5 10-5 M2 16l10 5 10-5",
+  "crm-wells": "M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M5 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M19 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M12 8v4 M5 16v-4h14v4",
+  losses: "M13 2 4 14h7l-1 8 10-13h-7z",
+  "working-point": "M12 2v4 M12 18v4 M2 12h4 M18 12h4 M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0 M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0",
+  measures: "M9 3h6v3h-6z M9 5H5v16h14V5h-4 M8 12l2 2 5-5 M8 18h7",
+  sources: "M20 6c0 2-16 2-16 0s16-2 16 0 M4 6v12c0 4 16 4 16 0V6 M4 12c0 4 16 4 16 0",
+  formulas: "M19 4H5l7 8-7 8h14",
+  onboarding: "M3 8l9-5 9 5-9 5z M3 8v11l9 4V13 M21 8v5 M17 18h6 M20 15v6",
   menu: "M4 6h16 M4 12h16 M4 18h16",
 };
 function Icon({ name }: { name: string }) {
@@ -256,26 +265,30 @@ function App({ logout }: { logout?: () => void }) {
         </div>
         <div className="sidebar-content">
           <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
-            <div className="eyebrow">РАБОЧАЯ ОБЛАСТЬ</div>
-            {pages.map((item) => {
-              const available = pageForMode(mode, item.id) === item.id;
-              return (
-                <a
-                  key={item.id}
-                  href={`#${item.id}`}
-                  className={page === item.id ? "active" : ""}
-                  aria-current={page === item.id ? "page" : undefined}
-                  aria-disabled={!available}
-                  title={
-                    !available ? "Недоступно в выбранном режиме" : undefined
-                  }
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon name={item.icon} />
-                  <span>{item.label}</span>
-                </a>
-              );
-            })}
+            {navigationSections.map(section => (
+              <section key={section.label} className="nav-section" aria-label={section.label}>
+                <h2 className="eyebrow nav-section-title">{section.label}</h2>
+                {section.pages.map((item) => {
+                  const available = pageForMode(mode, item.id) === item.id;
+                  return (
+                    <a
+                      key={item.id}
+                      href={`#${item.id}`}
+                      className={page === item.id ? "active" : ""}
+                      aria-current={page === item.id ? "page" : undefined}
+                      aria-disabled={!available}
+                      title={
+                        !available ? "Недоступно в выбранном режиме" : undefined
+                      }
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <Icon name={item.icon} />
+                      <span>{item.label}</span>
+                    </a>
+                  );
+                })}
+              </section>
+            ))}
           </nav>
           <div className="sidebar-divider" />
           <div className="eyebrow sidebar-section-title">ПАРАМЕТРЫ АНАЛИЗА</div>

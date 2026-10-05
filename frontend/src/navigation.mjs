@@ -1,18 +1,39 @@
-export const pages = [
-  { id: "overview", label: "Обзор", icon: "overview" },
-  { id: "snapshot", label: "Режимный расчёт", icon: "overview" },
-  { id: "telemetry", label: "Телеметрия", icon: "losses" },
-  { id: "forecast", label: "Прогноз закачки", icon: "losses" },
-  { id: "crm", label: "Прогноз CRM", icon: "scheme" },
-  { id: "crm-wells", label: "Прогноз по скважинам", icon: "scheme" },
-  { id: "scheme", label: "Схема ППД", icon: "scheme" },
-  { id: "losses", label: "Карта потерь", icon: "losses" },
-  { id: "working-point", label: "Рабочая точка", icon: "losses" },
-  { id: "measures", label: "Мероприятия", icon: "losses" },
-  { id: "onboarding", label: "Подключение объекта", icon: "sources" },
-  { id: "formulas", label: "Формулы", icon: "sources" },
-  { id: "sources", label: "Источники данных", icon: "sources" },
+export const navigationSections = [
+  {
+    label: "Состояние системы",
+    pages: [
+      { id: "overview", label: "Обзор", icon: "overview" },
+      { id: "snapshot", label: "Режимный расчёт", icon: "snapshot" },
+      { id: "telemetry", label: "Телеметрия", icon: "telemetry" },
+      { id: "scheme", label: "Схема ППД", icon: "scheme" },
+    ],
+  },
+  {
+    label: "Прогнозирование",
+    pages: [
+      { id: "forecast", label: "Прогноз закачки", icon: "forecast" },
+      { id: "crm", label: "Прогноз CRM", icon: "crm" },
+      { id: "crm-wells", label: "Прогноз по скважинам", icon: "crm-wells" },
+    ],
+  },
+  {
+    label: "Энергоэффективность",
+    pages: [
+      { id: "losses", label: "Карта потерь", icon: "losses" },
+      { id: "working-point", label: "Рабочая точка", icon: "working-point" },
+      { id: "measures", label: "Мероприятия", icon: "measures" },
+    ],
+  },
+  {
+    label: "Данные и методика",
+    pages: [
+      { id: "sources", label: "Источники данных", icon: "sources" },
+      { id: "formulas", label: "Формулы", icon: "formulas" },
+      { id: "onboarding", label: "Подключение объекта", icon: "onboarding" },
+    ],
+  },
 ];
+export const pages = navigationSections.flatMap(section => section.pages);
 const fieldPages = new Set([
   "overview",
   "losses",
