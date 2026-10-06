@@ -45,6 +45,7 @@ test('forecast periodicity uses legacy defaults and preserves history before zer
   await fixture(page);
   await section(page, 'forecast');
   await expect(page.getByLabel('Горизонт прогноза')).toHaveValue('36');
+  await expect(page.getByLabel('Конец периода')).toHaveValue('2026-10-01');
   await page.getByLabel('Периодичность').selectOption('7');
   await expect(page.getByLabel('Горизонт прогноза')).toHaveValue('52');
   await page.getByLabel('Периодичность').selectOption('1');

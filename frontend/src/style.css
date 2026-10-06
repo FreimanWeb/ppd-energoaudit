@@ -845,3 +845,46 @@ footer {
   font-weight: 600;
   text-transform: uppercase;
 }
+
+/* Параметры остаются над независимой прокруткой рабочих разделов. */
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+.analysis-panel {
+  flex-shrink: 0;
+  max-height: 65%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sidebar-divider { flex-shrink: 0; margin: 16px 10px; }
+.app-sidebar .selectors { gap: 12px; padding-top: 12px; grid-template-columns: minmax(0, 1fr); }
+.app-sidebar select { min-height: 36px; }
+.selector-time, .selector-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.selector-time { align-items: end; }
+.selector-time label { min-width: 0; }
+@media (max-width: 900px) {
+  .sidebar-content { display: block; overflow: visible; }
+  .analysis-panel { max-height: none; overflow: visible; }
+  .sidebar-nav { overflow: visible; }
+}
+
+.app-sidebar .selector-time select {
+  padding-left: 8px;
+  padding-right: 22px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}

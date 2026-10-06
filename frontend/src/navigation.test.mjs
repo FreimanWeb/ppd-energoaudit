@@ -53,3 +53,27 @@ test("sidebar sections preserve every route with a distinct icon", async () => {
   assert.equal(new Set(pages.map(p => p.icon)).size, 13);
   assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
 });
+
+
+test("analysis context round-trips Cyrillic aggregates and keeps the page and unrelated query", async () => {
+  const nav = await import("./navigation.mjs");
+  assert.equal(typeof nav.analysisContextURL, "function");
+  const context = {object: "kns54an", aggregate: "НА-2", day: "2026-09-28", timestamp: "2026-09-28T12:00:00", mode: "analysis"};
+  const href = nav.analysisContextURL("http://localhost/?keep=1#scheme", context);
+  assert.deepEqual(nav.readAnalysisContext(href), context);
+  assert.equal(new URL(href).hash, "#scheme");
+  assert.equal(new URL(href).searchParams.get("keep"), "1");
+});
+
+test("source modes omit irrelevant measurement parameters and unknown modes fall back", async () => {
+  const nav = await import("./navigation.mjs");
+  assert.equal(typeof nav.readAnalysisContext, "function");
+  const original = {object: "kns54an", aggregate: "НА-2", day: "2026-09-28", timestamp: "2026-09-28T12:00:00", mode: "field_trip"};
+  const trip = new URL(nav.analysisContextURL("http://localhost/", original));
+  assert.equal(trip.searchParams.has("day"), false);
+  assert.equal(trip.searchParams.has("timestamp"), false);
+  const viewer = new URL(nav.analysisContextURL(trip.href, {...original, mode: "telemetry_view"}));
+  assert.equal(viewer.searchParams.get("day"), original.day);
+  assert.equal(viewer.searchParams.has("timestamp"), false);
+  assert.equal(nav.readAnalysisContext("http://localhost/?mode=unknown").mode, "analysis");
+});

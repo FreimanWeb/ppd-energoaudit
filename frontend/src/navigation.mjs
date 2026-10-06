@@ -70,3 +70,28 @@ export function monthDays(month) {
   while (result.length % 7) result.push(null);
   return result;
 }
+
+
+/** @param {string} href */
+export function readAnalysisContext(href) {
+  const params = new URL(href).searchParams;
+  const mode = params.get("mode") ?? "analysis";
+  return {
+    object: params.get("object") ?? "",
+    aggregate: params.get("aggregate") ?? "",
+    day: params.get("day") ?? "",
+    timestamp: params.get("timestamp") ?? "",
+    mode: ["analysis", "field_trip", "telemetry_view"].includes(mode) ? mode : "analysis",
+  };
+}
+/** @param {string} href @param {ReturnType<typeof readAnalysisContext>} context */
+export function analysisContextURL(href, context) {
+  const url = new URL(href);
+  for (const [key, value] of Object.entries(context)) {
+    const relevant = key !== "day" || context.mode !== "field_trip";
+    const measured = key !== "timestamp" || context.mode === "analysis";
+    if (value && relevant && measured) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  }
+  return url.href;
+}

@@ -10,7 +10,14 @@ import {
   SourcesView,
   LossesView,
 } from "./DashboardViews";
-import { pages, navigationSections, pageForMode, filterObjects } from "./navigation.mjs";
+import {
+  pages,
+  navigationSections,
+  pageForMode,
+  filterObjects,
+  readAnalysisContext,
+  analysisContextURL,
+} from "./navigation.mjs";
 import { TelemetryPage } from "./pages/Telemetry";
 import { ForecastPage } from "./pages/Forecast";
 import { CRMPage } from "./pages/CRM";
@@ -124,23 +131,32 @@ function Filters({
   );
 }
 function App({ logout }: { logout?: () => void }) {
-  const [objectChoice, setObject] = useState(""),
-    [aggregateChoice, setAggregate] = useState(""),
-    [dayChoice, setDay] = useState(""),
-    [timestampChoice, setTimestamp] = useState(""),
-    [nodeChoice, setNode] = useState("");
+  const [selection, setSelection] = useState(() => readAnalysisContext(location.href));
+  const {
+    object: objectChoice,
+    aggregate: aggregateChoice,
+    day: dayChoice,
+    timestamp: timestampChoice,
+    mode,
+  } = selection;
+  const [nodeChoice, setNode] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false),
-    [mode, setMode] = useState("analysis"),
     [rawPage, setPage] = useState(location.hash.slice(1) || "overview");
   const [waters, setWaters] = useState<string[]>([]),
     [ngdus, setNgdus] = useState<string[]>([]);
   useEffect(() => {
     const update = () => {
       setPage(location.hash.slice(1) || "overview");
+      setSelection(readAnalysisContext(location.href));
+      setNode("");
       window.scrollTo({ top: 0, behavior: "instant" });
     };
     window.addEventListener("hashchange", update);
-    return () => window.removeEventListener("hashchange", update);
+    window.addEventListener("popstate", update);
+    return () => {
+      window.removeEventListener("hashchange", update);
+      window.removeEventListener("popstate", update);
+    };
   }, []);
   const page = pageForMode(mode, rawPage),
     source = mode === "field_trip" ? "field_trip" : "telemetry";
@@ -216,18 +232,50 @@ function App({ logout }: { logout?: () => void }) {
     audit,
   };
   const contextKey = `${object?.code}/${aggregate?.code}/${mode}`;
+  function changeSelection(patch: Partial<typeof selection>) {
+    const next = {
+      object: object?.code ?? objectChoice,
+      aggregate: aggregate?.code ?? aggregateChoice,
+      day,
+      timestamp: snapshot?.timestamp ?? timestampChoice,
+      mode,
+      ...patch,
+    };
+    history.replaceState(null, "", analysisContextURL(location.href, next));
+    setSelection(next);
+  }
   function chooseAggregate(code: string) {
-    setAggregate(code);
-    setDay("");
-    setTimestamp("");
+    changeSelection({aggregate: code, day: "", timestamp: ""});
     setNode("");
   }
+  function chooseDay(value: string) {
+    changeSelection({day: value, timestamp: ""});
+  }
   function chooseMode(value: string) {
-    setMode(value);
-    setDay("");
-    setTimestamp("");
+    changeSelection({mode: value, day: "", timestamp: ""});
     location.hash = pageForMode(value, rawPage);
   }
+  useEffect(() => {
+    // Пользователь или history могли изменить URL после render этого effect.
+    const current = readAnalysisContext(location.href);
+    if (Object.entries(selection).some(([key, value]) => current[key as keyof typeof current] !== value)) return;
+    // Не заменять входящие параметры defaults, пока загружается их цепочка данных.
+    if (!object || !aggregate ||
+        (mode !== "field_trip" && !dates.data) ||
+        (mode === "analysis" && day && !snapshots.data)) return;
+    const next = {
+      object: object.code,
+      aggregate: aggregate.code,
+      day: mode === "field_trip" ? "" : day,
+      timestamp: mode === "analysis" ? snapshot?.timestamp ?? "" : "",
+      mode,
+    };
+    const href = analysisContextURL(location.href, next);
+    if (href !== location.href) {
+      history.replaceState(null, "", href);
+      setSelection(next);
+    }
+  }, [object?.code, aggregate?.code, mode, day, snapshot?.timestamp, dates.data, snapshots.data, selection]);
   const blockedPage = page !== rawPage && rawPage !== "overview";
   const needAudit = [
     "overview",
@@ -264,6 +312,128 @@ function App({ logout }: { logout?: () => void }) {
           </div>
         </div>
         <div className="sidebar-content">
+          <div className="analysis-panel">
+            <div className="eyebrow sidebar-section-title">ПАРАМЕТРЫ АНАЛИЗА</div>
+            <section className="selectors" aria-label="Выбор режима">
+              <label>
+                Режим
+                <select
+                  aria-label="Режим"
+                  value={mode}
+                  onChange={(e) => chooseMode(e.target.value)}
+                >
+                  <option value="analysis">Анализ по телеметрии</option>
+                  <option value="field_trip">Выезд</option>
+                  <option value="telemetry_view">Просмотр телеметрии</option>
+                </select>
+              </label>
+              <label>
+                Объект
+                <select
+                  aria-label="Объект"
+                  value={object?.code ?? ""}
+                  disabled={!objects.data?.length}
+                  onChange={(e) => {
+                    changeSelection({object: e.target.value, aggregate: "", day: "", timestamp: ""});
+                    setNode("");
+                  }}
+                >
+                  <option value="" disabled>
+                    Выберите объект
+                  </option>
+                  {filtered.map((o) => (
+                    <option key={o.code} value={o.code}>
+                      {mode === "field_trip" ? "" : o.has_telemetry ? "● " : "○ "}
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Агрегат
+                <select
+                  aria-label="Агрегат"
+                  value={aggregate?.code ?? ""}
+                  disabled={!aggregates.data?.length}
+                  onChange={(e) => chooseAggregate(e.target.value)}
+                >
+                  <option value="" disabled>
+                    Нет агрегатов
+                  </option>
+                  {aggregates.data?.map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {a.code}
+                      {a.pump_model ? ` · ${a.pump_model}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {mode !== "field_trip" && (
+                <div className="selector-time">
+                  <label>
+                    Дата
+                    <select aria-label="Дата" value={day} disabled={!dates.data?.dates.length}
+                      onChange={(e) => chooseDay(e.target.value)}>
+                      <option value="" disabled>Нет дат</option>
+                      {dates.data?.dates.map(d => <option key={d} value={d}>{d.split("-").reverse().join(".")}</option>)}
+                    </select>
+                  </label>
+                  {mode === "analysis" && <label>
+                    Момент измерения
+                    <select aria-label="Момент измерения" value={snapshot?.timestamp ?? ""} disabled={!snapshots.data?.length}
+                      onChange={(e) => changeSelection({timestamp: e.target.value})}>
+                      <option value="" disabled>Нет измерений</option>
+                      {snapshots.data?.map(s => <option key={s.timestamp} value={s.timestamp}>{time(s.timestamp)}</option>)}
+                    </select>
+                  </label>}
+                </div>
+              )}
+              <div className="selector-filters">
+              <Filters
+                title="Тип воды"
+                options={[...new Set(objects.data?.map((o) => o.water_type))]}
+                chosen={waters}
+                onChange={setWaters}
+              />
+              <Filters
+                title="НГДУ"
+                options={[...new Set(objects.data?.map((o) => o.ngdu_name))]}
+                chosen={ngdus}
+                onChange={setNgdus}
+              />
+              </div>
+              {aggregatePath && day && mode === "analysis" && <Calendar
+                key={`${object?.code}/${aggregate?.code}`}
+                path={aggregatePath} day={day} dates={dates.data?.dates ?? []}
+                onChange={chooseDay}
+              />}
+            </section>
+            {clarifications.data?.length ? (
+              <details className="clarifications">
+                <summary>
+                  Требуют уточнения ({clarifications.data.length})
+                </summary>
+                {clarifications.data.map((c, i) => (
+                  <p key={i}>
+                    <strong>
+                      {(
+                        {
+                          pump_eta_nom: "КПД насоса",
+                          motor_eta_nom: "КПД ЭД",
+                          t_year: "Годовая наработка",
+                          transmission_eff: "КПД трансмиссии",
+                        } as Record<string, string>
+                      )[c.field] ?? c.field}
+                    </strong>
+                    : {fmt(c.provisional_value)}
+                    <br />
+                    {c.reason}
+                  </p>
+                ))}
+              </details>
+            ) : null}
+          </div>
+          <div className="sidebar-divider" />
           <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
             {navigationSections.map(section => (
               <section key={section.label} className="nav-section" aria-label={section.label}>
@@ -290,156 +460,6 @@ function App({ logout }: { logout?: () => void }) {
               </section>
             ))}
           </nav>
-          <div className="sidebar-divider" />
-          <div className="eyebrow sidebar-section-title">ПАРАМЕТРЫ АНАЛИЗА</div>
-          <section className="selectors" aria-label="Выбор режима">
-            <label>
-              Режим
-              <select
-                aria-label="Режим"
-                value={mode}
-                onChange={(e) => chooseMode(e.target.value)}
-              >
-                <option value="analysis">Анализ по телеметрии</option>
-                <option value="field_trip">Выезд</option>
-                <option value="telemetry_view">Просмотр телеметрии</option>
-              </select>
-            </label>
-            <Filters
-              title="Тип воды"
-              options={[...new Set(objects.data?.map((o) => o.water_type))]}
-              chosen={waters}
-              onChange={setWaters}
-            />
-            <Filters
-              title="НГДУ"
-              options={[...new Set(objects.data?.map((o) => o.ngdu_name))]}
-              chosen={ngdus}
-              onChange={setNgdus}
-            />
-            <label>
-              Объект
-              <select
-                aria-label="Объект"
-                value={object?.code ?? ""}
-                disabled={!objects.data?.length}
-                onChange={(e) => {
-                  setObject(e.target.value);
-                  chooseAggregate("");
-                }}
-              >
-                <option value="" disabled>
-                  Выберите объект
-                </option>
-                {filtered.map((o) => (
-                  <option key={o.code} value={o.code}>
-                    {mode === "field_trip" ? "" : o.has_telemetry ? "● " : "○ "}
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Агрегат
-              <select
-                aria-label="Агрегат"
-                value={aggregate?.code ?? ""}
-                disabled={!aggregates.data?.length}
-                onChange={(e) => chooseAggregate(e.target.value)}
-              >
-                <option value="" disabled>
-                  Нет агрегатов
-                </option>
-                {aggregates.data?.map((a) => (
-                  <option key={a.code} value={a.code}>
-                    {a.code}
-                    {a.pump_model ? ` · ${a.pump_model}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {mode !== "field_trip" && (
-              <>
-                <label>
-                  Дата
-                  <select
-                    aria-label="Дата"
-                    value={day}
-                    disabled={!dates.data?.dates.length}
-                    onChange={(e) => {
-                      setDay(e.target.value);
-                      setTimestamp("");
-                    }}
-                  >
-                    <option value="" disabled>
-                      Нет дат
-                    </option>
-                    {dates.data?.dates.map((d) => (
-                      <option key={d} value={d}>
-                        {d.split("-").reverse().join(".")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {aggregatePath && day && mode === "analysis" && (
-                  <Calendar
-                    key={`${object?.code}/${aggregate?.code}`}
-                    path={aggregatePath}
-                    day={day}
-                    dates={dates.data?.dates ?? []}
-                    onChange={(d) => {
-                      setDay(d);
-                      setTimestamp("");
-                    }}
-                  />
-                )}
-              </>
-            )}
-            {mode === "analysis" && (
-              <label>
-                Момент измерения
-                <select
-                  aria-label="Момент измерения"
-                  value={snapshot?.timestamp ?? ""}
-                  disabled={!snapshots.data?.length}
-                  onChange={(e) => setTimestamp(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Нет измерений
-                  </option>
-                  {snapshots.data?.map((s) => (
-                    <option key={s.timestamp} value={s.timestamp}>
-                      {time(s.timestamp)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </section>
-          {clarifications.data?.length ? (
-            <details className="clarifications">
-              <summary>
-                Требуют уточнения ({clarifications.data.length})
-              </summary>
-              {clarifications.data.map((c, i) => (
-                <p key={i}>
-                  <strong>
-                    {(
-                      {
-                        pump_eta_nom: "КПД насоса",
-                        motor_eta_nom: "КПД ЭД",
-                        t_year: "Годовая наработка",
-                        transmission_eff: "КПД трансмиссии",
-                      } as Record<string, string>
-                    )[c.field] ?? c.field}
-                  </strong>
-                  : {fmt(c.provisional_value)}
-                  <br />
-                  {c.reason}
-                </p>
-              ))}
-            </details>
-          ) : null}
         </div>
         <div className="sidebar-footer">
           <span className="sidebar-dot" />
