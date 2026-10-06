@@ -4,6 +4,7 @@ import pytest
 
 from ppd_audit.db import AuditDatabase
 from ppd_audit.services.telemetry_audit import (
+    _integrated_flow_rate,
     build_regime,
     object_from_database,
     run_snapshot_audit,
@@ -780,3 +781,60 @@ def test_telemetry_day_status_is_the_single_source_for_calendar_status(tmp_path)
         database.add_measurement("kns97", "НА-02", start, metric, value, unit)
 
     assert telemetry_day_status(database, "kns97", "НА-02", start.date()) == "ready"
+
+
+def test_integrated_flow_uses_adjacent_readings_and_ignores_other_series():
+    start = datetime(2026, 1, 1)
+    rows = [
+        {"timestamp": start.isoformat(), "metric": "flow_rate", "is_station": False, "value": 20},
+        {
+            "timestamp": (start + timedelta(minutes=30)).isoformat(),
+            "metric": "flow_rate",
+            "is_station": False,
+            "value": 30,
+        },
+        {"timestamp": start.isoformat(), "metric": "flow_rate", "is_station": True, "value": 999},
+        {"timestamp": start.isoformat(), "metric": "power", "is_station": False, "value": 999},
+    ]
+    assert _integrated_flow_rate(start, start + timedelta(hours=1), rows) == pytest.approx(25)
+
+
+@pytest.mark.parametrize("minutes", [[0, 20, 55], [0, 30], [0]])
+def test_integrated_flow_does_not_extrapolate_partial_or_irregular_series(minutes):
+    start = datetime(2026, 1, 1)
+    rows = [
+        {
+            "timestamp": (start + timedelta(minutes=minute)).isoformat(),
+            "metric": "flow_rate",
+            "is_station": False,
+            "value": 20,
+        }
+        for minute in minutes
+    ]
+    assert _integrated_flow_rate(start, start + timedelta(minutes=90), rows) is None
+
+
+@pytest.mark.parametrize("volume,unfit", [(600, False), (660, True)])
+def test_snapshot_audit_reconciles_raw_flow_against_daily_volume(tmp_path, volume, unfit):
+    database = _database_with_aggregate(tmp_path)
+    start = datetime(2026, 7, 24)
+    for metric, value, unit in [
+        ("p_in", 1, "МПа"),
+        ("p_out", 4, "МПа"),
+        ("density", 1000, "кг/м³"),
+        ("q_day", volume, "м³/сут"),
+        ("runtime", 24, "ч"),
+        ("energy", 2400, "кВт·ч"),
+    ]:
+        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
+    for slot in range(48):
+        database.add_measurement(
+            "kns97", "НА-02", start + timedelta(minutes=30 * slot), "power", 100, "кВт"
+        )
+    for hour, value in [(0, 20), (12, 30)]:
+        database.add_measurement(
+            "kns97", "НА-02", start + timedelta(hours=hour), "flow_rate", value, "м³/ч"
+        )
+    result = run_snapshot_audit(database, "kns97", "НА-02", start, start + timedelta(days=1), start)
+    assert ("daily_flow_mismatch" in result.quality.codes) is unfit
+    assert result.quality.allows_economic_conclusions is not unfit

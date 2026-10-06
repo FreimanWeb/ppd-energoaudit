@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from itertools import pairwise
 from statistics import mean, median
 
 from ..core.audit import AuditResult, audit_aggregate
@@ -411,7 +412,7 @@ def _integrated_flow_rate(start: datetime, end: datetime, rows: list[dict]) -> f
         return None
     intervals = {
         later - earlier
-        for (earlier, _), (later, _) in zip(points, points[1:], strict=True)
+        for (earlier, _), (later, _) in pairwise(points)
     }
     if len(intervals) != 1:
         return None
