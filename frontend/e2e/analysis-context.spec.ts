@@ -1,7 +1,11 @@
 import {test, expect, type Page} from "@playwright/test";
+test.afterEach(async ({page}) => {
+  await page.unrouteAll({behavior: "wait"});
+});
 const incoming = "/?object=kns54an&aggregate=" + encodeURIComponent("НА-2") + "&day=2026-09-28&timestamp=2026-09-28T12:00:00&mode=analysis#scheme";
 async function selected(page: Page, aggregate: string, day: string, timestamp: string) {
   await expect(page.getByLabel("Агрегат", {exact: true})).toHaveValue(aggregate);
+  await expect(page.getByLabel("Дата", {exact: true})).toBeEnabled();
   await expect(page.getByLabel("Дата", {exact: true})).toHaveValue(day);
   await expect(page.getByLabel("Момент измерения")).toHaveValue(timestamp);
   await expect.poll(() => new URL(page.url()).searchParams.get("timestamp")).toBe(timestamp);
@@ -59,4 +63,62 @@ test("field trip links retain object and aggregate without a fabricated measurem
   await expect(page.getByLabel("Дата", {exact: true})).toHaveCount(0);
   expect(new URL(page.url()).searchParams.has("timestamp")).toBe(false);
   expect(new URL(page.url()).searchParams.has("day")).toBe(false);
+});
+
+test("switching pumps from the selector and scheme preserves the common measurement", async ({page}) => {
+  await page.goto(incoming);
+  await selected(page, "НА-2", "2026-09-28", "2026-09-28T12:00:00");
+  await expect(page.getByLabel("Дата", {exact: true})).toBeEnabled();
+  await expect(page.getByLabel("Момент измерения").locator("option:checked")).toBeEnabled();
+  await page.getByLabel("Агрегат", {exact: true}).selectOption("НА-1");
+  await selected(page, "НА-1", "2026-09-28", "2026-09-28T12:00:00");
+  await page.getByRole("button", {name: /НА-2/}).first().click();
+  await selected(page, "НА-2", "2026-09-28", "2026-09-28T12:00:00");
+  await page.reload();
+  await selected(page, "НА-2", "2026-09-28", "2026-09-28T12:00:00");
+});
+
+test("a missing pump timestamp stays selected without substituting another calculation", async ({page}) => {
+  await page.route("**/snapshots?*", async route => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    const isTarget = decodeURIComponent(route.request().url()).includes("/НА-1/");
+    await route.fulfill({response, json: isTarget ? rows.filter((r: {timestamp: string}) => r.timestamp !== "2026-09-28T12:00:00") : rows});
+  });
+  const audits: string[] = [];
+  page.on("request", request => {
+    if (request.url().endsWith("/snapshot-audit")) audits.push(decodeURIComponent(request.url()));
+  });
+  await page.goto(incoming);
+  await selected(page, "НА-2", "2026-09-28", "2026-09-28T12:00:00");
+  await expect(page.getByLabel("Дата", {exact: true})).toBeEnabled();
+  await expect(page.getByLabel("Момент измерения").locator("option:checked")).toBeEnabled();
+  await page.getByLabel("Агрегат", {exact: true}).selectOption("НА-1");
+  await selected(page, "НА-1", "2026-09-28", "2026-09-28T12:00:00");
+  await expect(page.locator("main")).toContainText("На выбранное время нет пригодного снимка");
+  expect(audits.some(url => url.includes("/НА-1/"))).toBe(false);
+  await page.getByLabel("Момент измерения").selectOption("2026-09-28T13:00:00");
+  await selected(page, "НА-1", "2026-09-28", "2026-09-28T13:00:00");
+  await expect.poll(() => audits.some(url => url.includes("/НА-1/"))).toBe(true);
+});
+
+test("a missing pump date does not jump to the latest day", async ({page}) => {
+  await page.route("**/dates", async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (decodeURIComponent(route.request().url()).includes("/НА-1/")) body.dates = body.dates.filter((d: string) => d !== "2026-09-28");
+    await route.fulfill({response, json: body});
+  });
+  await page.route("**/snapshots?day=2026-09-28", async route => {
+    if (decodeURIComponent(route.request().url()).includes("/НА-1/")) await route.fulfill({json: []});
+    else await route.continue();
+  });
+  await page.goto(incoming);
+  await selected(page, "НА-2", "2026-09-28", "2026-09-28T12:00:00");
+  await expect(page.getByLabel("Дата", {exact: true})).toBeEnabled();
+  await expect(page.getByLabel("Момент измерения").locator("option:checked")).toBeEnabled();
+  await page.getByLabel("Агрегат", {exact: true}).selectOption("НА-1");
+  await selected(page, "НА-1", "2026-09-28", "2026-09-28T12:00:00");
+  await expect(page.locator("main")).toContainText("За выбранную дату нет пригодных снимков");
+  await expect(page.getByLabel("Дата", {exact: true})).toBeEnabled();
 });

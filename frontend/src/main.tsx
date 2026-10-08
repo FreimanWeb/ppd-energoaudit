@@ -181,17 +181,16 @@ function App({ logout }: { logout?: () => void }) {
   const dates = useResource<Dates>(
     aggregatePath && mode !== "field_trip" ? `${aggregatePath}/dates` : null,
   );
-  const day = dates.data?.dates.includes(dayChoice)
-    ? dayChoice
-    : (dates.data?.default_date ?? dates.data?.dates.at(-1) ?? "");
+  const day = dayChoice || dates.data?.default_date || dates.data?.dates.at(-1) || "";
   const snapshots = useResource<Snapshot[]>(
     aggregatePath && day && mode === "analysis"
       ? `${aggregatePath}/snapshots?day=${day}`
       : null,
   );
-  const snapshot =
-    snapshots.data?.find((s) => s.timestamp === timestampChoice) ??
-    snapshots.data?.at(-1);
+  const snapshot = timestampChoice
+    ? snapshots.data?.find((s) => s.timestamp === timestampChoice)
+    : snapshots.data?.at(-1);
+  const timestamp = timestampChoice || snapshot?.timestamp || "";
   const topology = useResource<Topology>(
     objectPath && page === "scheme" ? `${objectPath}/topology` : null,
   );
@@ -216,8 +215,8 @@ function App({ logout }: { logout?: () => void }) {
       : null,
   );
   const branchPressures = useResource<Record<string, {p_in_mpa: number; p_out_mpa: number}>>(
-    objectPath && page === "scheme" && mode === "analysis" && snapshot
-      ? `${objectPath}/scheme-pressures?day=${day}&timestamp=${segment(snapshot.timestamp)}`
+    objectPath && page === "scheme" && mode === "analysis" && day && timestamp
+      ? `${objectPath}/scheme-pressures?day=${day}&timestamp=${segment(timestamp)}`
       : null,
   );
   const node =
@@ -237,7 +236,7 @@ function App({ logout }: { logout?: () => void }) {
       object: object?.code ?? objectChoice,
       aggregate: aggregate?.code ?? aggregateChoice,
       day,
-      timestamp: snapshot?.timestamp ?? timestampChoice,
+      timestamp,
       mode,
       ...patch,
     };
@@ -245,7 +244,7 @@ function App({ logout }: { logout?: () => void }) {
     setSelection(next);
   }
   function chooseAggregate(code: string) {
-    changeSelection({aggregate: code, day: "", timestamp: ""});
+    changeSelection({aggregate: code});
     setNode("");
   }
   function chooseDay(value: string) {
@@ -267,7 +266,7 @@ function App({ logout }: { logout?: () => void }) {
       object: object.code,
       aggregate: aggregate.code,
       day: mode === "field_trip" ? "" : day,
-      timestamp: mode === "analysis" ? snapshot?.timestamp ?? "" : "",
+      timestamp: mode === "analysis" ? timestamp : "",
       mode,
     };
     const href = analysisContextURL(location.href, next);
@@ -275,7 +274,7 @@ function App({ logout }: { logout?: () => void }) {
       history.replaceState(null, "", href);
       setSelection(next);
     }
-  }, [object?.code, aggregate?.code, mode, day, snapshot?.timestamp, dates.data, snapshots.data, selection]);
+  }, [object?.code, aggregate?.code, mode, day, timestamp, dates.data, snapshots.data, selection]);
   const blockedPage = page !== rawPage && rawPage !== "overview";
   const needAudit = [
     "overview",
@@ -286,6 +285,7 @@ function App({ logout }: { logout?: () => void }) {
   ].includes(page);
   const noSnapshot =
     mode === "analysis" && snapshots.data?.length === 0 && Boolean(day);
+  const missingSnapshot = mode === "analysis" && Boolean(timestampChoice) && Boolean(snapshots.data?.length) && !snapshot;
   return (
     <div
       className={`app ${sidebarOpen ? "sidebar-open" : ""}`}
@@ -375,14 +375,16 @@ function App({ logout }: { logout?: () => void }) {
                     <select aria-label="Дата" value={day} disabled={!dates.data?.dates.length}
                       onChange={(e) => chooseDay(e.target.value)}>
                       <option value="" disabled>Нет дат</option>
+                      {day && !dates.data?.dates.includes(day) && <option value={day} disabled>{day.split("-").reverse().join(".")}</option>}
                       {dates.data?.dates.map(d => <option key={d} value={d}>{d.split("-").reverse().join(".")}</option>)}
                     </select>
                   </label>
                   {mode === "analysis" && <label>
                     Момент измерения
-                    <select aria-label="Момент измерения" value={snapshot?.timestamp ?? ""} disabled={!snapshots.data?.length}
+                    <select aria-label="Момент измерения" value={timestamp} disabled={!snapshots.data?.length}
                       onChange={(e) => changeSelection({timestamp: e.target.value})}>
                       <option value="" disabled>Нет измерений</option>
+                      {timestamp && !snapshot && <option value={timestamp} disabled>{time(timestamp)}</option>}
                       {snapshots.data?.map(s => <option key={s.timestamp} value={s.timestamp}>{time(s.timestamp)}</option>)}
                     </select>
                   </label>}
@@ -540,6 +542,10 @@ function App({ logout }: { logout?: () => void }) {
             измерения без расчётных выводов.
           </p>
         )}
+        {missingSnapshot && <p className="notice">
+          На выбранное время нет пригодного снимка этого агрегата. Дата и время сохранены;
+          выберите другое время или другой агрегат для расчёта.
+        </p>}
         {audit && page !== "overview" && (
           <div className={`quality ${audit.quality.status}`}>
             <strong>
@@ -671,13 +677,13 @@ function App({ logout }: { logout?: () => void }) {
           !audit &&
           !result.loading &&
           !result.error &&
-          !noSnapshot && (
+          !noSnapshot && !missingSnapshot && (
             <p className="notice">
               Выберите дату и пригодный режим либо выездной замер для расчёта.
             </p>
           )}
         {mode === "analysis" &&
-          (noSnapshot || result.error) &&
+          (noSnapshot || missingSnapshot || result.error) &&
           page !== "telemetry" && (
             <TelemetryPage key={`fallback/${contextKey}`} {...context} />
           )}
