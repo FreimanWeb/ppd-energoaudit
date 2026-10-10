@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import * as data from "./dashboardData.mjs";
+import * as data from "./features/overview/dashboardData.mjs";
 const fixture = {
   source: "field_trip",
   snapshot: null,

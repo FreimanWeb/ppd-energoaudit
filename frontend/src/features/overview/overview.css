@@ -1,0 +1,18 @@
+.overview-page { display: grid; gap: var(--space-5); }
+.overview-page .page-panel { margin: 0; min-width: 0; }
+.overview-primary, .overview-secondary { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: var(--space-5); align-items: start; }
+.overview-primary > .page-panel { height: 100%; }
+.overview-primary .metric-disclosure { margin: 0; }
+.overview-primary .metric-disclosure > summary { padding: var(--space-2) 0; }
+.overview-page .metric-group { margin: var(--space-3) 0 0; }
+.overview-secondary .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.overview-secondary .metric-card { min-height: 112px; }
+.overview-page .annual-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.overview-page .annual-group .metric-values { grid-column: auto; max-width: none; }
+.overview-page .efficiency-group { max-width: none; }
+.overview-page .metric-efficiency-disclosure { max-width: none; }
+.overview-section-link { display: inline-block; margin-top: var(--space-4); font-size: var(--text-label); color: var(--accent-strong); }
+.overview-page .notice p { margin: var(--space-2) 0; }
+.overview-page .notice a { color: inherit; text-underline-offset: 3px; }
+@media (max-width: 1100px) { .overview-primary, .overview-secondary { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .overview-page { gap: var(--space-4); } .overview-page .annual-group .kpis { grid-template-columns: 1fr; } .overview-page .metric-values-row { flex-wrap: wrap; } }

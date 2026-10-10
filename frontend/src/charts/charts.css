@@ -1,0 +1,171 @@
+/* Chart chrome follows ASKS: quiet grid, neutral labels and a compact white tooltip. */
+.native-chart {
+  min-width: 0;
+  width: 100%;
+  color: var(--chart-ink);
+}
+.native-chart-stage {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.native-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 16px;
+  margin: 4px 0 12px;
+  padding: 0;
+  color: var(--chart-axis);
+  font-size: var(--text-caption);
+}
+.native-chart-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 5px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.native-chart-legend button:hover {
+  background: var(--surface-hover);
+}
+.native-chart-legend button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+.native-chart-legend button[aria-pressed="false"] {
+  opacity: 0.45;
+}
+.native-chart-swatch {
+  width: 16px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--series-color);
+}
+.native-chart-tooltip {
+  background: var(--chart-tooltip);
+  border: 1px solid var(--chart-tooltip-border);
+  box-shadow: var(--shadow-tooltip);
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-width: min(288px, 80vw);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+}
+.native-chart-tooltip strong {
+  display: block;
+  padding-bottom: 6px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid var(--chart-grid);
+  color: var(--chart-content);
+  font-weight: var(--weight-semibold);
+}
+.native-chart-tooltip p {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 5px 0;
+  color: var(--chart-axis);
+}
+.native-chart-tooltip b {
+  margin-left: auto;
+  color: var(--chart-content);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.native-chart-tooltip small {
+  display: block;
+  margin-top: 5px;
+  color: var(--chart-content-muted);
+  font-size: var(--text-caption);
+}
+.native-chart-tooltip-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  align-self: center;
+}
+.native-chart-note {
+  margin: 0;
+  text-align: center;
+  color: var(--chart-content-muted);
+  font-size: var(--text-caption);
+}
+@media (max-width: 600px) {
+  .native-chart-legend {
+    gap: 3px 8px;
+    font-size: var(--text-caption);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .native-chart *,
+  .native-chart *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.native-chart .visx-chart {
+  display: block;
+  max-width: 100%;
+  font: var(--text-caption) var(--font-ui);
+}
+.native-chart .visx-chart:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -3px;
+  border-radius: 8px;
+}
+.native-chart .visx-line,
+.native-chart .visx-band {
+  pointer-events: none;
+}
+.native-chart .visx-bar {
+  outline: none;
+  cursor: pointer;
+  transition:
+    filter 160ms ease,
+    stroke 160ms ease;
+}
+.native-chart .visx-bar.is-active,
+.native-chart .visx-bar:focus-visible {
+  filter: brightness(0.95);
+  stroke: var(--chart-axis);
+  stroke-width: 1.5px;
+}
+.native-chart .visx-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  width: max-content;
+  max-width: min(250px, 85%);
+  transition:
+    left 100ms ease-out,
+    top 100ms ease-out,
+    opacity 100ms ease-out;
+  animation: chart-tooltip-enter 100ms ease-out;
+}
+.native-chart .visx-brush {
+  cursor: col-resize;
+}
+.native-chart-note button {
+  font: inherit;
+  border: 0;
+  color: var(--chart-axis);
+  background: transparent;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+@keyframes chart-tooltip-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

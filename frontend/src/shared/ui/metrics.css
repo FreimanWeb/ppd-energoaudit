@@ -1,0 +1,29 @@
+.metric-group { margin: var(--space-3) 0 var(--space-4-5); }
+.metric-group > h3 { margin: 0 0 var(--space-2); font-size: var(--text-body); color: var(--content-muted); }
+.metric-group .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 185px)); gap: var(--space-2-5); margin: 0; }
+.metric-group .metric-card { min-width: 0; padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-page); }
+.metric-card.metric-values { grid-column: span 2; width: 100%; max-width: 380px; min-width: 0; justify-self: center; }
+.metric-values-row { display: flex; align-items: center; width: 100%; min-width: 0; }
+.metric-segment { display: flex; flex: 1 1 0; flex-direction: column; align-items: center; min-width: 0; gap: var(--space-half); text-align: center; }
+.metric-segment-label { color: var(--content-muted); font-size: var(--text-caption); }
+.metric-segment[data-tone="bad"] strong { color: var(--metric-danger); }
+.metric-segment-divider { align-self: center; width: 1px; height: 36px; margin: 0 var(--space-1-5); background: var(--border-subtle); }
+.ure-panel .metric-card.metric-values { grid-column: 1 / -1; width: 100%; max-width: none; border: 0; padding: var(--space-1) 0; }
+.metric-card .metric-label { display: flex; align-items: start; justify-content: space-between; gap: var(--space-1); min-height: 34px; font-size: var(--text-caption); line-height: 1.4; }
+.metric-group .metric-card strong { display: block; font-size: var(--text-value); line-height: 1.2; margin-top: var(--space-1); overflow-wrap: anywhere; }
+.metric-card .metric-unit { display: block; font-size: var(--text-caption); color: var(--content-muted); margin-top: var(--space-1); }
+.metric-card.metric-bad strong { color: var(--metric-danger); }
+.metric-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.metric-toolbar h2 { margin: 0; }
+.metric-segments { display: inline-flex; flex-wrap: wrap; padding: 3px; border-radius: var(--radius-md); background: var(--surface-control); gap: 3px; }
+.metric-segments button { border: 0; border-radius: var(--radius-input); padding: var(--space-1-5) 11px; background: transparent; font-size: var(--text-caption); color: var(--content-muted); cursor: pointer; }
+.metric-segments button[aria-pressed="true"] { background: var(--surface); color: var(--content-primary); box-shadow: var(--shadow-sm); }
+.metric-segments button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ure-panel .metric-group { margin-bottom: 0; }
+.metric-efficiency-disclosure { grid-column: 1 / -1; width: 100%; max-width: 380px; min-width: 0; justify-self: center; }
+.efficiency-group { width: 100%; max-width: 380px; }
+.efficiency-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.metric-card strong.metric-empty { font-size: var(--text-body); color: var(--content-muted); font-weight: var(--weight-medium); }
+.metric-disclosure { margin: var(--space-3) 0; }
+.metric-disclosure > summary { cursor: pointer; font-weight: var(--weight-semibold); padding: var(--space-3) 0; }
+@media (max-width: 450px) { .metric-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

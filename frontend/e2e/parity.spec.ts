@@ -1,34 +1,100 @@
-import { test,expect,type Page } from '@playwright/test';
-async function fixture(page:Page){
- await page.goto('/');
- await page.getByLabel('Объект',{exact:true}).selectOption('kns54an');
- await page.getByLabel('Агрегат',{exact:true}).selectOption('НА-1');
- await page.getByLabel('Дата',{exact:true}).selectOption('2026-09-29');
- await expect(page.getByText('600',{exact:true}).first()).toBeVisible();
+import { test, expect, type Page } from "@playwright/test";
+import { selectDate } from "./helpers";
+async function fixture(page: Page) {
+  await page.goto("/");
+  await page.getByLabel("Объект", { exact: true }).selectOption("kns54an");
+  await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
+  await selectDate(page, "2026-09-29");
+  await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
 }
-test('power telemetry is a held state, and formula fractions have full accessible math layout',async({page})=>{
- await fixture(page);
- await page.locator('nav a[href="#telemetry"]').click();
- await expect.poll(()=>page.locator('.js-plotly-plot').count()).toBeGreaterThan(0);
- await expect.poll(()=>page.evaluate(()=>{
-  const plots=[...document.querySelectorAll('.js-plotly-plot')] as (HTMLElement&{data?:{line?:{shape?:string}}[];layout?:{yaxis?:{title?:{text?:string}}}})[];
-  return plots.find(p=>p.layout?.yaxis?.title?.text==='кВт')?.data?.[0]?.line?.shape;
- })).toBe('hv');
- await page.locator('nav a[href="#formulas"]').click();
- await expect(page.locator('.formula-card .katex-display').first()).toBeVisible();
- await expect.poll(()=>page.locator('.formula-card math mfrac').count()).toBeGreaterThan(0);
- await expect.poll(()=>page.locator('.formula-card math msub').count()).toBeGreaterThan(0);
+test("power telemetry is a held state, and formula fractions have full accessible math layout", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.route("**/api/objects/kns54an/telemetry?*", async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    const power = data.series.find(
+      (series: { unit: string }) => series.unit === "кВт",
+    );
+    expect(power).toBeTruthy();
+    power.points = power.points.map(
+      (point: { timestamp: string; value: number }, index: number) => ({
+        ...point,
+        value: index % 2 ? 620 : 600,
+      }),
+    );
+    await route.fulfill({ response, json: data });
+  });
+  await page.locator('nav a[href="#telemetry"]').click();
+  const power = page.getByRole("group", { name: "P_эл", exact: true });
+  await expect(power.locator("svg.visx-chart").first()).toBeVisible();
+  await expect(power.locator(".visx-line")).toHaveAttribute(
+    "d",
+    /^M/,
+  );
+  const runs = await power
+    .locator(".visx-line")
+    .evaluate((element) => {
+      const path = element as SVGPathElement;
+      const length = path.getTotalLength();
+      let horizontal = false,
+        vertical = false;
+      // Sample the SVG's actual geometry, including paths that use H/V commands.
+      for (
+        let distance = 0.2;
+        distance < length - 0.2;
+        distance += Math.max(0.5, length / 1000)
+      ) {
+        const a = path.getPointAtLength(distance - 0.1),
+          b = path.getPointAtLength(distance + 0.1);
+        const dx = Math.abs(b.x - a.x),
+          dy = Math.abs(b.y - a.y);
+        if (dx < 0.001 && dy > 0.01) vertical = true;
+        if (dy < 0.001 && dx > 0.01) horizontal = true;
+      }
+      return { horizontal, vertical };
+    });
+  expect(runs.horizontal).toBeTruthy();
+  expect(runs.vertical).toBeTruthy();
+  await page.locator('nav a[href="#formulas"]').click();
+  await expect(
+    page.locator(".formula-card .katex-display").first(),
+  ).toBeVisible();
+  await expect
+    .poll(() => page.locator(".formula-card math mfrac").count())
+    .toBeGreaterThan(0);
+  await expect
+    .poll(() => page.locator(".formula-card math msub").count())
+    .toBeGreaterThan(0);
 });
-test('scenario measures retain energy benefit but never claim known capital or payback',async({page})=>{
- await fixture(page);
- await page.locator('nav a[href="#measures"]').click();
- const annual=page.getByRole('row').filter({hasText:'сценарная оценка'}).first();
- await expect(annual).toBeVisible();
- await expect(annual.getByRole('cell').nth(4)).toHaveText('Требует оценки');
- await expect(annual.getByRole('cell').nth(5)).toHaveText('Требует оценки');
- await page.getByLabel('Основание расчёта').selectOption('forecast');
- await expect(page.getByLabel('Мероприятие денежного потока')).toBeVisible();
- await page.getByLabel('Мероприятие денежного потока').selectOption('efficiency_recovery_scenario');
- await expect(page.locator('.page-kpis strong').filter({hasText:'Требует оценки'})).toHaveCount(4);
- await expect(page.locator('main')).toContainText('CAPEX требует оценки; линия окупаемости не построена.');
+test("scenario measures retain energy benefit but never claim known capital or payback", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.locator('nav a[href="#measures"]').click();
+  const annual = page
+    .getByRole("row")
+    .filter({ hasText: "сценарная оценка" })
+    .first();
+  await expect(annual).toBeVisible();
+  await expect(annual.getByRole("cell").nth(4)).toHaveText("Требует оценки");
+  await expect(annual.getByRole("cell").nth(5)).toHaveText("Требует оценки");
+  await page.getByLabel("Основание расчёта").selectOption("forecast");
+  await expect(page.getByLabel("Мероприятие денежного потока")).toBeVisible();
+  await page
+    .getByLabel("Мероприятие денежного потока")
+    .selectOption("efficiency_recovery_scenario");
+  await expect(
+    page.locator(".page-kpis strong").filter({ hasText: "Требует оценки" }),
+  ).toHaveCount(4);
+  await expect(page.locator("main")).toContainText(
+    "CAPEX требует оценки; окупаемость не определена.",
+  );
+  await page
+    .getByRole("button", { name: "Пояснение: Денежный поток", exact: true })
+    .focus();
+  await expect(page.getByRole("tooltip")).toContainText(
+    "линия окупаемости не построена",
+  );
 });

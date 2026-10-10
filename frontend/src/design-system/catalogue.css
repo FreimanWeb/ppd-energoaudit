@@ -1,0 +1,26 @@
+.catalogue { max-width: 1120px; margin: 0 auto; font-family: var(--font-ui); }
+.catalogue-nav { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: var(--space-6) 0; }
+.catalogue-nav a { color: var(--accent-strong); text-underline-offset: var(--space-1); }
+.catalogue-nav a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: var(--space-1); }
+.catalogue > div[id] { scroll-margin-top: var(--space-6); }
+.catalogue-type-list { display: grid; gap: var(--space-4); }
+.catalogue-type-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--space-4); align-items: baseline; }
+.catalogue-type-row code { color: var(--content-muted); font-size: var(--text-caption); }
+.catalogue-type-caption { font-size: var(--text-caption); }
+.catalogue-type-label { font-size: var(--text-label); }
+.catalogue-type-body { font-size: var(--text-body); }
+.catalogue-type-body-large { font-size: var(--text-body-large); }
+.catalogue-type-section { font-size: var(--text-section); font-weight: var(--weight-semibold); }
+.catalogue-type-page { font-size: var(--text-page); font-weight: var(--weight-semibold); }
+.catalogue-type-value { font-size: var(--text-value); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.catalogue-type-row span { overflow-wrap: anywhere; }
+.catalogue-pump-name { max-width: 580px; overflow-wrap: anywhere; }
+.catalogue .catalogue-metrics { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.catalogue .catalogue-pair { grid-template-columns: minmax(0, 1fr); max-width: 480px; }
+.catalogue .catalogue-pair .metric-values { grid-column: 1; max-width: none; }
+.catalogue-controls { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin: var(--space-4) 0; }
+@media (max-width: 600px) {
+  .catalogue-type-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+  .catalogue .catalogue-metrics { grid-template-columns: minmax(0, 1fr); }
+  .catalogue .catalogue-controls .ds-button { flex-grow: 1; }
+}

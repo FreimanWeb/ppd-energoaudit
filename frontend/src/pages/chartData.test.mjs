@@ -65,13 +65,19 @@ test("loss charts retain signed components and supplied useful power", () => {
   assert.deepEqual(result.waterfall.y, [100, -45, 5, 60]);
   assert.equal(result.waterfall.measure.at(-1), "absolute");
   assert.deepEqual(result.sankey.link.value, [60, 45]);
-  assert.deepEqual(
-    result.shares.map((t) => t.x[0]),
-    [60, 45, -5],
-  );
 });
 
 const { downtimeForWell } = await import('./chartData.mjs');
+test('CRM averages both series over the same dates and preserves factual zeros', async () => {
+ const data = await import('./chartData.mjs');
+ assert.equal(typeof data.compareDaily, 'function');
+ assert.deepEqual(data.compareDaily([['2026-01-01', 1000], ['2026-01-02', 10], ['2026-01-03', 30]], [['2026-01-02', 0], ['2026-01-03', 20], ['2026-01-04', 9999]]), {
+   count: 2, first: '2026-01-02', last: '2026-01-03', forecastMean: 20, factMean: 10,
+ });
+ assert.deepEqual(data.compareDaily([['2026-01-01', 1]], [['2026-01-02', 2]]), {
+   count: 0, first: null, last: null, forecastMean: null, factMean: null,
+ });
+});
 test('downtime markers use canonical well key and require an actual reason',()=>{
  const rows=[{well:'3592Д/2',well_key:'3592Д'}];
  const downtime=[{well:'3592Д',well_key:'3592Д',reason:'Ремонт',since:'2026-09-10T12:00'}];

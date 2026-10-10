@@ -1,0 +1,29 @@
+.date-picker { min-width: 0; }
+.date-label { display: block; margin-bottom: var(--space-1-5); color: var(--content-muted); font-size: var(--text-caption); font-weight: var(--weight-semibold); }
+.date-trigger { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; min-height: 36px; padding: var(--space-2) var(--space-2-5); padding-inline-end: var(--space-3-5); border: 1px solid transparent; border-radius: var(--radius-md); background: var(--background); color: var(--content-primary); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+.date-trigger svg { display: block; width: 16px; height: 16px; flex-shrink: 0; color: var(--content-muted); }
+.date-trigger:disabled { cursor: default; opacity: .55; }
+.date-trigger[aria-expanded="true"] { border-color: var(--accent); background: var(--surface-input); }
+.date-popover { position: fixed; z-index: 1200; width: min(320px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: var(--space-3-5); border: 1px solid var(--border-subtle); border-radius: var(--radius-popover); background: var(--surface); box-shadow: var(--shadow-popover); color: var(--content-secondary); }
+.date-month-controls { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.date-month-controls button { border: 0; background: var(--surface-control); border-radius: var(--radius-calendar-control); min-height: 30px; padding: 0; font-size: var(--text-value-small); color: var(--content-secondary); }
+.date-month-controls button:disabled { opacity: .35; cursor: default; }
+.date-month-controls input { width: 100%; min-width: 0; border: 0; padding: var(--space-1-5) var(--space-1); background: var(--surface-input); color: var(--content-secondary); font: inherit; font-size: var(--text-label); }
+.date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
+.date-weekday { padding-bottom: var(--space-1-5); text-align: center; font-size: var(--text-caption); color: var(--content-muted); }
+.date-cell { height: 34px; border: 1px solid transparent; border-radius: var(--radius-calendar-cell); padding: 0; color: var(--content-secondary); background: var(--status-loading-base); font-size: var(--text-caption); }
+.date-cell.ready, .date-legend i.ready { background: var(--status-success-surface); color: var(--status-success-content); }
+.date-cell.snapshot, .date-legend i.snapshot { background: var(--status-warning-surface); color: var(--status-warning-content); }
+.date-cell.unfit, .date-legend i.unfit { background: var(--status-danger-surface); color: var(--status-danger-content); }
+.date-cell.insufficient, .date-legend i.insufficient { background: var(--status-neutral-surface); color: var(--status-neutral-content); }
+.date-cell.loading { background: repeating-linear-gradient(135deg, var(--status-loading-base), var(--status-loading-base) 4px, var(--status-loading-highlight) 4px, var(--status-loading-highlight) 8px); color: var(--content-muted); }
+.date-cell.unknown { border: 1px dashed var(--status-unknown-border); background: var(--surface); }
+.date-cell.empty { background: transparent; color: var(--status-empty-content); cursor: default; }
+.date-cell[aria-pressed="true"] { border: 2px solid var(--status-day-selected); font-weight: var(--weight-bold); }
+.date-cell:not(:disabled):hover { outline: 2px solid var(--status-day-hover); outline-offset: calc(-1 * var(--space-half)); }
+.date-legend { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-1-5) var(--space-2); margin-top: var(--space-3-5); font-size: var(--text-caption); color: var(--content-secondary); }
+.date-legend span { display: flex; align-items: center; gap: var(--space-1); }
+.date-legend i { width: 8px; height: 8px; border-radius: var(--radius-sm); flex-shrink: 0; }
+.date-help { display: block; margin-top: var(--space-2); font-size: var(--text-caption); color: var(--content-muted); }
+.date-status-error { margin: var(--space-1-5) 0 var(--space-2-5); font-size: var(--text-caption); color: var(--status-danger); }
+.sidebar-footer.sidebar-session { padding: var(--space-3) var(--space-6); justify-content: flex-end; }

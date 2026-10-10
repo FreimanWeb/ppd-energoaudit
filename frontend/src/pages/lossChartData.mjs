@@ -44,20 +44,5 @@ export function lossChartData(input, items) {
         ),
       },
     },
-    shares: items.map((item, i) => ({
-      type: "bar",
-      orientation: "h",
-      name: item.name,
-      x: [item.share * 100],
-      y: [""],
-      text: [`${item.name} ${Math.round(item.share * 100)} %`],
-      textposition: "inside",
-      marker: {
-        color:
-          item.category === "полезная"
-            ? "#1f4e4a"
-            : ["#c76e62", "#c58b25", "#d6a681", "#8b9892"][i % 4],
-      },
-    })),
   };
 }

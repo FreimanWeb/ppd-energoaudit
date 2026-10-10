@@ -1,0 +1,153 @@
+:root {
+  --font-ui: Inter, "Segoe UI", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, monospace;
+  --text-caption: 12px;
+  --text-label: 13px;
+  --text-body: 14px;
+  --text-body-large: 16px;
+  --text-section: 18px;
+  --text-value-small: 22px;
+  --text-value: 24px;
+  --text-page: 28px;
+  --leading-body: 1.5;
+  --leading-compact: 1.35;
+  --leading-heading: 1.2;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  /* Базовые цвета адаптированы из АСКС к светлой палитре PPД. */
+  --palette-brand: #209b77;
+  --palette-brand-strong: #087b5b;
+  --palette-brand-soft: #eaf6f0;
+  --palette-danger: #c7353d;
+  --palette-metric-danger: #d92d20;
+  --palette-danger-soft: #fff0f1;
+  --palette-warning: #8a681b;
+  --palette-warning-soft: #fff7e3;
+  --palette-neutral-50: #f8f9fa;
+  --palette-neutral-100: #f9fafb;
+  --palette-neutral-200: #e5e7eb;
+  --palette-neutral-300: #dce0e5;
+  --palette-neutral-500: #6b7280;
+  --palette-neutral-800: #1f2937;
+  --palette-green-ink: #1f4e4a;
+
+  /* Семантические цвета: компоненты должны ссылаться на роль, не на оттенок. */
+  --accent: var(--palette-brand);
+  --accent-strong: var(--palette-brand-strong);
+  --accent-hover: #08684e;
+  --accent-soft: var(--palette-brand-soft);
+  --danger: var(--palette-danger);
+  --danger-hover: #a52730;
+  --danger-soft: var(--palette-danger-soft);
+  --warning: var(--palette-warning);
+  --warning-soft: var(--palette-warning-soft);
+  --status-success: var(--accent-strong);
+  --status-warning: var(--warning);
+  --status-danger: var(--danger);
+  --metric-danger: var(--palette-metric-danger);
+
+  --background: var(--palette-neutral-50);
+  --surface: #ffffff;
+  --surface-subtle: var(--palette-neutral-100);
+  --surface-hover: #f3f7f5;
+  --content-primary: var(--palette-neutral-800);
+  --content-secondary: #41564d;
+  --content-muted: var(--palette-neutral-500);
+  --content-subtle: #77848d;
+  --content-inverse: #ffffff;
+  --border: var(--palette-neutral-200);
+  --border-subtle: #e0e5e2;
+  --border-control: var(--palette-neutral-300);
+  --border-form-control: #d5dedb;
+  --focus-ring: var(--accent-strong);
+  --surface-control: #f3f6f4;
+  --surface-input: #ffffff;
+
+  /* Данные и поверхности графиков — отдельный слой от UI-токенов. */
+  --chart-primary: #239879;
+  --chart-primary-alt: #087b5b;
+  --chart-secondary: #8a8a92;
+  --chart-secondary-alt: #6f6f6f;
+  --chart-axis: #6b7280;
+  --chart-grid: #edf0ee;
+  --chart-surface: #ffffff;
+  --chart-tooltip: #ffffff;
+  --chart-tooltip-border: #d1d5db;
+  --chart-ink: #33413b;
+  --chart-content: #374151;
+  --chart-content-muted: #6b7280;
+  --chart-status-success: #0f9c74;
+  --chart-status-warning: #f5b91d;
+  --chart-status-attention: #f47a16;
+  --chart-status-danger: #cf2e12;
+  --chart-status-neutral: #8a8a92;
+  --chart-status-success-soft: #cfe8dc;
+  --chart-status-warning-soft: #f6e3b4;
+  --chart-status-danger-soft: #f2cecb;
+
+  --status-success-surface: #dceee4;
+  --status-success-content: #245a3c;
+  --status-warning-surface: #fff0c7;
+  --status-warning-content: #886518;
+  --status-danger-surface: #fae0df;
+  --status-danger-content: #98433c;
+  --status-neutral-surface: #e9edeb;
+  --status-neutral-content: #65746b;
+  --status-loading-base: #f4f6f5;
+  --status-loading-highlight: #e9eeeb;
+  --status-unknown-border: #b8c5bd;
+  --status-empty-content: #c3ccc7;
+  --status-day-selected: #277751;
+  --status-day-hover: #6eab8d;
+
+  --border-tooltip: #d9e5de;
+  --shadow-tooltip: 0 4px 16px #26332f18;
+  --shadow-popover: 0 12px 40px #18362c22;
+
+  /* Общая шкала пространства и формы для новых компонентов. */
+  --space-1: 4px;
+  --space-half: 2px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-4-5: 18px;
+  --space-5: 20px;
+  --space-5-5: 22px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-7-5: 30px;
+  --space-8: 32px;
+  --space-8-5: 34px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-control: 12px;
+  --radius-page: 10px;
+  --radius-input: 6px;
+  --radius-calendar-cell: 7px;
+  --radius-calendar-control: 7px;
+  --radius-kpi: 7px;
+  --radius-inline-tooltip: 3px;
+  --radius-lg: 16px;
+  --radius-card: 18px;
+  --radius-popover: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 2px 8px rgb(17 24 39 / 2%);
+  --shadow-md: 0 8px 24px rgb(17 24 39 / 8%);
+  --shadow-overlay: 0 12px 32px rgb(17 24 39 / 14%);
+
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 240ms;
+  --motion-tooltip: 140ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}

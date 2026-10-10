@@ -1,0 +1,167 @@
+.page-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-page);
+  padding: var(--space-5-5);
+  margin: var(--space-5) 0;
+}
+.page-panel > h2 {
+  margin-bottom: var(--space-2-5);
+}
+.page-panel > h3 {
+  margin: var(--space-7) 0 var(--space-3-5);
+}
+.page-controls {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: end;
+  margin: var(--space-5) 0;
+}
+.page-controls label {
+  min-width: 160px;
+  flex: 1;
+  max-width: 380px;
+}
+.page-controls input,
+.compact-control input {
+  font: inherit;
+  min-height: 40px;
+  border: 1px solid var(--border-form-control);
+  border-radius: var(--radius-input);
+  background: var(--surface-input);
+  padding: var(--space-2) var(--space-2-5);
+  color: var(--content-primary);
+  width: 100%;
+}
+.page-controls input[type="range"] {
+  padding: 0;
+  accent-color: var(--accent-strong);
+}
+.compact-control {
+  max-width: 400px;
+  margin: var(--space-4-5) 0;
+}
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+.chart-grid > div {
+  min-width: 0;
+}
+.plot-wrap {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.page-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+.page-kpis > div {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-kpi);
+  padding: var(--space-4);
+  font-size: var(--text-caption);
+  color: var(--content-muted);
+}
+.page-kpis strong {
+  display: block;
+  margin-top: var(--space-2-5);
+  font-size: var(--text-value-small);
+  color: var(--accent-strong);
+  font-weight: var(--weight-semibold);
+}
+.page-panel details {
+  margin: var(--space-4-5) 0;
+}
+.page-panel summary {
+  cursor: pointer;
+  color: var(--content-secondary);
+  font-size: var(--text-label);
+}
+.page-panel table td:last-child {
+  white-space: normal;
+  max-width: 450px;
+}
+.page-panel th:first-child,
+.page-panel td:first-child {
+  min-width: 120px;
+}
+.formula-card {
+  padding: var(--space-4) var(--space-5);
+  margin: var(--space-4) 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.formula-card header {
+  height: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: 0;
+  border: 0;
+}
+.formula-card header strong:last-child {
+  font-size: var(--text-value-small);
+  color: var(--accent-strong);
+}
+.formula-expression {
+  font-family: Cambria, "Times New Roman", serif;
+  font-size: var(--text-value-small);
+  text-align: center;
+  margin: var(--space-5) 0;
+  overflow-wrap: anywhere;
+}
+.formula-substitution {
+  font-family: Cambria, "Times New Roman", serif;
+  color: var(--content-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.template-code {
+  padding: var(--space-5);
+  background: var(--background);
+  border-radius: var(--radius-input);
+  overflow-x: auto;
+  line-height: 1.6;
+  font-size: var(--text-caption);
+}
+.requirements {
+  line-height: 1.8;
+  color: var(--content-secondary);
+  padding-left: var(--space-5-5);
+}
+.page-panel input:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--space-half);
+}
+@media (max-width: 1000px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .page-panel {
+    padding: var(--space-4);
+  }
+  .page-controls label {
+    max-width: none;
+  }
+  .page-kpis strong {
+    font-size: var(--text-section);
+  }
+  .formula-card {
+    padding: var(--space-4);
+  }
+  .formula-card header {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .formula-expression {
+    font-size: var(--text-section);
+  }
+}

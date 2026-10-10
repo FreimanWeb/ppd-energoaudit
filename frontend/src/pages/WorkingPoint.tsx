@@ -1,13 +1,11 @@
-import { useResource, segment } from "../api";
-import { Plot, type Trace } from "../Plot";
-import {
-  Panel,
-  Status,
-  Table,
-  contextBody,
-  fmt,
-  type PageProps,
-} from "./common";
+import { Tooltip } from "../shared/ui/Tooltip";
+import { useResource, segment } from "../shared/api";
+import { Plot, type Trace } from "../charts/Plot";
+import { Panel } from "../shared/ui/Panel";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import { contextBody, type PageProps } from "../shared/ui/context";
+import { fmt } from "../shared/ui/format";
 type Working = {
   qh: { q: number; h: number }[];
   qeta: { q: number; eta: number }[];
@@ -54,7 +52,8 @@ export function WorkingPointPage(p: PageProps) {
   return (
     <Panel
       title="Рабочая точка: насос × трубопровод"
-      caption="Фактическая точка и доступные характеристики оборудования. Оценочные кривые показаны пунктиром."
+      caption="Пунктирные кривые — оценочные"
+      help="Фактическая точка и доступные характеристики оборудования. Оценочные кривые показаны пунктиром."
     >
       <Status {...resource} empty="Выберите режим и момент измерения." />
       {p.audit?.quality.status === "unfit" && (
@@ -66,8 +65,9 @@ export function WorkingPointPage(p: PageProps) {
       {data && (
         <>
           {data.notes.map((n, i) => (
-            <p key={i} className="notice">
-              {n}
+            <p key={i} className="muted">
+              {data.pump_kind === "объёмный" ? "Объёмный насос: фактические точки" : "Оценочные кривые"}
+              <Tooltip label={`Характеристики оборудования ${i + 1}`} content={n} />
             </p>
           ))}
           <div className="chart-grid">
@@ -83,7 +83,7 @@ export function WorkingPointPage(p: PageProps) {
                         x: data.qh.map((x) => x.q),
                         y: data.qh.map((x) => x.h),
                         line: {
-                          color: "#1f4e4a",
+                          color: "var(--chart-primary)",
                           dash: data.origin.qh === "passport" ? "solid" : "dot",
                         },
                       } as Trace,
@@ -97,7 +97,7 @@ export function WorkingPointPage(p: PageProps) {
                         name: "Трубопровод (оценка)",
                         x: data.system.map((x) => x.q),
                         y: data.system.map((x) => x.h),
-                        line: { color: "#8b9892", dash: "dot" },
+                        line: { color: "var(--chart-secondary)", dash: "dot" },
                       } as Trace,
                     ]
                   : []),
@@ -105,15 +105,15 @@ export function WorkingPointPage(p: PageProps) {
                   "Фактическая точка",
                   data.point.q,
                   data.point.h,
-                  "#c58b25",
+                  "var(--chart-status-warning)",
                 ),
                 point(
                   "Номинальная точка",
                   data.nominal.q,
                   data.nominal.h,
-                  "#4d8d72",
+                  "var(--chart-status-success)",
                 ),
-                point("Должный напор", data.point.q, data.due.h, "#b34a42"),
+                point("Должный напор", data.point.q, data.due.h, "var(--chart-status-danger)"),
               ]}
               layout={{
                 xaxis: { title: { text: "Q, м³/ч" } },
@@ -132,7 +132,7 @@ export function WorkingPointPage(p: PageProps) {
                         x: data.qeta.map((x) => x.q),
                         y: data.qeta.map((x) => x.eta * 100),
                         line: {
-                          color: "#1f4e4a",
+                          color: "var(--chart-primary)",
                           dash:
                             data.origin.qeta === "passport" ? "solid" : "dot",
                         },
@@ -143,19 +143,19 @@ export function WorkingPointPage(p: PageProps) {
                   "КПД установки (факт)",
                   data.point.q,
                   data.point.eta * 100,
-                  "#c58b25",
+                  "var(--chart-status-warning)",
                 ),
                 point(
                   "Номинальная точка",
                   data.nominal.q,
                   data.nominal.eta == null ? null : data.nominal.eta * 100,
-                  "#4d8d72",
+                  "var(--chart-status-success)",
                 ),
                 point(
                   "Должный КПД",
                   data.point.q,
                   data.due.eta == null ? null : data.due.eta * 100,
-                  "#b34a42",
+                  "var(--chart-status-danger)",
                 ),
               ]}
               layout={{
@@ -167,8 +167,7 @@ export function WorkingPointPage(p: PageProps) {
           <p className="muted">
             Рабочая подача {fmt(data.point.q)} м³/ч · фактический напор{" "}
             {fmt(data.point.h)} м · КПД установки {fmt(data.point.eta * 100)} %.
-            КПД установки включает двигатель и трансмиссию; паспортная Q–η
-            относится к насосу.
+            <Tooltip label="КПД установки и насоса" content="КПД установки включает двигатель и трансмиссию; паспортная Q–η относится только к насосу." />
           </p>
           <details>
             <summary>Координаты характеристик</summary>

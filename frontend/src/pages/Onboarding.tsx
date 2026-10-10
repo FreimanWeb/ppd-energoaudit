@@ -1,5 +1,9 @@
-import { useResource, segment } from "../api";
-import { Panel, Status, Table, type PageProps } from "./common";
+import { Tooltip } from "../shared/ui/Tooltip";
+import { useResource, segment } from "../shared/api";
+import { Panel } from "../shared/ui/Panel";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import type { PageProps } from "../shared/ui/context";
 type Onboarding = {
   telemetry_requirements: {
     parameter: string;
@@ -28,7 +32,7 @@ export function OnboardingPage(p: PageProps) {
   return (
     <Panel
       title="Подключение объекта"
-      caption="Требования к исходным данным, готовность выбранного агрегата и шаблоны для подготовки паспорта. Изменение данных выполняется через принятый процесс верификации."
+      help="Требования к исходным данным, готовность агрегата и шаблоны паспорта. Изменение данных выполняется через принятый процесс верификации."
     >
       <Status {...resource} />
       {data && (
@@ -47,10 +51,10 @@ export function OnboardingPage(p: PageProps) {
           <h3>Паспортные данные и замеры</h3>
           <ul className="requirements">
             {data.manual_requirements.map((r, i) => (
-              <li key={i}>{r}</li>
+              <li key={i}>{r.includes("config/") ? <>{r.split(";")[0]}.<Tooltip label="Источник свойств жидкости" content={r} /></> : r}</li>
             ))}
           </ul>
-          <h3>Готовность выбранного агрегата</h3>
+          <h3>Готовность выбранного агрегата<Tooltip label="Готовность выбранного агрегата" content={data.notes.join(" ")} /></h3>
           <Table
             rows={data.checks.map((check) => ({
               ...check,
@@ -65,11 +69,7 @@ export function OnboardingPage(p: PageProps) {
               { key: "value", label: "Значение" },
             ]}
           />
-          {data.notes.map((n, i) => (
-            <p className="notice" key={i}>
-              {n}
-            </p>
-          ))}
+
           <details>
             <summary>Шаблон паспорта объекта</summary>
             <pre className="template-code">{data.yaml_template}</pre>

@@ -1,7 +1,12 @@
+import { Tooltip } from "../shared/ui/Tooltip";
 import { useState } from "react";
-import { useResource, segment } from "../api";
-import { Plot, type Trace } from "../Plot";
-import { Panel, Status, Table, fmt, type PageProps } from "./common";
+import { useResource, segment } from "../shared/api";
+import { Plot, type Trace } from "../charts/Plot";
+import { Panel } from "../shared/ui/Panel";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import type { PageProps } from "../shared/ui/context";
+import { fmt } from "../shared/ui/format";
 import { filterEdges, downtimeForWell } from "./chartData.mjs";
 type WellRow = {
   month: string;
@@ -84,7 +89,7 @@ export function CRMWellsPage(p: PageProps) {
     mode: "lines",
     x: [positions[edge.source]?.[0], positions[edge.target]?.[0]],
     y: [positions[edge.source]?.[1], positions[edge.target]?.[1]],
-    line: { width: 1 + edge.strength * 3, color: "#87aba0" },
+    line: { width: 1 + edge.strength * 3, color: "var(--chart-secondary-alt)" },
     text: `${edge.source} ↔ ${edge.target}: ${fmt(edge.strength, 3)}`,
     hoverinfo: "text",
     showlegend: false,
@@ -103,10 +108,10 @@ export function CRMWellsPage(p: PageProps) {
         size: allWells.map((w) => (w === selected ? 20 : 12)),
         color: allWells.map((w) =>
           w === selected
-            ? "#c58b25"
+            ? "var(--chart-status-warning)"
             : edges.some((e) => e.source === w || e.target === w)
-              ? "#1f4e4a"
-              : "#d5dedb",
+              ? "var(--chart-primary)"
+              : "var(--chart-status-neutral)",
         ),
       },
       hovertext:allWells.map(w=>downtimeForWell(w,report?.rows??[],downtime.data??[])?.reason??"Причина простоя не указана"),
@@ -116,7 +121,8 @@ export function CRMWellsPage(p: PageProps) {
   return (
     <Panel
       title="CRM по скважинам"
-      caption="Месячный прогноз, фактическая закачка и взаимовлияние нагнетательных скважин по выгрузке модели."
+      caption="Прогноз внешней модели"
+      help="Месячный прогноз, фактическая закачка и взаимовлияние нагнетательных скважин по выгрузке CRM."
     >
       <Status {...runs} />
       {runs.data?.length === 0 && (
@@ -196,13 +202,13 @@ export function CRMWellsPage(p: PageProps) {
                         x: totals.map((t) => t.month),
                         y: totals.map((t) => t[key]),
                         connectgaps: false,
-                        line: { color: ["#aab6b0", "#c58b25", "#1f4e4a"][i] },
+                        line: { color: ["var(--chart-secondary-alt)", "var(--chart-status-warning)", "var(--chart-primary)"][i] },
                       }),
                     )}
                     layout={{
                       xaxis: { type: "date", tickformat: "%m.%Y", ...(monthly.data?.window?{range:monthly.data.window}:{}) },
                       yaxis: { title: { text: "Закачка, м³/мес" } },
-                      annotations: marks.map(d=>({x:d.since!,xref:'x',y:1,yref:'paper',text:`${d.well}: ${d.reason}`.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),showarrow:false,textangle:"90",xanchor:'left',yanchor:'top',font:{size:10,color:'#b34a42'}})),
+                      annotations: marks.map(d=>({x:d.since!,xref:'x',y:1,yref:'paper',text:`${d.well}: ${d.reason}`.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),showarrow:false,textangle:"90",xanchor:'left',yanchor:'top',font:{size:10,color:'var(--chart-status-danger)'}})),
                       shapes: marks.map((d) => ({
                         type: "line",
                         xref: "x",
@@ -211,14 +217,11 @@ export function CRMWellsPage(p: PageProps) {
                         yref: "paper",
                         y0: 0,
                         y1: 1,
-                        line: { dash: "dot", color: "#b34a42" },
+                        line: { dash: "dot", color: "var(--chart-status-danger)" },
                       })),
                     }}
                   />
-                  <p className="muted">
-                    Красный пунктир — начало простоя. Отсутствующий факт показан
-                    как пропуск.
-                  </p>
+                  <Tooltip label="Месячная закачка скважин" content="Красный пунктир — начало простоя. Отсутствующий факт показан как пропуск, а не нулевое значение." />
                   {marks.length>0&&<ul className="warnings" aria-label="Простои в показанном периоде">{marks.map((d,i)=><li key={`${d.well}-${i}`}>{d.well}: {d.reason} · {d.since}</li>)}</ul>}
                 </>
               ) : (
@@ -257,13 +260,13 @@ export function CRMWellsPage(p: PageProps) {
                   { key: "fact", label: "Факт, м³/мес" },
                   { key: "deviation", label: "Отклонение, %" },
                   { key: "share", label: "Доля, %" },
-                  { key: "r_ust", label: "Руст, атм" },
-                  { key: "r_ust_fact", label: "Руст факт, атм" },
+                  { key: "r_ust", label: "Руст, атм", help: "Устьевое давление по прогнозной модели, в атмосферах." },
+                  { key: "r_ust_fact", label: "Руст факт, атм", help: "Измеренное устьевое давление, в атмосферах." },
                   { key: "reason", label: "Причина простоя" },
                   { key: "since", label: "Простой с" },
                 ]}
               />
-              <h3>Граф взаимовлияния скважин</h3>
+              <h3>Граф взаимовлияния скважин<Tooltip label="Граф взаимовлияния скважин" content="Связи отражают коэффициенты внешней модели и требуют инженерной интерпретации. Квадрат — скважина с указанной причиной простоя; круг — причина простоя не указана, это не подтверждает работу скважины." /></h3>
               <div className="page-controls">
                 <label>
                   Выбранная скважина
@@ -292,7 +295,7 @@ export function CRMWellsPage(p: PageProps) {
                 </label>
               </div>
               <Status {...network} />
-              <p className="muted">Квадрат — скважина с указанной причиной простоя; круг — причина простоя не указана.</p>
+
               {selected&&<p className="notice" aria-label="Простой выбранной скважины">{selectedDowntime?`${selected}: ${selectedDowntime.reason}${selectedDowntime.since?` · с ${selectedDowntime.since}`:''}`:`Для скважины ${selected} причина простоя не указана.`}</p>}
               {graph?.error ? (
                 <p className="notice error">{graph.error}</p>
@@ -318,8 +321,7 @@ export function CRMWellsPage(p: PageProps) {
                     )}
                     <p className="muted">
                       Показаны {edges.length} связей из {graph.edges.length}.
-                      Взаимовлияние отражает коэффициенты внешней модели и
-                      требует инженерной интерпретации.
+                      Связи по внешней модели.
                     </p>
                     {selected && (
                       <Table
@@ -328,7 +330,7 @@ export function CRMWellsPage(p: PageProps) {
                         )}
                         columns={[
                           { key: "target", label: "Связанная скважина" },
-                          { key: "strength", label: "Сила связи" },
+                          { key: "strength", label: "Сила связи", help: "Коэффициент взаимовлияния скважин из внешней CRM-модели." },
                         ]}
                       />
                     )}
@@ -338,9 +340,9 @@ export function CRMWellsPage(p: PageProps) {
                         rows={graph.centrality}
                         columns={[
                           { key: "well", label: "Скважина" },
-                          { key: "strength_sum", label: "Сумма сил" },
+                          { key: "strength_sum", label: "Сумма сил", help: "Сумма коэффициентов связей этой скважины с соседними узлами графа." },
                           { key: "degree", label: "Связи" },
-                          { key: "betweenness", label: "Посредничество" },
+                          { key: "betweenness", label: "Посредничество", help: "Показывает, насколько часто скважина связывает другие узлы графа по кратчайшим путям." },
                           { key: "top_neighbor", label: "Сильнейшая связь" },
                           { key: "top_neighbor_strength", label: "Её сила" },
                         ]}

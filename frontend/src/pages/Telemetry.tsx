@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { signalShape } from "./fidelity.mjs";
-import { useResource, segment } from "../api";
-import { Plot, type Trace } from "../Plot";
-import {
-  Panel,
-  Range,
-  Status,
-  Table,
-  dateShift,
-  type PageProps,
-} from "./common";
+import { useResource, segment } from "../shared/api";
+import { Plot, type Trace } from "../charts/Plot";
+import { Panel } from "../shared/ui/Panel";
+import { Range } from "../shared/ui/Range";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import { dateShift } from "../shared/ui/format";
+import type { PageProps } from "../shared/ui/context";
 
 type Telemetry = {
   records: Record<string, unknown>[];
@@ -68,7 +66,8 @@ export function TelemetryPage(
   return (
     <Panel
       title="Телеметрия"
-      caption="Исходные измерения. Давление и мощность показываются ступенями с сохранением последнего известного состояния; суточные показатели не заменяют мгновенные измерения."
+      caption="Исходные измерения"
+      help="Давление и мощность показываются ступенями с сохранением последнего известного состояния. Суточные показатели не заменяют мгновенные измерения."
     >
       <div className="page-controls">
         <label>
@@ -129,7 +128,7 @@ export function TelemetryPage(
                         y: series.points.map((x) => x.value),
                         connectgaps: false,
                         line: {
-                          color: "#1f4e4a",
+                          color: "var(--chart-primary)",
                           shape: signalShape(series.metric, series.unit),
                         },
                       } as Trace,
@@ -137,9 +136,9 @@ export function TelemetryPage(
                     layout={{
                       yaxis: {
                         title: { text: series.unit },
-                        gridcolor: "#eef1ef",
+                        gridcolor: "var(--chart-grid)",
                       },
-                      xaxis: { type: "date", gridcolor: "#eef1ef" },
+                      xaxis: { type: "date", gridcolor: "var(--chart-grid)" },
                       ...(mode === "day" && p.timestamp
                         ? {
                             shapes: [
@@ -151,7 +150,7 @@ export function TelemetryPage(
                                 yref: "paper",
                                 y0: 0,
                                 y1: 1,
-                                line: { color: "#c58b25", dash: "dot" },
+                                line: { color: "var(--chart-status-warning)", dash: "dot" },
                               },
                             ],
                           }

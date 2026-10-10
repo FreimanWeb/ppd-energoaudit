@@ -1,8 +1,14 @@
+import { Tooltip } from "../shared/ui/Tooltip";
 import { useState } from "react";
-import { useResource, segment } from "../api";
-import { Plot } from "../Plot";
-import { Panel, Status, Table, dateShift, fmt, type PageProps } from "./common";
-import { sumDaily } from "./chartData.mjs";
+import { useResource, segment } from "../shared/api";
+import { Plot } from "../charts/Plot";
+import { Panel } from "../shared/ui/Panel";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import type { PageProps } from "../shared/ui/context";
+import { dateShift, fmt } from "../shared/ui/format";
+import { sumDaily, compareDaily } from "./chartData.mjs";
+import { MetricCard } from "../shared/ui/MetricCard";
 type Run = { code: string; title: string; events: boolean; model?: string };
 type Forecast = {
   interval_hours: number;
@@ -55,13 +61,12 @@ export function CRMPage(p: PageProps) {
     end: predicted.at(-1)?.[0] ?? "",
   });
   const observed = sumDaily(fact.data?.series.flatMap((s) => s.points) ?? []);
-  const overlap = observed.filter(([date]) =>
-    predicted.some(([d]) => d === date),
-  );
+  const comparison = compareDaily(predicted, observed);
   return (
     <Panel
       title="Прогноз подачи по CRM"
-      caption="Выгрузка внешней модели рядом с фактической подачей тех же агрегатов."
+      caption="Прогноз внешней модели"
+      help="Выгрузка CRM сопоставляется с фактической подачей тех же агрегатов."
     >
       <Status {...runs} />
       {runs.data?.length === 0 && (
@@ -112,37 +117,21 @@ export function CRMPage(p: PageProps) {
               ) : (
                 <>
                   <p className="muted">
-                    Модель: {data.data.model || "не указана"} ·{" "}
+                    <Tooltip label="Модель CRM" content={`Модель: ${data.data.model || "не указана"}. Шаг выгрузки: ${fmt(data.data.interval_hours)} ч.`} />{" "}
                     {data.data.events
                       ? "Сценарий с событиями"
                       : "Базовый сценарий"}{" "}
-                    · шаг выгрузки {fmt(data.data.interval_hours)} ч
+
                   </p>
-                  <div className="page-kpis">
-                    <div>
-                      Прогноз в среднем, м³/сут
-                      <strong>
-                        {fmt(
-                          predicted.reduce((s, x) => s + x[1], 0) /
-                            predicted.length,
-                          0,
-                        )}
-                      </strong>
-                    </div>
-                    <div>
-                      Факт на перекрытии, м³/сут
-                      <strong>
-                        {overlap.length
-                          ? fmt(
-                              overlap.reduce((s, x) => s + x[1], 0) /
-                                overlap.length,
-                              0,
-                            )
-                          : "—"}
-                      </strong>
-                    </div>
-                  </div>
+                  <div className="metric-group"><div className="kpis">
+                    <MetricCard label="Прогноз на общих датах" value={comparison.forecastMean} unit="м³/сут" digits={0}
+                      help="Средняя прогнозная подача только за даты, для которых есть фактические измерения." />
+                    <MetricCard label="Факт на общих датах" value={comparison.factMean} unit="м³/сут" digits={0}
+                      help="Средняя фактическая подача за те же даты, которые использованы в карточке прогноза." />
+                  </div></div>
+                  {comparison.count > 0 && <p className="muted">Общие даты: {comparison.first} — {comparison.last}; суток с данными: {comparison.count}.</p>}
                   <Status {...fact} />
+                  {!fact.loading && !fact.error && comparison.count === 0 && <p className="notice">Нет общих дат для сравнения прогноза и факта. Выберите другой сценарий или агрегат.</p>}
                   <Plot
                     title="CRM и фактическая подача"
                     data={[
@@ -152,7 +141,7 @@ export function CRMPage(p: PageProps) {
                         name: "Факт (телеметрия)",
                         x: observed.map((x) => x[0]),
                         y: observed.map((x) => x[1]),
-                        line: { color: "#1f4e4a" },
+                        line: { color: "var(--chart-primary)" },
                       },
                       {
                         type: "scatter",
@@ -160,7 +149,7 @@ export function CRMPage(p: PageProps) {
                         name: "Прогноз CRM",
                         x: predicted.map((x) => x[0]),
                         y: predicted.map((x) => x[1]),
-                        line: { color: "#c58b25" },
+                        line: { color: "var(--chart-status-warning)" },
                       },
                     ]}
                     layout={{
@@ -177,7 +166,7 @@ export function CRMPage(p: PageProps) {
                                 yref: "paper",
                                 y0: 0,
                                 y1: 1,
-                                line: { dash: "dot", color: "#8b9892" },
+                                line: { dash: "dot", color: "var(--chart-secondary)" },
                               },
                             ],
                           }
@@ -185,9 +174,8 @@ export function CRMPage(p: PageProps) {
                     }}
                   />
                   <p className="muted">
-                    Показаны 30 суток факта до начала прогноза. Пунктир —
-                    последние измеренные сутки. Частичные сутки выгрузки
-                    исключены: {data.data.partial_days.length}.
+                    {data.data.partial_days.length > 0 && <>Неполные сутки исключены: {data.data.partial_days.length}. </>}
+                    <Tooltip label="Сопоставление CRM с фактом" content="Показаны 30 суток факта до начала прогноза. Пунктир — последние измеренные сутки. Неполные сутки выгрузки не участвуют в сравнении." />
                   </p>
                   <details>
                     <summary>Суточный прогноз</summary>

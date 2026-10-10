@@ -1,0 +1,14 @@
+.flow-chart,.gauge-chart,.network-chart{width:100%;min-width:0}
+.flow-legend{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px;font-size: var(--text-caption);color:var(--chart-axis)}
+.flow-legend li{display:flex;align-items:center;gap:8px;min-width:0}
+.flow-legend li>span:nth-child(2){flex:1;overflow-wrap:anywhere}
+.flow-legend strong{font-weight: var(--weight-semibold);white-space:nowrap}
+.chart-color-key{display:inline-block;flex:0 0 8px;width:8px;height:8px;border-radius:3px}
+.network-node{cursor:pointer;outline:none}
+.network-node:focus .network-marker{stroke:var(--chart-status-warning);stroke-width:4px}
+.network-node:hover .network-marker{stroke:var(--chart-status-warning)}
+.network-tooltip{min-height:50px;border-top:1px solid var(--chart-grid);padding:10px 0;display:flex;flex-wrap:wrap;gap:5px 12px;font-size: var(--text-caption);color:var(--chart-axis)}
+.network-tooltip strong{color:var(--chart-primary)}
+.gauge-chart{max-width:380px;margin-inline:auto}
+.flow-node-label{font-size: var(--text-caption);line-height:15px;color:var(--chart-axis);overflow-wrap:anywhere}
+.visx-chart{display:block;max-width:100%}

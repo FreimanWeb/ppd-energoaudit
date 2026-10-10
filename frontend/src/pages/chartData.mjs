@@ -75,3 +75,16 @@ export function downtimeForWell(well,rows,downtime) {
  const key=rows.find(row=>row.well===well)?.well_key??well;
  return downtime.find(item=>(item.well_key??item.well)===key&&item.reason)||null;
 }
+/** @param {[string, number][]} predicted @param {[string, number][]} observed */
+export function compareDaily(predicted, observed) {
+  const forecasts = new Map(predicted.filter(([, value]) => Number.isFinite(value)));
+  const common = observed.filter(([date, value]) => forecasts.has(date) && Number.isFinite(value));
+  const dates = common.map(([date]) => date).sort();
+  return {
+    count: common.length,
+    first: dates[0] ?? null,
+    last: dates.at(-1) ?? null,
+    forecastMean: common.length ? common.reduce((sum, [date]) => sum + forecasts.get(date), 0) / common.length : null,
+    factMean: common.length ? common.reduce((sum, [, value]) => sum + value, 0) / common.length : null,
+  };
+}

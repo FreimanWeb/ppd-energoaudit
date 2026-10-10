@@ -1,15 +1,13 @@
+import { Tooltip } from "../shared/ui/Tooltip";
 import { useState } from "react";
 import { economicDisplay } from "./fidelity.mjs";
-import { useResource, segment } from "../api";
-import { Plot, type Trace } from "../Plot";
-import {
-  Panel,
-  Status,
-  Table,
-  contextBody,
-  fmt,
-  type PageProps,
-} from "./common";
+import { useResource, segment } from "../shared/api";
+import { Plot, type Trace } from "../charts/Plot";
+import { Panel } from "../shared/ui/Panel";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import { contextBody, type PageProps } from "../shared/ui/context";
+import { fmt } from "../shared/ui/format";
 type Annual = {
   measure_id: string;
   name: string;
@@ -110,8 +108,8 @@ export function MeasuresPage(p: PageProps) {
     { key: "cls", label: "Класс" },
     { key: "energy_saving_kwh", label: "Экономия, кВт·ч/год" },
     { key: "money_saving_krub", label: "Эффект, тыс. ₽/год" },
-    { key: "capex_krub", label: "CAPEX, тыс. ₽" },
-    { key: "payback_years", label: "Окупаемость, лет" },
+    { key: "capex_krub", label: "CAPEX, тыс. ₽", help: "Капитальные вложения. Типовые затраты требуют уточнения перед принятием решения." },
+    { key: "payback_years", label: "Окупаемость, лет", help: "Время, за которое накопленная экономия покрывает вложения, без дисконтирования." },
     { key: "note", label: "Условия" },
   ];
   const profileData: Trace[] = profile
@@ -122,7 +120,7 @@ export function MeasuresPage(p: PageProps) {
           name: "Прогноз",
           x: profile.annual_m3.map((_, i) => i + 1),
           y: profile.annual_m3,
-          line: { color: "#1f4e4a" },
+          line: { color: "var(--chart-primary)" },
         },
       ]
     : [];
@@ -145,13 +143,14 @@ export function MeasuresPage(p: PageProps) {
         y: profile.upper_annual_m3,
         line: { width: 0 },
         fill: "tonexty",
-        fillcolor: "rgba(31,78,74,.12)",
+        fillcolor: "color-mix(in srgb, var(--chart-primary) 12%, transparent)",
       },
     );
   return (
     <Panel
       title="Мероприятия и экономика"
-      caption="Сценарное ранжирование. Типовой CAPEX и расчётный эффект требуют диагностики и уточнения; это не проектное ТЭО."
+      caption="Сценарная оценка · CAPEX требует уточнения · экономия не подтверждена"
+      help="Типовые затраты и расчётный эффект требуют диагностики. Это не проектное ТЭО и не достигнутая экономия."
     >
       <div className="page-controls">
         <label>
@@ -221,16 +220,14 @@ export function MeasuresPage(p: PageProps) {
       )}
       {data && (
         <>
-          {data.notes.map((n, i) => (
-            <p className="notice" key={i}>
-              {n}
-            </p>
+          {data.notes.slice(1).map((n, i) => (
+            <p className="notice" key={i}>{n}</p>
           ))}
           <p className="muted">
             Тариф {fmt(data.tariff)} ₽/кВт·ч · годовая наработка{" "}
             {fmt(data.scope.annual_runtime_hours, 0)} ч
             {data.scope.annual_runtime_is_assumed ? " (допущение)" : ""}.
-            Эффекты разных мероприятий нельзя автоматически складывать.
+            Не складывать эффекты без проверки.<Tooltip label="Расчёт годового эффекта" content="Эффекты разных мероприятий нельзя автоматически складывать: они могут устранять одни и те же потери." />
           </p>
           <h3>Годовой реестр мероприятий</h3>
           <Table
@@ -246,7 +243,7 @@ export function MeasuresPage(p: PageProps) {
                   orientation: "h",
                   x: data.annual.map((m) => m.energy_saving_kwh / 1000),
                   y: data.annual.map((m) => m.name),
-                  marker: { color: "#1f4e4a" },
+                  marker: { color: "var(--chart-primary)" },
                 },
               ]}
               layout={{
@@ -260,10 +257,9 @@ export function MeasuresPage(p: PageProps) {
             <>
               <h3>Прогнозный профиль закачки</h3>
               <p className="muted">
-                {profile.method} · {profile.note}
-                {profile.extrapolated_tail
-                  ? " · Хвост продлён последним прогнозным периодом."
-                  : ""}
+                Сценарный профиль
+                {profile.extrapolated_tail ? " · Продлён последним прогнозным периодом" : ""}
+                <Tooltip label="Основание профиля закачки" content={<>{profile.method} · {profile.note}</>} />
               </p>
               <div className="page-kpis">
                 <div>
@@ -312,12 +308,12 @@ export function MeasuresPage(p: PageProps) {
                 columns={[
                   { key: "name", label: "Мероприятие" },
                   { key: "cls", label: "Класс" },
-                  { key: "capex_krub", label: "CAPEX, тыс. ₽" },
+                  { key: "capex_krub", label: "CAPEX, тыс. ₽", help: "Капитальные вложения. Типовые затраты требуют уточнения перед принятием решения." },
                   { key: "total_energy_kwh", label: "Энергия, кВт·ч" },
                   { key: "total_money_krub", label: "Эффект, тыс. ₽" },
-                  { key: "npv_krub", label: "NPV, тыс. ₽" },
-                  { key: "irr", label: "IRR, %" },
-                  { key: "payback_years", label: "Окупаемость, лет" },
+                  { key: "npv_krub", label: "NPV, тыс. ₽", help: "Чистый приведённый эффект: будущая экономия с учётом ставки дисконтирования минус первоначальные вложения." },
+                  { key: "irr", label: "IRR, %", help: "Внутренняя доходность: ставка, при которой NPV равен нулю. Прочерк означает, что показатель не определён." },
+                  { key: "payback_years", label: "Окупаемость, лет", help: "Время, за которое накопленная экономия покрывает вложения, без дисконтирования." },
                   {
                     key: "discounted_payback_years",
                     label: "С дисконтом, лет",
@@ -342,10 +338,10 @@ export function MeasuresPage(p: PageProps) {
                   </label>
                   <div className="page-kpis">
                     <div>
-                      NPV, тыс. ₽<strong>{fmt(displayed?.npv_krub)}</strong>
+                      NPV, тыс. ₽<Tooltip label="NPV" content="Будущая экономия с учётом ставки дисконтирования минус первоначальные вложения." /><strong>{fmt(displayed?.npv_krub)}</strong>
                     </div>
                     <div>
-                      IRR, %
+                      IRR, %<Tooltip label="IRR" content="Ставка, при которой NPV равен нулю. Прочерк означает, что показатель не определён." />
                       <strong>
                         {fmt(displayed?.irr)}
                       </strong>
@@ -376,7 +372,7 @@ export function MeasuresPage(p: PageProps) {
                         name: "Без дисконта",
                         x: [0, ...cash.map((c) => c.year)],
                         y: [0, ...cash.map((c) => c.cumulative_krub)],
-                        line: { color: "#1f4e4a" },
+                        line: { color: "var(--chart-primary)" },
                       },
                       {
                         type: "scatter",
@@ -387,7 +383,7 @@ export function MeasuresPage(p: PageProps) {
                           0,
                           ...cash.map((c) => c.cumulative_discounted_krub),
                         ],
-                        line: { color: "#c58b25" },
+                        line: { color: "var(--chart-status-warning)" },
                       },
                     ]}
                     layout={{
@@ -402,24 +398,24 @@ export function MeasuresPage(p: PageProps) {
                           yref: "y",
                           y0: chosen.capex_krub,
                           y1: chosen.capex_krub,
-                          line: { color: "#b34a42", dash: "dot" },
+                          line: { color: "var(--chart-status-danger)", dash: "dot" },
                         },
                       ],
                     }}
                   />
                   <p className="muted">
-                    {chosen.cls === "сценарная оценка" ? "CAPEX требует оценки; линия окупаемости не построена." : `Пунктир — CAPEX ${fmt(chosen.capex_krub)} тыс. ₽.`} «—» для IRR
-                    означает, что показатель не определён.
+                    {chosen.cls === "сценарная оценка" && "CAPEX требует оценки; окупаемость не определена."}
+                    <Tooltip label="Денежный поток" content={chosen.cls === "сценарная оценка" ? "Вложения требуют оценки, поэтому линия окупаемости не построена. Прочерк IRR означает, что показатель не определён." : `Пунктир — вложения (CAPEX ${fmt(chosen.capex_krub)} тыс. ₽). Прочерк IRR означает, что показатель не определён.`} />
                   </p>
                   <Table
                     rows={cash}
                     columns={[
                       { key: "year", label: "Год" },
                       { key: "injection_m3", label: "Закачка, м³" },
-                      { key: "volume_ratio", label: "К базовому году" },
+                      { key: "volume_ratio", label: "К базовому году", help: "Отношение объёма закачки этого года к базовому объёму. Масштабирует сценарную экономию." },
                       { key: "energy_saving_kwh", label: "Энергия, кВт·ч" },
                       { key: "money_saving_krub", label: "Эффект, тыс. ₽" },
-                      { key: "discount_factor", label: "Дисконт-фактор" },
+                      { key: "discount_factor", label: "Дисконт-фактор", help: "Коэффициент приведения будущего денежного эффекта к текущему году по выбранной ставке." },
                       { key: "discounted_krub", label: "С дисконтом, тыс. ₽" },
                       { key: "cumulative_krub", label: "Накоплено, тыс. ₽" },
                       {
@@ -433,7 +429,7 @@ export function MeasuresPage(p: PageProps) {
               )}
             </>
           )}
-          <h3>Оптимизация уставок</h3>
+          <h3>Оптимизация уставок<Tooltip label="Оптимизация уставок" content="Расчёт целевого давления с учётом технологических ограничений. Экономия — сценарий, а не достигнутый эффект; изменение уставки требует инженерной проверки." /></h3>
           <p
             className={`notice ${data.setpoint.within_constraints ? "" : "error"}`}
           >

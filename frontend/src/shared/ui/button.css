@@ -1,0 +1,15 @@
+.ds-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: var(--space-2) var(--space-4); border: 1px solid transparent; border-radius: var(--radius-control); font: var(--weight-medium) var(--text-body)/var(--leading-compact) var(--font-ui); cursor: pointer; transition: background var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+.ds-button-primary { background: var(--accent-strong); color: var(--content-inverse); }
+.ds-button-primary:hover { background: var(--accent-hover); }
+.ds-button-secondary { border-color: var(--border-control); background: var(--surface); color: var(--content-primary); }
+.ds-button-secondary:hover { background: var(--surface-hover); }
+.ds-button-danger { background: var(--danger); color: var(--content-inverse); }
+.ds-button-danger:hover { background: var(--danger-hover); }
+.ds-button:active:not(:disabled) { transform: translateY(1px); }
+.ds-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.ds-button:disabled { cursor: not-allowed; opacity: .55; }
+.ds-button[aria-busy="true"] { opacity: 1; cursor: progress; }
+.button-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-inline-end-color: transparent; border-radius: var(--radius-pill); animation: button-spin .8s linear infinite; }
+@keyframes button-spin { to { transform: rotate(360deg); } }
+@media (pointer: coarse) { .ds-button { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ds-button { transition: none; } .button-spinner { animation: none; } }

@@ -1,3 +1,4 @@
+import { selectDate } from "./helpers";
 import {test, expect, type Page} from "@playwright/test";
 test.afterEach(async ({page}) => {
   await page.unrouteAll({behavior: "wait"});
@@ -6,7 +7,7 @@ const incoming = "/?object=kns54an&aggregate=" + encodeURIComponent("НА-2") + 
 async function selected(page: Page, aggregate: string, day: string, timestamp: string) {
   await expect(page.getByLabel("Агрегат", {exact: true})).toHaveValue(aggregate);
   await expect(page.getByLabel("Дата", {exact: true})).toBeEnabled();
-  await expect(page.getByLabel("Дата", {exact: true})).toHaveValue(day);
+  await expect(page.getByLabel("Дата", {exact: true})).toHaveAttribute("data-date", day);
   await expect(page.getByLabel("Момент измерения")).toHaveValue(timestamp);
   await expect.poll(() => new URL(page.url()).searchParams.get("timestamp")).toBe(timestamp);
 }
@@ -26,7 +27,7 @@ test("shared URLs survive loading, reload, a new tab and browser history", async
   await other.close();
   await page.locator('nav a[href="#sources"]').click();
   await page.getByLabel("Агрегат", {exact: true}).selectOption("НА-1");
-  await page.getByLabel("Дата", {exact: true}).selectOption("2026-09-29");
+  await selectDate(page, "2026-09-29");
   await page.getByLabel("Момент измерения").selectOption("2026-09-29T13:00:00");
   await selected(page, "НА-1", "2026-09-29", "2026-09-29T13:00:00");
   await page.locator('nav a[href="#formulas"]').click();
@@ -42,7 +43,7 @@ test("analysis parameters stay above independently scrolling navigation", async 
   await page.goto("/");
   await page.getByLabel("Объект", {exact: true}).selectOption("kns54an");
   await page.getByLabel("Агрегат", {exact: true}).selectOption("НА-1");
-  await page.getByLabel("Дата", {exact: true}).selectOption("2026-09-29");
+  await selectDate(page, "2026-09-29");
   await expect(page.getByLabel("Момент измерения")).toHaveValue("2026-09-29T23:30:00");
   const object = page.getByLabel("Объект", {exact: true});
   const before = await object.boundingBox();

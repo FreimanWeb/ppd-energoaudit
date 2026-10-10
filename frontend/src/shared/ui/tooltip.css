@@ -1,0 +1,94 @@
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  margin: 0 0 0 var(--space-1);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--content-subtle);
+  font: inherit;
+  cursor: help;
+  flex: 0 0 auto;
+}
+.tooltip-trigger svg { display: block; width: 14px; height: 14px; fill: currentColor; }
+.tooltip-trigger:hover,
+.tooltip-trigger:focus-visible {
+  color: var(--content-secondary);
+}
+.tooltip-trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: var(--space-1);
+}
+.explanation-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: 288px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border-tooltip);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--content-secondary);
+  font: var(--weight-regular) var(--text-caption)/var(--leading-body) var(--font-ui);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.explanation-tooltip p { margin: 0 0 var(--space-2); }
+.explanation-tooltip p:last-child { margin-bottom: 0; }
+
+.tooltip-value {
+  display: inline-block;
+  border: 0;
+  border-radius: var(--radius-inline-tooltip);
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: help;
+}
+.tooltip-value:hover { background: transparent; }
+.tooltip-value:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: var(--space-1);
+}
+.explanation-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+.explanation-tooltip[data-state="open"] {
+  animation: explanation-enter var(--motion-tooltip) ease-out both;
+}
+.explanation-tooltip[data-state="closing"] {
+  opacity: 0;
+  transform: translateY(var(--space-1));
+  animation: explanation-exit var(--motion-tooltip) ease-out both;
+  pointer-events: none;
+}
+@keyframes explanation-enter {
+  from { opacity: 0; transform: translateY(var(--space-1)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes explanation-exit {
+  from { opacity: var(--tooltip-opacity, 1); transform: var(--tooltip-transform, translateY(0)); }
+  to { opacity: 0; transform: translateY(var(--space-1)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .explanation-tooltip,
+  .explanation-tooltip[data-state="open"],
+  .explanation-tooltip[data-state="closing"] {
+    animation: none;
+    transition: none;
+  }
+}

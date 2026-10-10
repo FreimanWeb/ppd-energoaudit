@@ -1,16 +1,14 @@
+import { Tooltip } from "../shared/ui/Tooltip";
 import { useState } from "react";
-import { useResource, segment } from "../api";
-import { Plot, type Trace } from "../Plot";
+import { useResource, segment } from "../shared/api";
+import { Plot, type Trace } from "../charts/Plot";
 import { forecastTraces } from "./chartData.mjs";
-import {
-  Panel,
-  Range,
-  Status,
-  Table,
-  dateShift,
-  fmt,
-  type PageProps,
-} from "./common";
+import { Panel } from "../shared/ui/Panel";
+import { Range } from "../shared/ui/Range";
+import { Status } from "../shared/ui/Status";
+import { Table } from "../shared/ui/Table";
+import { dateShift, fmt } from "../shared/ui/format";
+import type { PageProps } from "../shared/ui/context";
 type Forecast = {
   history: { period: number; value: number }[];
   forecast: { period: number; value: number; lower: number; upper: number }[];
@@ -48,7 +46,8 @@ export function ForecastPage(p: PageProps) {
   return (
     <Panel
       title="Прогноз объёма закачки"
-      caption="Экстраполяция тренда по измеренным объёмам — ориентир для сценария, не гидродинамическая модель пласта."
+      caption="Сценарный прогноз по измеренным объёмам"
+      help="Экстраполяция тренда — ориентир для сценария, не гидродинамическая модель пласта."
     >
       <div className="page-controls">
         <Range start={start} end={end} onStart={setStart} onEnd={setEnd} />
@@ -92,10 +91,10 @@ export function ForecastPage(p: PageProps) {
         <>
           <div className="page-kpis">
             <div>
-              Тренд, м³/период<strong>{fmt(data.trend_slope)}</strong>
+              Тренд, м³/период<Tooltip label="Тренд" content="Изменение объёма за один выбранный период: сутки, неделю или месяц." /><strong>{fmt(data.trend_slope)}</strong>
             </div>
             <div>
-              Наивный ориентир, м³<strong>{fmt(data.naive_baseline, 0)}</strong>
+              Базовый ориентир, м³<Tooltip label="Базовый ориентир" content="Среднее последних измеренных периодов, повторённое на будущие периоды без изменения тренда." /><strong>{fmt(data.naive_baseline, 0)}</strong>
             </div>
             <div>
               Прогноз последнего периода, м³
@@ -112,9 +111,8 @@ export function ForecastPage(p: PageProps) {
             </div>
           </div>
           <p className="muted">
-            {data.method} ·{" "}
             {data.estimate ? "Сценарная оценка" : "По измерениям"}
-            {data.note ? ` · ${data.note}` : ""}
+            <Tooltip label="Метод прогноза" content={<>{data.method}{data.note ? ` · ${data.note}` : ""}</>} />
           </p>
           <Plot
             title="Факт и прогноз закачки"
