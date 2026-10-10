@@ -58,6 +58,7 @@ test("power telemetry is a held state, and formula fractions have full accessibl
   expect(runs.horizontal).toBeTruthy();
   expect(runs.vertical).toBeTruthy();
   await page.locator('nav a[href="#formulas"]').click();
+  await page.getByRole("button", { name: "Раскрыть все", exact: true }).click();
   await expect(
     page.locator(".formula-card .katex-display").first(),
   ).toBeVisible();
@@ -89,7 +90,7 @@ test("scenario measures retain energy benefit but never claim known capital or p
     page.locator(".page-kpis strong").filter({ hasText: "Требует оценки" }),
   ).toHaveCount(4);
   await expect(page.locator("main")).toContainText(
-    "CAPEX требует оценки; окупаемость не определена.",
+    "CAPEX требует оценки; NPV и окупаемость не определены.",
   );
   await page
     .getByRole("button", { name: "Пояснение: Денежный поток", exact: true })

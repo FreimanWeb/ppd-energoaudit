@@ -52,8 +52,7 @@ export function WorkingPointPage(p: PageProps) {
   return (
     <Panel
       title="Рабочая точка: насос × трубопровод"
-      caption="Пунктирные кривые — оценочные"
-      help="Фактическая точка и доступные характеристики оборудования. Оценочные кривые показаны пунктиром."
+      help="Фактическая точка и доступные характеристики оборудования. Источники характеристик указаны в легенде."
     >
       <Status {...resource} empty="Выберите режим и момент измерения." />
       {p.audit?.quality.status === "unfit" && (
@@ -64,12 +63,27 @@ export function WorkingPointPage(p: PageProps) {
       )}
       {data && (
         <>
-          {data.notes.map((n, i) => (
-            <p key={i} className="muted">
-              {data.pump_kind === "объёмный" ? "Объёмный насос: фактические точки" : "Оценочные кривые"}
-              <Tooltip label={`Характеристики оборудования ${i + 1}`} content={n} />
+          {(data.origin.qh !== "passport" ||
+            data.origin.qeta !== "passport" ||
+            data.origin.system !== "passport") && (
+            <p className="notice">
+              {data.pump_kind === "объёмный"
+                ? "Для объёмного насоса показаны фактические точки; оценочные центробежные кривые не применяются."
+                : "Пунктиром показаны оценочные характеристики. Для проверки рабочей точки нужны паспортные кривые оборудования."}
+              {data.notes.length > 0 && (
+                <Tooltip label="Основание характеристик" content={data.notes.join(" ")} />
+              )}
             </p>
-          ))}
+          )}
+          {data.origin.qh === "passport" &&
+            data.origin.qeta === "passport" &&
+            data.origin.system === "passport" &&
+            data.notes.length > 0 && (
+              <p className="muted">
+                Источники характеристик
+                <Tooltip label="Основание характеристик" content={data.notes.join(" ")} />
+              </p>
+            )}
           <div className="chart-grid">
             <Plot
               title="Характеристика Q–H"

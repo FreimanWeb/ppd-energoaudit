@@ -54,6 +54,7 @@ export function CRMWellsPage(p: PageProps) {
   const runs = useResource<{ code: string; title: string; mode: string }[]>(
     p.objectId ? `/objects/${segment(p.objectId)}/crm/well-runs` : null,
   );
+  const [task, setTask] = useState<"injection" | "connections" | "downtime">("injection");
   const [runChoice, setRun] = useState(""),
     [wellChoice, setWell] = useState(""),
     [monthChoice, setMonth] = useState(""),
@@ -121,7 +122,6 @@ export function CRMWellsPage(p: PageProps) {
   return (
     <Panel
       title="CRM по скважинам"
-      caption="Прогноз внешней модели"
       help="Месячный прогноз, фактическая закачка и взаимовлияние нагнетательных скважин по выгрузке CRM."
     >
       <Status {...runs} />
@@ -152,6 +152,20 @@ export function CRMWellsPage(p: PageProps) {
                 ))}
               </select>
             </label>
+          </div>
+          <Status {...resource} />
+          {resource.data?.error && (
+            <p className="notice error">{resource.data.error}</p>
+          )}
+          {report && !report.error && (
+            <>
+              <div className="metric-segments" role="group" aria-label="Задача CRM по скважинам">
+                <button type="button" aria-pressed={task === "injection"} onClick={() => setTask("injection")}>Закачка</button>
+                <button type="button" aria-pressed={task === "connections"} onClick={() => setTask("connections")}>Связи</button>
+                <button type="button" aria-pressed={task === "downtime"} onClick={() => setTask("downtime")}>Простои</button>
+              </div>
+              {task === "injection" && <section aria-label="Закачка скважин">
+                <div className="page-controls">
             <label>
               Скважина
               <select
@@ -165,13 +179,7 @@ export function CRMWellsPage(p: PageProps) {
                 ))}
               </select>
             </label>
-          </div>
-          <Status {...resource} />
-          {resource.data?.error && (
-            <p className="notice error">{resource.data.error}</p>
-          )}
-          {report && !report.error && (
-            <>
+                </div>
               <Status {...monthly}/>
               {totals.length ? (
                 <>
@@ -229,6 +237,8 @@ export function CRMWellsPage(p: PageProps) {
                   Для выбранной скважины нет месячных данных.
                 </p>
               )}
+              <details>
+                <summary>Месячный отчёт по всем скважинам</summary>
               <label className="compact-control">
                 Месяц
                 <select
@@ -266,10 +276,13 @@ export function CRMWellsPage(p: PageProps) {
                   { key: "since", label: "Простой с" },
                 ]}
               />
+              </details>
+              </section>}
+              {task === "connections" && <section aria-label="Связи скважин">
               <h3>Граф взаимовлияния скважин<Tooltip label="Граф взаимовлияния скважин" content="Связи отражают коэффициенты внешней модели и требуют инженерной интерпретации. Квадрат — скважина с указанной причиной простоя; круг — причина простоя не указана, это не подтверждает работу скважины." /></h3>
               <div className="page-controls">
                 <label>
-                  Выбранная скважина
+                  Узел графа
                   <select
                     aria-label="Скважина графа"
                     value={selected}
@@ -351,8 +364,9 @@ export function CRMWellsPage(p: PageProps) {
                   </>
                 )
               )}
-              <details>
-                <summary>Простои скважин</summary>
+              </section>}
+              {task === "downtime" && <section aria-label="Простои скважин">
+                <h3>Простои скважин</h3>
                 <Status {...downtime} />
                 <Table
                   rows={downtime.data ?? []}
@@ -362,7 +376,7 @@ export function CRMWellsPage(p: PageProps) {
                     { key: "reason", label: "Причина" },
                   ]}
                 />
-              </details>
+              </section>}
             </>
           )}
         </>

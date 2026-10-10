@@ -4,12 +4,12 @@ test('efficiency gauge sits below the two KPI cards without a duplicate caption'
   await page.goto('/?object=kns54an&aggregate=' + encodeURIComponent('НА-1') + '&day=2026-09-29#overview');
 
   const panel = page.locator('.page-panel').filter({
-    has: page.getByRole('heading', { name: 'КПД агрегата и КПД номинальный', exact: true }),
+    has: page.getByRole('heading', { name: 'КПД', exact: true }),
   });
-  await expect(panel.locator('.metric-card')).toHaveCount(2);
+  await expect(panel.locator('.metric-segment')).toHaveCount(2);
   const disclosure = panel.locator('.metric-efficiency-disclosure');
   const verticalOrder = await panel.evaluate((element) => {
-    const cards = [...element.querySelectorAll('.metric-card')];
+    const cards = [...element.querySelectorAll('.efficiency-group > .metric-card')];
     const gauge = element.querySelector('.metric-efficiency-disclosure');
     return {
       cardBottom: Math.max(...cards.map((card) => card.getBoundingClientRect().bottom)),

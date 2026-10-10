@@ -106,13 +106,17 @@ test("forecast periodicity uses legacy defaults and preserves history before zer
 }) => {
   await fixture(page);
   await section(page, "forecast");
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("group", { name: "Факт и прогноз закачки", exact: true })).toBeVisible();
   await expect(page.getByLabel("Горизонт прогноза")).toHaveValue("36");
   await expect(page.getByLabel("Конец периода")).toHaveValue("2026-10-01");
   await page.getByLabel("Периодичность").selectOption("7");
   await expect(page.getByLabel("Горизонт прогноза")).toHaveValue("52");
   await page.getByLabel("Периодичность").selectOption("1");
   await expect(page.getByLabel("Горизонт прогноза")).toHaveValue("1095");
+  const horizonResponse = page.waitForResponse(response => new URL(response.url()).searchParams.get("horizon") === "1500" && response.status() === 200);
   await page.getByLabel("Горизонт прогноза").fill("1500");
+  await horizonResponse;
   const plot = page.getByRole("group", {
     name: "Факт и прогноз закачки",
     exact: true,
@@ -121,8 +125,10 @@ test("forecast periodicity uses legacy defaults and preserves history before zer
   await expect(
     plot.getByRole("button", { name: "Прогноз", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await hoverLineEnd(page, plot, "Прогноз");
-  await expect(plot.locator(".native-chart-tooltip strong")).toHaveText("1500");
+  await expect.poll(async () => {
+    await hoverLineEnd(page, plot, "Прогноз");
+    return plot.locator(".native-chart-tooltip strong").textContent();
+  }).toBe("1500");
   const firstX = async (name: string) =>
     plot
       .locator(`.visx-line[name="${name}"]`)
@@ -173,7 +179,7 @@ test("onboarding exposes readiness and both read-only templates for the actual s
   await expect(
     page.getByRole("heading", { name: "Готовность выбранного агрегата" }),
   ).toBeVisible();
-  await expect(page.locator("main table").last()).toContainText("Есть");
+  await expect(page.locator("main table").first()).toContainText("Есть");
   await page.getByText("Шаблон паспорта объекта", { exact: true }).click();
   await expect(page.locator("pre").first()).toContainText("aggregates");
   await page
@@ -198,7 +204,7 @@ test("a chosen measurement remains shared across sources, formulas and scheme zo
   expect((await auditResponse).status()).toBe(200);
   await section(page, "sources");
   await expect(page.locator("main")).toContainText("e2e-scada.csv");
-  await expect(page.locator(".header-tag")).toContainText("12:00:00");
+  await expect(page.getByLabel("Момент измерения")).toHaveValue("2026-09-29T12:00:00");
   await section(page, "formulas");
   await expect(page.locator(".formula-card").first()).toBeVisible();
   await expect(page.getByLabel("Момент измерения")).toHaveValue(
@@ -244,6 +250,7 @@ test("CRM scenario and aggregate choice change the true predicted series and gra
   await page.getByLabel("Показатель CRM").selectOption("НА-1");
   await expect.poll(predicted).toBe(2400);
   await section(page, "crm-wells");
+  await page.getByRole("button", { name: "Связи", exact: true }).click();
   const node = page.getByRole("button", { name: "Скважина 2015", exact: true });
   await expect(node).toBeVisible();
   await node.click();
@@ -256,6 +263,7 @@ test("CRM graph preserves downtime square markers from the legacy wells view", a
 }) => {
   await fixture(page);
   await section(page, "crm-wells");
+  await page.getByRole("button", { name: "Связи", exact: true }).click();
   const downtime = page.getByRole("button", {
     name: "Скважина 2017",
     exact: true,

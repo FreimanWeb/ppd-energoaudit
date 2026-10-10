@@ -64,8 +64,7 @@ export function CRMPage(p: PageProps) {
   const comparison = compareDaily(predicted, observed);
   return (
     <Panel
-      title="Прогноз подачи по CRM"
-      caption="Прогноз внешней модели"
+      title="CRM станции"
       help="Выгрузка CRM сопоставляется с фактической подачей тех же агрегатов."
     >
       <Status {...runs} />
@@ -116,13 +115,6 @@ export function CRMPage(p: PageProps) {
                 <p className="notice">В выгрузке нет полных суток прогноза.</p>
               ) : (
                 <>
-                  <p className="muted">
-                    <Tooltip label="Модель CRM" content={`Модель: ${data.data.model || "не указана"}. Шаг выгрузки: ${fmt(data.data.interval_hours)} ч.`} />{" "}
-                    {data.data.events
-                      ? "Сценарий с событиями"
-                      : "Базовый сценарий"}{" "}
-
-                  </p>
                   <div className="metric-group"><div className="kpis">
                     <MetricCard label="Прогноз на общих датах" value={comparison.forecastMean} unit="м³/сут" digits={0}
                       help="Средняя прогнозная подача только за даты, для которых есть фактические измерения." />
@@ -177,6 +169,11 @@ export function CRMPage(p: PageProps) {
                     {data.data.partial_days.length > 0 && <>Неполные сутки исключены: {data.data.partial_days.length}. </>}
                     <Tooltip label="Сопоставление CRM с фактом" content="Показаны 30 суток факта до начала прогноза. Пунктир — последние измеренные сутки. Неполные сутки выгрузки не участвуют в сравнении." />
                   </p>
+                  <details>
+                    <summary>Модель и сценарий</summary>
+                    <p>Модель: {data.data.model || "не указана"}. Шаг выгрузки: {fmt(data.data.interval_hours)} ч.</p>
+                    <p>{data.data.events ? "Сценарий с событиями" : "Базовый сценарий"}</p>
+                  </details>
                   <details>
                     <summary>Суточный прогноз</summary>
                     <Table

@@ -29,7 +29,7 @@ export const navigationSections = [
     pages: [
       { id: "sources", label: "Источники данных", icon: "sources" },
       { id: "formulas", label: "Формулы", icon: "formulas" },
-      { id: "onboarding", label: "Подключение объекта", icon: "onboarding" },
+      { id: "onboarding", label: "Готовность данных", icon: "onboarding" },
     ],
   },
 ];

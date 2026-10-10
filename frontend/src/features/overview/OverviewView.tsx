@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Button } from "../../shared/ui/Button";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "./dashboardData.mjs";
 import { metricAssessment } from "../../shared/metrics/metricAssessment.mjs";
@@ -14,6 +16,7 @@ import "./overview.css";
 
 export function OverviewView({ audit, context }: { audit: Audit; context?: PageProps }) {
   const m = audit.audit.metrics, v = dashboardData(audit);
+  const [referencesOpen, setReferencesOpen] = useState(false);
   return (
     <div className="overview-page">
       <Quality audit={audit} />
@@ -21,17 +24,23 @@ export function OverviewView({ audit, context }: { audit: Audit; context?: PageP
       <section className="page-panel ure-panel" aria-label="Удельный расход энергии">
         <header className="metric-toolbar">
           <h2>Удельный расход энергии</h2>
+          <Button variant="secondary" className="reference-toggle" aria-expanded={referencesOpen} aria-controls="ure-references" onClick={() => setReferencesOpen(!referencesOpen)}>Ориентиры УРЭ</Button>
         </header>
+        <div className={`ure-values${referencesOpen ? " is-open" : ""}`}>
           <MetricCard label="" value={null} unit="" help="" segments={[
             { label: "Факт", value: m.sec_fact_kwh_m3, unit: "кВт·ч/м³", help: metricHelp["УРЭ факт"], ...metricAssessment(m.sec_fact_kwh_m3, m.sec_calc_kwh_m3, "higher", v.usable) },
             { label: "Расчётный", value: m.sec_calc_kwh_m3, unit: "кВт·ч/м³", help: metricHelp["УРЭ расчётный"], ...metricAssessment(m.sec_calc_kwh_m3, null, "higher", v.usable) },
+          ]} />
+          <div id="ure-references" className="ure-reference-slide" aria-hidden={!referencesOpen} inert={!referencesOpen}>
+          <MetricCard label="" value={null} unit="" help="" segments={[
             { label: "Оптимальный", value: v.usable ? m.sec_optimal_kwh_m3 : null, unit: "кВт·ч/м³", help: metricHelp["УРЭ оптимальный"], ...metricAssessment(v.usable ? m.sec_optimal_kwh_m3 : null, null, "higher", v.usable) },
             { label: "Цель ППД-2035", value: audit.target_sec, unit: "кВт·ч/м³", help: metricHelp["Цель ППД-2035"], ...metricAssessment(audit.target_sec, null, "higher", v.usable) },
           ]} />
+          </div>
+        </div>
       </section>
       <EfficiencyKpiPanel audit={audit} />
       </div>
-      <div className="overview-secondary">
       <Panel title="Рабочий режим">
       <Kpis audit={audit} label="Рабочий режим" heading={false} rows={[
         ["Фактический напор", m.h_fact_m, "м"],
@@ -40,18 +49,9 @@ export function OverviewView({ audit, context }: { audit: Audit; context?: PageP
         ["Электрическая мощность", m.p_electric_kw, "кВт"],
       ]} />
       </Panel>
-      <Panel title="Состояние оборудования">
-      <Kpis audit={audit} label="Состояние оборудования" heading={false} rows={[
-        ["Коэффициент загрузки ЭД", m.load_factor, "о.е."],
-        ["КПД ЭД расчётный", m.eta_motor_real, "о.е."],
-        ["КПД насоса расчётный", m.eta_pump, "о.е."],
-      ]} />
-      </Panel>
-      </div>
       {v.usable ? (
         <>
           <AnnualSummary audit={audit} />
-          <a className="overview-section-link" href="#losses">Карта потерь мощности →</a>
           {context && <TopMeasures context={context} />}
         </>
       ) : (

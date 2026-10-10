@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "../overview/dashboardData.mjs";
 import { LossCharts } from "./LossCharts";
@@ -20,6 +21,7 @@ export function LossesView({ audit }: { audit: Audit }) {
             </div>
           </div>}
           <LossCharts power={audit.audit.metrics.p_electric_kw ?? 0} losses={view.losses} status={audit.quality.status} mode={mode} />
+          <details><summary>Таблица составляющих</summary>
           <Table
             rows={view.losses.map((loss: Audit["losses"][number]) => ({ ...loss, percent: loss.share * 100 }))}
             columns={[
@@ -30,6 +32,7 @@ export function LossesView({ audit }: { audit: Audit }) {
               { key: "annual_rub", label: "Стоимость, ₽/год" },
             ]}
           />
+          </details>
           <p className="muted">
             Годовые суммы — {audit.scope.annual_runtime_is_assumed
               ? "сценарий непрерывной работы"
@@ -40,4 +43,3 @@ export function LossesView({ audit }: { audit: Audit }) {
     </Panel>
   );
 }
-import { useState } from "react";

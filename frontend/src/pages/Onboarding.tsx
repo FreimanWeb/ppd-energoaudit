@@ -29,36 +29,26 @@ export function OnboardingPage(p: PageProps) {
       : null,
   );
   const data = resource.data;
+  const basicFields = ["Телеметрия: p_вх", "Телеметрия: p_вых", "Плотность ρ",
+    "Паспорт насоса: η_ном", "Паспорт ЭД: P_ном", "Паспорт ЭД: η_ном"];
+  const missingBasic = data?.checks.filter(check => check.value == null && basicFields.includes(check.field)) ?? [];
   return (
     <Panel
-      title="Подключение объекта"
+      title="Готовность данных"
       help="Требования к исходным данным, готовность агрегата и шаблоны паспорта. Изменение данных выполняется через принятый процесс верификации."
     >
       <Status {...resource} />
       {data && (
         <>
-          <h3>Телеметрия для энергоаудита</h3>
+          {missingBasic.length > 0 && <section className="notice error" aria-label="Недостающие базовые данные">
+            <strong>Сначала заполните базовые данные для расчёта</strong>
+            <ul>{missingBasic.map(check => <li key={check.field}>{check.field}</li>)}</ul>
+          </section>}
+          <h3>Готовность выбранного агрегата</h3>
           <Table
-            rows={data.telemetry_requirements}
-            columns={[
-              { key: "parameter", label: "Параметр" },
-              { key: "symbol", label: "Обозначение" },
-              { key: "unit", label: "Единица" },
-              { key: "requirement", label: "Требование" },
-              { key: "source", label: "Источник" },
-            ]}
-          />
-          <h3>Паспортные данные и замеры</h3>
-          <ul className="requirements">
-            {data.manual_requirements.map((r, i) => (
-              <li key={i}>{r.includes("config/") ? <>{r.split(";")[0]}.<Tooltip label="Источник свойств жидкости" content={r} /></> : r}</li>
-            ))}
-          </ul>
-          <h3>Готовность выбранного агрегата<Tooltip label="Готовность выбранного агрегата" content={data.notes.join(" ")} /></h3>
-          <Table
-            rows={data.checks.map((check) => ({
+            rows={[...data.checks].sort((a, b) => Number(a.value != null) - Number(b.value != null)).map((check) => ({
               ...check,
-              present: check.present ? "Есть" : "Не задано",
+              present: check.value != null ? "Есть" : "Не задано",
               value: Array.isArray(check.value)
                 ? JSON.stringify(check.value)
                 : check.value,
@@ -70,6 +60,30 @@ export function OnboardingPage(p: PageProps) {
             ]}
           />
 
+          {data.notes.map((note, index) => (
+            <p className="notice" key={index}>{note}</p>
+          ))}
+          <details>
+            <summary>Требования к телеметрии</summary>
+            <Table
+              rows={data.telemetry_requirements}
+              columns={[
+                { key: "parameter", label: "Параметр" },
+                { key: "symbol", label: "Обозначение" },
+                { key: "unit", label: "Единица" },
+                { key: "requirement", label: "Требование" },
+                { key: "source", label: "Источник" },
+              ]}
+            />
+          </details>
+          <details>
+            <summary>Паспортные данные и замеры</summary>
+            <ul className="requirements">
+              {data.manual_requirements.map((r, i) => (
+                <li key={i}>{r.includes("config/") ? <>{r.split(";")[0]}.<Tooltip label="Источник свойств жидкости" content={r} /></> : r}</li>
+              ))}
+            </ul>
+          </details>
           <details>
             <summary>Шаблон паспорта объекта</summary>
             <pre className="template-code">{data.yaml_template}</pre>

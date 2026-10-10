@@ -103,6 +103,9 @@ export function MeasuresPage(p: PageProps) {
     profile = data?.profile;
   const cash = chosen?.years ?? [];
   const displayed = chosen ? economicDisplay(chosen) : undefined;
+  const noPressureChange = Boolean(data &&
+    Math.abs(data.setpoint.current_p_out - data.setpoint.optimal_p_out) < 1e-9 &&
+    Math.abs(data.setpoint.saving_kwh_year) < 1e-6);
   const annualColumns = [
     { key: "name", label: "Мероприятие" },
     { key: "cls", label: "Класс" },
@@ -227,7 +230,7 @@ export function MeasuresPage(p: PageProps) {
             Тариф {fmt(data.tariff)} ₽/кВт·ч · годовая наработка{" "}
             {fmt(data.scope.annual_runtime_hours, 0)} ч
             {data.scope.annual_runtime_is_assumed ? " (допущение)" : ""}.
-            Не складывать эффекты без проверки.<Tooltip label="Расчёт годового эффекта" content="Эффекты разных мероприятий нельзя автоматически складывать: они могут устранять одни и те же потери." />
+            <Tooltip label="Расчёт годового эффекта" content="Эффекты разных мероприятий нельзя автоматически складывать: они могут устранять одни и те же потери." />
           </p>
           <h3>Годовой реестр мероприятий</h3>
           <Table
@@ -235,6 +238,8 @@ export function MeasuresPage(p: PageProps) {
             columns={annualColumns}
           />
           {data.annual.length > 0 && (
+            <details className="metric-disclosure">
+              <summary>Сравнить годовую экономию</summary>
             <Plot
               title="Годовой эффект мероприятий"
               data={[
@@ -252,74 +257,11 @@ export function MeasuresPage(p: PageProps) {
                 yaxis: { autorange: "reversed" },
               }}
             />
-          )}
-          {profile && (
-            <>
-              <h3>Прогнозный профиль закачки</h3>
-              <p className="muted">
-                Сценарный профиль
-                {profile.extrapolated_tail ? " · Продлён последним прогнозным периодом" : ""}
-                <Tooltip label="Основание профиля закачки" content={<>{profile.method} · {profile.note}</>} />
-              </p>
-              <div className="page-kpis">
-                <div>
-                  Базовый год, м³
-                  <strong>{fmt(profile.base_annual_m3, 0)}</strong>
-                </div>
-                <div>
-                  За горизонт, м³
-                  <strong>
-                    {fmt(
-                      profile.annual_m3.reduce((s, v) => s + v, 0),
-                      0,
-                    )}
-                  </strong>
-                </div>
-              </div>
-              <Plot
-                title="Годовой профиль закачки"
-                data={profileData}
-                layout={{
-                  xaxis: { title: { text: "Год" }, dtick: 1 },
-                  yaxis: { title: { text: "Закачка, м³/год" } },
-                }}
-              />
-              <Table
-                rows={profile.annual_m3.map((value, i) => ({
-                  year: i + 1,
-                  value,
-                  lower: profile.lower_annual_m3?.[i],
-                  upper: profile.upper_annual_m3?.[i],
-                }))}
-                columns={[
-                  { key: "year", label: "Год" },
-                  { key: "value", label: "Объём, м³" },
-                  { key: "lower", label: "Нижняя граница" },
-                  { key: "upper", label: "Верхняя граница" },
-                ]}
-              />
-            </>
+            </details>
           )}
           {basis === "forecast" && (
             <>
               <h3>Экономика на горизонте</h3>
-              <Table
-                rows={data.horizon.map(economicDisplay)}
-                columns={[
-                  { key: "name", label: "Мероприятие" },
-                  { key: "cls", label: "Класс" },
-                  { key: "capex_krub", label: "CAPEX, тыс. ₽", help: "Капитальные вложения. Типовые затраты требуют уточнения перед принятием решения." },
-                  { key: "total_energy_kwh", label: "Энергия, кВт·ч" },
-                  { key: "total_money_krub", label: "Эффект, тыс. ₽" },
-                  { key: "npv_krub", label: "NPV, тыс. ₽", help: "Чистый приведённый эффект: будущая экономия с учётом ставки дисконтирования минус первоначальные вложения." },
-                  { key: "irr", label: "IRR, %", help: "Внутренняя доходность: ставка, при которой NPV равен нулю. Прочерк означает, что показатель не определён." },
-                  { key: "payback_years", label: "Окупаемость, лет", help: "Время, за которое накопленная экономия покрывает вложения, без дисконтирования." },
-                  {
-                    key: "discounted_payback_years",
-                    label: "С дисконтом, лет",
-                  },
-                ]}
-              />
               {chosen && (
                 <>
                   <label className="compact-control">
@@ -336,6 +278,9 @@ export function MeasuresPage(p: PageProps) {
                       ))}
                     </select>
                   </label>
+                  {chosen.cls === "сценарная оценка" && (
+                    <p className="notice">CAPEX требует оценки; NPV и окупаемость не определены.</p>
+                  )}
                   <div className="page-kpis">
                     <div>
                       NPV, тыс. ₽<Tooltip label="NPV" content="Будущая экономия с учётом ставки дисконтирования минус первоначальные вложения." /><strong>{fmt(displayed?.npv_krub)}</strong>
@@ -404,9 +349,10 @@ export function MeasuresPage(p: PageProps) {
                     }}
                   />
                   <p className="muted">
-                    {chosen.cls === "сценарная оценка" && "CAPEX требует оценки; окупаемость не определена."}
                     <Tooltip label="Денежный поток" content={chosen.cls === "сценарная оценка" ? "Вложения требуют оценки, поэтому линия окупаемости не построена. Прочерк IRR означает, что показатель не определён." : `Пунктир — вложения (CAPEX ${fmt(chosen.capex_krub)} тыс. ₽). Прочерк IRR означает, что показатель не определён.`} />
                   </p>
+                  <details className="metric-disclosure">
+                    <summary>Годовой денежный поток</summary>
                   <Table
                     rows={cash}
                     columns={[
@@ -424,10 +370,84 @@ export function MeasuresPage(p: PageProps) {
                       },
                     ]}
                   />
-                  <p className="muted">{chosen.note}</p>
+                  </details>
+                  <p className="notice">{chosen.note}</p>
                 </>
               )}
+              <details className="metric-disclosure">
+                <summary>Сравнить экономику всех мероприятий</summary>
+              <Table
+                rows={data.horizon.map(economicDisplay)}
+                columns={[
+                  { key: "name", label: "Мероприятие" },
+                  { key: "cls", label: "Класс" },
+                  { key: "capex_krub", label: "CAPEX, тыс. ₽", help: "Капитальные вложения. Типовые затраты требуют уточнения перед принятием решения." },
+                  { key: "total_energy_kwh", label: "Энергия, кВт·ч" },
+                  { key: "total_money_krub", label: "Эффект, тыс. ₽" },
+                  { key: "npv_krub", label: "NPV, тыс. ₽", help: "Чистый приведённый эффект: будущая экономия с учётом ставки дисконтирования минус первоначальные вложения." },
+                  { key: "irr", label: "IRR, %", help: "Внутренняя доходность: ставка, при которой NPV равен нулю. Прочерк означает, что показатель не определён." },
+                  { key: "payback_years", label: "Окупаемость, лет", help: "Время, за которое накопленная экономия покрывает вложения, без дисконтирования." },
+                  {
+                    key: "discounted_payback_years",
+                    label: "С дисконтом, лет",
+                  },
+                ]}
+              />
+              </details>
             </>
+          )}
+          {profile?.estimate && (
+            <p className="notice">
+              Экономика использует оценочный профиль закачки.
+              {profile.extrapolated_tail && " Горизонт продлён последним прогнозным периодом."}
+            </p>
+          )}
+          {profile && (
+            <details className="metric-disclosure">
+              <summary>Прогнозный профиль закачки</summary>
+              <p className="muted">
+                Сценарный профиль
+                {profile.extrapolated_tail ? " · Продлён последним прогнозным периодом" : ""}
+                <Tooltip label="Основание профиля закачки" content={<>{profile.method} · {profile.note}</>} />
+              </p>
+              <div className="page-kpis">
+                <div>
+                  Базовый год, м³
+                  <strong>{fmt(profile.base_annual_m3, 0)}</strong>
+                </div>
+                <div>
+                  За горизонт, м³
+                  <strong>
+                    {fmt(
+                      profile.annual_m3.reduce((s, v) => s + v, 0),
+                      0,
+                    )}
+                  </strong>
+                </div>
+              </div>
+              <Plot
+                title="Годовой профиль закачки"
+                data={profileData}
+                layout={{
+                  xaxis: { title: { text: "Год" }, dtick: 1 },
+                  yaxis: { title: { text: "Закачка, м³/год" } },
+                }}
+              />
+              <Table
+                rows={profile.annual_m3.map((value, i) => ({
+                  year: i + 1,
+                  value,
+                  lower: profile.lower_annual_m3?.[i],
+                  upper: profile.upper_annual_m3?.[i],
+                }))}
+                columns={[
+                  { key: "year", label: "Год" },
+                  { key: "value", label: "Объём, м³" },
+                  { key: "lower", label: "Нижняя граница" },
+                  { key: "upper", label: "Верхняя граница" },
+                ]}
+              />
+            </details>
           )}
           <h3>Оптимизация уставок<Tooltip label="Оптимизация уставок" content="Расчёт целевого давления с учётом технологических ограничений. Экономия — сценарий, а не достигнутый эффект; изменение уставки требует инженерной проверки." /></h3>
           <p
@@ -437,6 +457,14 @@ export function MeasuresPage(p: PageProps) {
               ? "Уставка в пределах технологических ограничений"
               : "Технологические ограничения нарушены"}
           </p>
+          {noPressureChange && (
+            <p className="notice">
+              Расчёт не предлагает экономичного изменения выходного давления в выбранном режиме.
+              Текущая уставка сохранена; расчётная годовая экономия — 0 кВт·ч.
+            </p>
+          )}
+          <details className="metric-disclosure" open={noPressureChange ? undefined : true}>
+            <summary>Расчётные параметры уставки</summary>
           <div className="page-kpis">
             <div>
               Выходное давление: текущее → целевое, МПа
@@ -460,6 +488,7 @@ export function MeasuresPage(p: PageProps) {
               Частота ПЧ, Гц<strong>{fmt(data.setpoint.vfd_freq_hz)}</strong>
             </div>
           </div>
+          </details>
           <ul className="warnings">
             {data.setpoint.notes.map((n, i) => (
               <li key={i}>{n}</li>

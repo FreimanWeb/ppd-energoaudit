@@ -36,19 +36,6 @@ summary:focus-visible {
   outline: 3px solid var(--accent-strong);
   outline-offset: 2px;
 }
-.app-header {
-  grid-area: header;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  height: 72px;
-  padding: 0 32px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: white;
-  border-bottom: 1px solid var(--border);
-}
 .brand {
   display: flex;
   gap: 15px;
@@ -72,10 +59,6 @@ summary:focus-visible {
   color: var(--content-muted);
   font-size: var(--text-caption);
   margin-top: 4px;
-}
-.header-tag {
-  color: var(--content-muted);
-  font-size: var(--text-caption);
 }
 main {
   grid-area: content;
@@ -431,14 +414,6 @@ tbody tr:last-child td {
   font-size: var(--text-label);
   margin-top: 22px;
 }
-footer {
-  grid-area: footer;
-  font-size: var(--text-caption);
-  color: var(--content-muted);
-  text-align: center;
-  padding: 20px;
-  border-top: 1px solid var(--border);
-}
 @media (max-width: 1100px) {
   .kpi strong {
     font-size: var(--text-value);
@@ -501,8 +476,8 @@ footer {
 .app {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  grid-template-rows: 72px 1fr auto;
-  grid-template-areas: "sidebar header" "sidebar content" "sidebar footer";
+  grid-template-rows: 1fr;
+  grid-template-areas: "sidebar content";
   min-height: 100dvh;
   align-items: start;
 }
@@ -639,27 +614,6 @@ footer {
   background: var(--accent);
   flex-shrink: 0;
 }
-.header-heading,
-.breadcrumbs,
-.app-header .header-tag {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.breadcrumbs {
-  color: var(--content-muted);
-  font-size: var(--text-caption);
-}
-.breadcrumbs strong {
-  color: var(--content-primary);
-  font-weight: var(--weight-medium);
-}
-.app-header .header-tag {
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--surface-subtle);
-  border-radius: 10px;
-}
 .sidebar-toggle {
   display: none;
   padding: 8px;
@@ -709,7 +663,6 @@ footer {
   .scheme-layout {
     grid-template-columns: minmax(0, 1fr) 210px;
   }
-  .app-header,
   main {
     padding-left: 24px;
     padding-right: 24px;
@@ -718,12 +671,8 @@ footer {
 @media (max-width: 900px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 68px auto 1fr auto;
-    grid-template-areas: "header" "sidebar" "content" "footer";
-  }
-  .app-header {
-    height: 68px;
-    padding: 0 18px;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "toggle" "sidebar" "content";
   }
   .sidebar-toggle {
     display: flex;
@@ -769,17 +718,6 @@ footer {
   }
 }
 @media (max-width: 520px) {
-  .breadcrumbs strong,
-  .breadcrumbs span[aria-hidden] {
-    display: none;
-  }
-  .breadcrumbs,
-  .app-header .header-tag {
-    font-size: var(--text-caption);
-  }
-  .app-header .header-tag {
-    padding: 7px 8px;
-  }
   .app-sidebar .selectors {
     grid-template-columns: 1fr;
   }
@@ -804,7 +742,6 @@ footer {
 .clarifications {margin:18px 8px;}
 .clarifications p {font-size: var(--text-caption);overflow-wrap:anywhere;}
 .sidebar-footer {flex-wrap:wrap;}
-.mobile-logout {display:none;}
 .login-shell {display:grid;place-items:center;min-height:100dvh;background:var(--background);}
 .login-card {width:min(420px,calc(100% - 32px));padding:32px;background:white;border:1px solid var(--border);border-radius:20px;}
 .login-card .brand-mark {display:inline-block;background:var(--accent-strong);border-radius:12px;}
@@ -815,7 +752,6 @@ footer {
 .primary-button {background:var(--accent-strong);color:white;border:0;}
 .login-card .primary-button {margin-top:20px;width:100%;min-height:44px;}
 .primary-button:hover {background:var(--accent-strong);}
-@media(max-width:900px) {.mobile-logout {display:block;}}
 
 .nav-section { display: grid; gap: 4px; }
 .nav-section + .nav-section { margin-top: 18px; }
@@ -866,4 +802,10 @@ footer {
   padding-right: 22px;
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
+}
+
+.sidebar-toggle { grid-area: toggle; }
+@media (max-width: 900px) {
+  .sidebar-toggle { margin: 12px 20px; }
+  .sidebar-session { display: flex; }
 }

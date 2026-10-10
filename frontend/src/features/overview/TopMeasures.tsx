@@ -11,7 +11,7 @@ export function TopMeasures({ context }: { context: PageProps }) {
     contextBody(context, { basis: "annual" }),
   );
   return (
-    <Panel title="Топ мероприятий" help="Эвристическая оценка. Сценарные мероприятия требуют диагностики и оценки CAPEX. Отсутствие применимого мероприятия не означает, что потери в норме.">
+    <Panel title="Топ мероприятий" action={<a className="panel-link" href="#measures">Все →</a>} help="Эвристическая оценка. Сценарные мероприятия требуют диагностики и оценки CAPEX. Отсутствие применимого мероприятия не означает, что потери в норме.">
       <Status {...result} empty="Мероприятия ещё не рассчитаны. Проверьте выбранный объект, агрегат и период." />
       {result.error && <a href="#sources">Проверить исходные данные</a>}
       {result.data && result.data.annual.length === 0 && <p className="notice">Для выбранного режима нет применимых мероприятий. Проверьте исходные данные или выберите другой период.</p>}
@@ -31,7 +31,6 @@ export function TopMeasures({ context }: { context: PageProps }) {
           ]}
         />
       )}
-      <a className="overview-section-link" href="#measures">Все мероприятия и оценка окупаемости →</a>
     </Panel>
   );
 }

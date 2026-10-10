@@ -7,15 +7,18 @@ export function Panel({
   children,
   caption,
   help,
+  action,
 }: {
   title: string;
   children: ReactNode;
   caption?: string;
   help?: ReactNode;
+  action?: ReactNode;
 }) {
+  const heading = <h2>{title}{help && <Tooltip label={title} content={help} />}</h2>;
   return (
     <section className="page-panel">
-      <h2>{title}{help && <Tooltip label={title} content={help} />}</h2>
+      {action ? <header className="panel-heading">{heading}{action}</header> : heading}
       {caption && <p className="muted">{caption}</p>}
       {children}
     </section>

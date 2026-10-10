@@ -8,7 +8,6 @@ import { SnapshotView } from "../features/overview/SnapshotView";
 import { SourcesView } from "../features/overview/SourcesView";
 import { LossesView } from "../features/losses/LossesView";
 import {
-  pages,
   navigationSections,
   pageForMode,
   filterObjects,
@@ -354,50 +353,23 @@ export function App({ logout }: { logout?: () => void }) {
         </div>
         {logout && <div className="sidebar-footer sidebar-session"><button onClick={logout}>Выйти</button></div>}
       </aside>
-      <header className="app-header">
-        <div className="header-heading">
-          <button
-            className="sidebar-toggle"
-            aria-label={
-              sidebarOpen ? "Закрыть боковую панель" : "Открыть боковую панель"
-            }
-            aria-controls="app-sidebar"
-            aria-expanded={sidebarOpen}
-            onClick={() => {
-              if (!sidebarOpen)
-                window.scrollTo({ top: 0, behavior: "instant" });
-              setSidebarOpen(!sidebarOpen);
-            }}
-          >
-            <Icon name="menu" />
-          </button>
-          <div className="breadcrumbs">
-            <span>Энергоаудит</span>
-            <span aria-hidden="true">/</span>
-            <strong>{pages.find((p) => p.id === page)?.label}</strong>
-          </div>
-        </div>
-        <span className="header-tag">
-          <span className="sidebar-dot" />
-          {source === "field_trip"
-            ? "Выездной замер"
-            : day
-              ? `${day.split("-").reverse().join(".")}${snapshot ? ` · ${time(snapshot.timestamp)}` : ""}`
-              : "Режим не выбран"}
-        </span>
-        {logout && (
-          <button className="mobile-logout" onClick={logout}>
-            Выйти
-          </button>
-        )}
-      </header>
+      <button
+        className="sidebar-toggle"
+        aria-label={
+          sidebarOpen ? "Закрыть боковую панель" : "Открыть боковую панель"
+        }
+        aria-controls="app-sidebar"
+        aria-expanded={sidebarOpen}
+        onClick={() => {
+          if (!sidebarOpen)
+            window.scrollTo({ top: 0, behavior: "instant" });
+          setSidebarOpen(!sidebarOpen);
+        }}
+      >
+        <Icon name="menu" />
+      </button>
       <main id="main-content" tabIndex={-1}>
         <div className="page-heading">
-          <div className="eyebrow">
-            {source === "field_trip"
-              ? "ВЫЕЗДНОЙ ЭНЕРГОАУДИТ"
-              : "ЭНЕРГОАУДИТ ППД"}
-          </div>
           <h1>{object?.name ?? "Энергоаудит ППД"}</h1>
           <p>
             {object
@@ -526,6 +498,7 @@ export function App({ logout }: { logout?: () => void }) {
                     <dt>Давление на выкиде</dt><dd>{fmt(audit.regime.p_out)} МПа</dd>
                   </dl>}
                   {node?.agg === aggregate?.code && audit && (
+                    <>
                     <dl>
                       <dt>Давление на приёме</dt>
                       <dd>{fmt(audit.regime.p_in)} МПа</dd>
@@ -541,6 +514,9 @@ export function App({ logout }: { logout?: () => void }) {
                       <dd>{fmt(audit.audit.metrics.eta_unit, 3)} о.е.</dd>
                       <dt>Номинальный КПД</dt>
                       <dd>{fmt(audit.audit.metrics.eta_nom, 3)} о.е.</dd>
+                    </dl>
+                    <details><summary>Диагностика и потери</summary>
+                    <dl>
                       <dt>Оценка КПД</dt>
                       <dd>{audit.quality.status === "unfit" ? "Данные непригодны для оценки" : audit.pump_assessment.name}</dd>
                       <dt>Коэффициент загрузки двигателя</dt>
@@ -552,6 +528,8 @@ export function App({ logout }: { logout?: () => void }) {
                         <dd>{fmt(audit.annual_summary.efficiency_energy_kwh, 0)} кВт·ч/год</dd>
                       </>}
                     </dl>
+                    </details>
+                    </>
                   )}
                   <p className="muted sidebar-note">
                     Измерения относятся только к выбранному агрегату и снимку.
@@ -577,9 +555,6 @@ export function App({ logout }: { logout?: () => void }) {
             <TelemetryPage key={`fallback/${contextKey}`} {...context} />
           )}
       </main>
-      <footer>
-        Цифровой энергоаудит систем ППД · расчёт по выбранному режиму
-      </footer>
     </div>
   );
 }

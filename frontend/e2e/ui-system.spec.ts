@@ -67,6 +67,7 @@ test('all application sections keep page-level reflow at desktop and narrow widt
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await expect(page.locator('main').getByText(/^(Загружаем данные…|Загружаем график…)$/)).toHaveCount(0, { timeout: 20000 });
     await page.waitForLoadState('networkidle');
+    if (section === 'formulas') await page.getByRole('button', { name: 'Раскрыть все', exact: true }).click();
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

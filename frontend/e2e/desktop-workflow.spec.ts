@@ -1,0 +1,32 @@
+import { test, expect } from '@playwright/test';
+
+test('desktop keeps one brand and task details without a global header or footer', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#overview');
+  await expect(page.getByRole('heading', { name: /^Годовая оценка/ })).toBeVisible();
+  await expect(page.locator('.app-header, .breadcrumbs, .header-tag, .app > footer')).toHaveCount(0);
+  await expect(page.locator('.page-heading .eyebrow')).toHaveCount(0);
+  await expect(page.locator('.sidebar-brand')).toHaveCount(1);
+  const diagnostics = page.locator('details').filter({ has: page.getByText('Диагностика агрегата', { exact: true }) });
+  await expect(diagnostics).not.toHaveAttribute('open', '');
+  await diagnostics.locator('summary').click();
+  await expect(page.getByText('КПД ЭД расчётный', { exact: true })).toBeVisible();
+  await page.locator('nav a[href="#snapshot"]').click();
+  await expect(page.getByRole('heading', { name: 'Режимный расчёт', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Годовая оценка/ })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Источники расчётных входов', exact: true })).toHaveCount(0);
+  await page.locator('nav a[href="#formulas"]').click();
+  await expect(page.locator('.formula-card').first()).toBeVisible();
+  await expect(page.locator('.formula-card .katex-display').first()).not.toBeVisible();
+  await page.getByRole('button', { name: 'Раскрыть все', exact: true }).click();
+  await expect(page.locator('.formula-card .katex-display').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Свернуть все', exact: true }).click();
+  await expect(page.locator('.formula-card .katex-display').first()).not.toBeVisible();
+  await page.locator('nav a[href="#crm-wells"]').click();
+  await expect(page.getByLabel('Скважина', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Связи', exact: true }).click();
+  await expect(page.getByLabel('Скважина графа')).toBeVisible();
+  await expect(page.getByLabel('Скважина', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Простои', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Простои/ })).toBeVisible();
+});

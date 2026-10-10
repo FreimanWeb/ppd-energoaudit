@@ -91,12 +91,6 @@ export function ForecastPage(p: PageProps) {
         <>
           <div className="page-kpis">
             <div>
-              Тренд, м³/период<Tooltip label="Тренд" content="Изменение объёма за один выбранный период: сутки, неделю или месяц." /><strong>{fmt(data.trend_slope)}</strong>
-            </div>
-            <div>
-              Базовый ориентир, м³<Tooltip label="Базовый ориентир" content="Среднее последних измеренных периодов, повторённое на будущие периоды без изменения тренда." /><strong>{fmt(data.naive_baseline, 0)}</strong>
-            </div>
-            <div>
               Прогноз последнего периода, м³
               <strong>{fmt(data.forecast.at(-1)?.value, 0)}</strong>
             </div>
@@ -110,10 +104,6 @@ export function ForecastPage(p: PageProps) {
               </strong>
             </div>
           </div>
-          <p className="muted">
-            {data.estimate ? "Сценарная оценка" : "По измерениям"}
-            <Tooltip label="Метод прогноза" content={<>{data.method}{data.note ? ` · ${data.note}` : ""}</>} />
-          </p>
           <Plot
             title="Факт и прогноз закачки"
             data={forecastTraces(data) as Trace[]}
@@ -124,6 +114,19 @@ export function ForecastPage(p: PageProps) {
               yaxis: { title: { text: "Объём, м³" } },
             }}
           />
+          <details>
+            <summary>Модель прогноза</summary>
+            <p>{data.estimate ? "Сценарная оценка" : "По измерениям"}: {data.method}</p>
+            {data.note && <p className="muted">{data.note}</p>}
+            <div className="page-kpis">
+            <div>
+              Тренд, м³/период<Tooltip label="Тренд" content="Изменение объёма за один выбранный период: сутки, неделю или месяц." /><strong>{fmt(data.trend_slope)}</strong>
+            </div>
+            <div>
+              Базовый ориентир, м³<Tooltip label="Базовый ориентир" content="Среднее последних измеренных периодов, повторённое на будущие периоды без изменения тренда." /><strong>{fmt(data.naive_baseline, 0)}</strong>
+            </div>
+            </div>
+          </details>
           <details>
             <summary>Таблица прогноза</summary>
             <Table

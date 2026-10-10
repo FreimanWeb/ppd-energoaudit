@@ -12,6 +12,7 @@ async function fixture(page: Page) {
 test('CRM graph accepts a real well click and keyboard activation', async ({ page }) => {
   await fixture(page);
   await page.locator('nav a[href="#crm-wells"]').click();
+  await page.getByRole('button', { name: 'Связи', exact: true }).click();
   const graph = page.getByRole('group', { name: 'Граф взаимовлияния', exact: true });
   const nodes = graph.getByRole('button', { name: /^Скважина / });
   const node = nodes.first();

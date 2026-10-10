@@ -165,3 +165,8 @@
     font-size: var(--text-section);
   }
 }
+
+.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.panel-heading h2 { margin: 0; }
+.panel-link { flex-shrink: 0; color: var(--accent-strong); font-size: var(--text-label); text-decoration: none; }
+.panel-link:hover { text-decoration: underline; }

@@ -2,11 +2,9 @@ import type { Audit } from "../../shared/types";
 import { dashboardData } from "./dashboardData.mjs";
 import { Panel } from "../../shared/ui/Panel";
 import { fmt } from "../../shared/ui/format";
-import { AnnualSummary } from "./AnnualSummary";
 import { Dictionary } from "./Dictionary";
 import { Kpis } from "./Kpis";
 import { Quality } from "./Quality";
-import { SourcesView } from "./SourcesView";
 
 export function SnapshotView({ audit }: { audit: Audit }) {
   const m = audit.audit.metrics, view = dashboardData(audit);
@@ -34,8 +32,7 @@ export function SnapshotView({ audit }: { audit: Audit }) {
           : "Нет W и Q_сут: суточный фактический УРЭ не вычисляется."}</p>
         <Dictionary values={{ "W, кВт·ч": audit.regime.w, "Q_сут, м³": audit.regime.q_day, "T, ч": audit.regime.t, "Мощность для расчёта, кВт": m.p_electric_kw }} />
       </Panel>
-      <SourcesView audit={audit} />
-      <AnnualSummary audit={audit} />
+      <p className="overview-section-link"><a href="#sources">Источники данных</a> · <a href="#formulas">Формулы расчёта</a> · <a href="#overview">Годовая оценка</a></p>
     </>
   );
 }

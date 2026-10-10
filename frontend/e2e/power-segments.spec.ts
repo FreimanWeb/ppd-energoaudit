@@ -26,6 +26,7 @@ test('loss presentation switches between decomposition and flow without changing
   await expect(plot.locator('.visx-bar.is-active')).toHaveCount(1);
   await expect(plot.getByRole('status').locator('b')).toHaveText('-190');
   await expect(motor).not.toHaveClass(/is-active/);
+  await page.getByText('Таблица составляющих', { exact: true }).click();
   const tableBefore = await page.locator('table').innerText();
   await page.getByRole('button', { name: 'Поток мощности', exact: true }).click();
   await expect(plot).toHaveCount(0);

@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { signalShape } from "./fidelity.mjs";
+import { TelemetryChart, type TelemetrySignal } from "./TelemetryChart";
 import { useResource, segment } from "../shared/api";
-import { Plot, type Trace } from "../charts/Plot";
 import { Panel } from "../shared/ui/Panel";
 import { Range } from "../shared/ui/Range";
 import { Status } from "../shared/ui/Status";
@@ -11,11 +10,7 @@ import type { PageProps } from "../shared/ui/context";
 
 type Telemetry = {
   records: Record<string, unknown>[];
-  series: {
-    metric: string;
-    unit: string;
-    points: { timestamp: string; value: number | null }[];
-  }[];
+  series: TelemetrySignal[];
 };
 export function TelemetryPage(
   p: PageProps & { viewerOnly?: boolean; availableDates?: string[] },
@@ -40,6 +35,15 @@ export function TelemetryPage(
       : null,
   );
   const records = data.data?.records ?? [];
+  const series = data.data?.series ?? [];
+  const pressures = series.filter((signal) => signal.unit === "МПа");
+  const primary = series.filter((signal) =>
+    signal.unit === "кВт" || signal.unit === "м³/ч",
+  );
+  const additional = series.filter((signal) =>
+    signal.unit !== "МПа" && signal.unit !== "кВт" && signal.unit !== "м³/ч",
+  );
+  const marker = mode === "day" ? p.timestamp || undefined : undefined;
   const columns = records.length
     ? Object.keys(records[0]).map((key) => ({
         key,
@@ -112,54 +116,29 @@ export function TelemetryPage(
       )}
       {data.data && (
         <>
-          {data.data.series.length ? (
-            <div className="chart-grid">
-              {data.data.series.map((series) => (
-                <div key={series.metric}>
-                  <h3>{series.metric}</h3>
-                  <Plot
-                    title={series.metric}
-                    data={[
-                      {
-                        type: "scatter",
-                        mode: "lines+markers",
-                        name: series.metric,
-                        x: series.points.map((x) => x.timestamp),
-                        y: series.points.map((x) => x.value),
-                        connectgaps: false,
-                        line: {
-                          color: "var(--chart-primary)",
-                          shape: signalShape(series.metric, series.unit),
-                        },
-                      } as Trace,
-                    ]}
-                    layout={{
-                      yaxis: {
-                        title: { text: series.unit },
-                        gridcolor: "var(--chart-grid)",
-                      },
-                      xaxis: { type: "date", gridcolor: "var(--chart-grid)" },
-                      ...(mode === "day" && p.timestamp
-                        ? {
-                            shapes: [
-                              {
-                                type: "line",
-                                xref: "x",
-                                x0: p.timestamp,
-                                x1: p.timestamp,
-                                yref: "paper",
-                                y0: 0,
-                                y1: 1,
-                                line: { color: "var(--chart-status-warning)", dash: "dot" },
-                              },
-                            ],
-                          }
-                        : {}),
-                    }}
-                  />
+          {series.length ? (
+            <>
+              {pressures.length > 0 && (
+                <TelemetryChart title="Давления" series={pressures} timestamp={marker} />
+              )}
+              {primary.length > 0 && (
+                <div className="chart-grid">
+                  {primary.map((signal) => (
+                    <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} />
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+              {additional.length > 0 && (
+                <details>
+                  <summary>Дополнительные измерения ({additional.length})</summary>
+                  <div className="chart-grid">
+                    {additional.map((signal) => (
+                      <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} />
+                    ))}
+                  </div>
+                </details>
+              )}
+            </>
           ) : (
             <p className="notice">Измерений за выбранный период нет.</p>
           )}

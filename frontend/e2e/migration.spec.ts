@@ -25,6 +25,7 @@ test("real measured regime, passport and formula substitutions", async ({
   await section(page, "snapshot");
   await expect(page.getByRole("heading", {name: "Суточный факт"})).toBeVisible();
   await section(page, "formulas");
+  await page.getByRole("button", { name: "Раскрыть все", exact: true }).click();
   await expect(page.getByText(/Подстанов|Формул/).first()).toBeVisible();
   await expect(page.locator("main")).toContainText("600");
 });
@@ -200,6 +201,7 @@ test("CRM unit and well graph controls affect actual plotted series", async ({
   await expect(chart(page)).toBeVisible();
   await expect(page.locator("main")).toContainText(/2\s880/);
   await section(page, "crm-wells");
+  await page.getByRole("button", { name: "Связи", exact: true }).click();
   await page.getByLabel("Скважина графа").selectOption("2015");
   await expect(page.locator("main")).toContainText("2017");
   await page.getByLabel("Порог силы связи").fill("0.9");
