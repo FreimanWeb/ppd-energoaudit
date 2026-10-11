@@ -12,7 +12,7 @@ test("overview has compact KPI cards, explicit comparisons and keyboard help", a
     await route.fulfill({response, json: audit});
   });
   await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#overview");
-  const ure = page.locator('.ure-panel .metric-segment').filter({ has: page.getByText("Факт", { exact: true }) });
+  const ure = page.locator('.overview-metric-values-ure .metric-segment').filter({ has: page.getByText("Факт", { exact: true }) });
   await expect(ure).toHaveAttribute("data-tone", "bad");
   await expect(ure.locator(".metric-caption")).toHaveCount(0);
   await ure.locator("strong").hover();
@@ -25,9 +25,9 @@ test("overview has compact KPI cards, explicit comparisons and keyboard help", a
   await expect(page.locator('.metric-segment').filter({has: page.getByText("КПД агрегата", {exact: true})})).toHaveAttribute("data-tone", "bad");
   const badEfficiency = page.locator('.metric-segment').filter({ has: page.getByText('КПД агрегата', { exact: true }) }).locator('strong');
   expect(await ure.locator('strong').evaluate(element => getComputedStyle(element).color)).toBe(await badEfficiency.evaluate(element => getComputedStyle(element).color));
-  await expect(page.getByRole("button", {name: "Пояснение: Подача"})).toBeVisible();
+  await expect(page.getByRole("group", {name: "Режим выбранного агрегата", exact: true}).getByText("Подача", {exact: true})).toBeVisible();
   await page.getByText("Диагностика агрегата", { exact: true }).click();
-  for (const label of ["КПД ЭД расчётный", "КПД насоса расчётный", "Коэффициент загрузки ЭД", "Фактический напор"])
+  for (const label of ["КПД ЭД расчётный", "КПД насоса расчётный", "Коэф. загрузки ЭД"])
     await expect(page.locator(".metric-card").filter({has: page.getByText(label, {exact: true})})).toHaveAttribute("data-tone", "bad");
   await expect(page.getByRole("button", {name: "Сравнение", exact: true})).toHaveCount(0);
   await expect(ure).toBeVisible();

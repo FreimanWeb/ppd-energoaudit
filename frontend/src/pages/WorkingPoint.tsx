@@ -10,7 +10,7 @@ type Working = {
   qh: { q: number; h: number }[];
   qeta: { q: number; eta: number }[];
   system: { q: number; h: number }[];
-  point: { q: number; h: number; eta: number };
+  point: { q: number; h: number; eta: number; eta_pump: number | null };
   nominal: { q: number | null; h: number | null; eta: number | null };
   due: { h: number | null; eta: number | null };
   origin: { qh: string; qeta: string; system: string };
@@ -84,6 +84,9 @@ export function WorkingPointPage(p: PageProps) {
                 <Tooltip label="Основание характеристик" content={data.notes.join(" ")} />
               </p>
             )}
+          {data.point.eta_pump == null && (
+            <p className="notice">Расчётный КПД насоса недоступен: точка на Q–η не показана.</p>
+          )}
           <div className="chart-grid">
             <Plot
               title="Характеристика Q–H"
@@ -154,9 +157,9 @@ export function WorkingPointPage(p: PageProps) {
                     ]
                   : []),
                 point(
-                  "КПД установки (факт)",
+                  "КПД насоса (расчётный)",
                   data.point.q,
-                  data.point.eta * 100,
+                  data.point.eta_pump == null ? null : data.point.eta_pump * 100,
                   "var(--chart-status-warning)",
                 ),
                 point(
@@ -180,8 +183,8 @@ export function WorkingPointPage(p: PageProps) {
           </div>
           <p className="muted">
             Рабочая подача {fmt(data.point.q)} м³/ч · фактический напор{" "}
-            {fmt(data.point.h)} м · КПД установки {fmt(data.point.eta * 100)} %.
-            <Tooltip label="КПД установки и насоса" content="КПД установки включает двигатель и трансмиссию; паспортная Q–η относится только к насосу." />
+            {fmt(data.point.h)} м · КПД установки {fmt(data.point.eta * 100, 1)} %.
+            <Tooltip label="КПД установки и насоса" content="КПД установки включает двигатель и трансмиссию. На Q–η показан расчётный КПД насоса, полученный с учётом КПД привода; кривая относится только к насосу." />
           </p>
           <details>
             <summary>Координаты характеристик</summary>

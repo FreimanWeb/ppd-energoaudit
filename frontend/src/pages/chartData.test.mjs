@@ -65,6 +65,11 @@ test("loss charts retain signed components and supplied useful power", () => {
   assert.deepEqual(result.waterfall.y, [100, -45, 5, 60]);
   assert.equal(result.waterfall.measure.at(-1), "absolute");
   assert.deepEqual(result.sankey.link.value, [60, 45]);
+  assert.deepEqual(result.waterfall.tooltip.map(x => x.value), [100, 45, -5, 60]);
+  assert.deepEqual(result.sankey.node.tooltip.map(x => x.share), [1, .6, .45]);
+  assert.equal(result.sankey.node.tooltip[0].value, 100);
+  assert.equal(result.waterfall.tooltip[0].selection, undefined);
+  assert.equal(result.waterfall.tooltip[2].selection, "Коррекция");
 });
 
 const { downtimeForWell } = await import('./chartData.mjs');

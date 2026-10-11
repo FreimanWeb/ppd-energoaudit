@@ -1,7 +1,8 @@
-import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import symbols from "../../../../shared/ppd-symbols.svg?raw";
 import { layoutTopology, pressureForEdge } from "./scheme.mjs";
 import type { Audit, Equipment, Topology } from "../../shared/types";
+import { fmt } from "../../shared/ui/format";
 
 export function Scheme({
   topology,
@@ -18,83 +19,56 @@ export function Scheme({
   selected: string;
   onSelect: (node: Equipment) => void;
 }) {
-  const graph = layoutTopology(topology);
-  const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
-  const drag = useRef<{
-    x: number;
-    y: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
+  const stage = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const [callout, setCallout] = useState<{ left: number; top: number; x: number; y: number; connectorY: number; below: boolean } | null>(null);
+  const graph = layoutTopology(topology);
+  const activePump = graph.nodes.find(node => node.type === "pump" && node.agg === aggregate);
+  useLayoutEffect(() => {
+    if (!activePump || !audit || !stage.current || !svg.current || !card.current) return;
+    const place = () => {
+      const matrix = svg.current?.getScreenCTM();
+      const bounds = stage.current?.getBoundingClientRect();
+      if (!matrix || !bounds || !card.current) return;
+      const outlet = graph.edges.find(edge => edge.source.id === activePump.id)?.target;
+      const lowerBranch = outlet != null && activePump.py > outlet.py;
+      const point = new DOMPoint(activePump.px + 72, activePump.py + (lowerBranch ? 20 : -20)).matrixTransform(matrix);
+      const x = point.x - bounds.left, y = point.y - bounds.top;
+      const bendX = Math.max(activePump.px + 72, ...graph.edges.filter(edge => edge.source.id === activePump.id).map(edge => edge.middle));
+      const bend = new DOMPoint(bendX, activePump.py).matrixTransform(matrix);
+      const left = Math.max(12, Math.min(Math.max(x + 36, bend.x - bounds.left + 12), bounds.width - card.current.offsetWidth - 12));
+      const height = card.current.offsetHeight;
+      const preferredTop = lowerBranch ? y + 12 : y - height + 12;
+      const top = Math.max(12, Math.min(preferredTop, svg.current!.getBoundingClientRect().height - height - 12));
+      const connectorY = Math.max(top + 12, Math.min(y, top + height - 12));
+      const below = bounds.width < 700 || [...svg.current!.querySelectorAll(".equipment-node use")].some(node => {
+        const box = node.getBoundingClientRect();
+        return bounds.left + left < box.right && bounds.left + left + card.current!.offsetWidth > box.left
+          && bounds.top + top < box.bottom && bounds.top + top + height > box.top;
+      });
+      setCallout({ left, top, x, y, connectorY, below });
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(svg.current);
+    observer.observe(card.current);
+    place();
+    return () => observer.disconnect();
+  }, [topology, aggregate, audit]);
   const pumps = graph.nodes.filter((n) => n.type === "pump");
   const x0 = Math.min(...pumps.map((n) => n.px)) - 100;
   const y0 = Math.min(...pumps.map((n) => n.py)) - 70;
-  function move(event: PointerEvent<SVGSVGElement>) {
-    if (!drag.current || !svg.current) return;
-    const box = svg.current.getBoundingClientRect();
-    const scale = Math.max(graph.width / box.width, graph.height / box.height);
-    setView((v) => ({
-      ...v,
-      x: drag.current!.startX + (event.clientX - drag.current!.x) * scale,
-      y: drag.current!.startY + (event.clientY - drag.current!.y) * scale,
-    }));
-  }
   return (
-    <>
-      <div className="scheme-tools">
-        <span>Выберите оборудование на схеме</span>
-        <div>
-          <button
-            aria-label="Уменьшить схему"
-            onClick={() =>
-              setView((v) => ({ ...v, zoom: Math.max(0.5, v.zoom / 1.2) }))
-            }
-          >
-            −
-          </button>
-          <span>{Math.round(view.zoom * 100)}%</span>
-          <button
-            aria-label="Увеличить схему"
-            onClick={() =>
-              setView((v) => ({ ...v, zoom: Math.min(3, v.zoom * 1.2) }))
-            }
-          >
-            +
-          </button>
-          <button onClick={() => setView({ zoom: 1, x: 0, y: 0 })}>
-            По размеру
-          </button>
-        </div>
-      </div>
+    <div className="scheme-stage" ref={stage}>
       <svg
         ref={svg}
         className="equipment-scheme"
         viewBox={`0 0 ${graph.width} ${graph.height}`}
         aria-label="Технологическая схема ППД"
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          drag.current = {
-            x: e.clientX,
-            y: e.clientY,
-            startX: view.x,
-            startY: view.y,
-          };
-        }}
-        onPointerMove={move}
-        onPointerUp={() => {
-          drag.current = null;
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-        }}
       >
         <title>Оборудование, водоводы, скважины и пласт</title>
         <g dangerouslySetInnerHTML={{ __html: symbols }} />
-        <g
-          transform={`translate(${view.x} ${view.y}) translate(${graph.width / 2} ${graph.height / 2}) scale(${view.zoom}) translate(${-graph.width / 2} ${-graph.height / 2})`}
-        >
+        <g>
           {pumps.length > 0 && (
             <g>
               <rect
@@ -143,7 +117,7 @@ export function Scheme({
                     className="pressure-label"
                   >
                     {edge.target.type === "pump" ? "pвх" : "pвых"} ={" "}
-                    {pressure.toFixed(2)} МПа
+                    {fmt(pressure, 2)} МПа
                   </text>
                 )}
               </g>
@@ -242,21 +216,26 @@ export function Scheme({
             })}
         </g>
       </svg>
-      <div className="legend">
-        <span>
-          <i className="dot good" />
-          КПД близок к номинальному
-        </span>
-        <span>
-          <i className="dot warn" />
-          КПД снижен
-        </span>
-        <span>
-          <i className="dot bad" />
-          КПД значительно снижен
-        </span>
-        <span>Цвет относится только к выбранному агрегату</span>
-      </div>
-    </>
+      {activePump && audit && <>
+        {callout && !callout.below && <svg className="pump-regime-leader" aria-hidden="true">
+          <path d={`M ${callout.left} ${callout.connectorY} L ${callout.x} ${callout.y}`} />
+          <circle cx={callout.x} cy={callout.y} r="3" />
+        </svg>}
+        <div className={`pump-regime-card${callout?.below ? " is-below" : ""}`} ref={card} role="group" aria-label="Режим выбранного агрегата" style={{ left: callout?.left ?? 12, top: callout?.top ?? 12 }}>
+          <h3>{aggregate} · параметры режима</h3>
+          <dl>
+            {[
+              { label: "Напор", value: audit.audit.metrics.h_fact_m, unit: "м" },
+              { label: "Подача", value: audit.audit.metrics.flow_m3h, unit: "м³/ч" },
+              { label: "Электрическая мощность", value: audit.audit.metrics.p_electric_kw, unit: "кВт" },
+              { label: "Гидравлическая мощность", value: audit.audit.metrics.p_hydraulic_kw, unit: "кВт" },
+            ].map(item => <div key={item.label}>
+              <dt>{item.label}</dt>
+              <dd><strong>{fmt(item.value, 1)}</strong><span>{item.unit}</span></dd>
+            </div>)}
+          </dl>
+        </div>
+      </>}
+    </div>
   );
 }

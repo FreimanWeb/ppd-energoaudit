@@ -9,7 +9,7 @@ async function fixture(page: Page) {
   await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
 }
 async function section(page: Page, hash: string) {
-  await page.locator(`nav a[href="#${hash}"]`).click();
+  await page.locator(`nav a[href="#${hash === "scheme" ? "overview" : hash}"]`).click();
 }
 
 test("water and NGDU filters actually constrain selectable objects and reset safely", async ({
@@ -191,7 +191,7 @@ test("onboarding exposes readiness and both read-only templates for the actual s
   await expect(page.locator("main input, main textarea")).toHaveCount(0);
 });
 
-test("a chosen measurement remains shared across sources, formulas and scheme zoom controls", async ({
+test("a chosen measurement remains shared across sources, formulas and the overview scheme", async ({
   page,
 }) => {
   await fixture(page);
@@ -211,13 +211,9 @@ test("a chosen measurement remains shared across sources, formulas and scheme zo
     "2026-09-29T12:00:00",
   );
   await section(page, "scheme");
-  await expect(page.getByLabel("Выбранное оборудование")).toContainText("600");
-  await page.getByLabel("Увеличить схему").click();
-  await expect(page.locator(".scheme-tools")).toContainText("120%");
-  await page.getByRole("button", { name: "По размеру", exact: true }).click();
-  await expect(page.locator(".scheme-tools")).toContainText("100%");
-  await page.getByLabel("Уменьшить схему").click();
-  await expect(page.locator(".scheme-tools")).toContainText("83%");
+  await expect(page.locator(".pump-regime-card")).toContainText("600");
+  await expect(page.locator(".scheme-tools")).toHaveCount(0);
+  await expect(page.locator(".equipment-scheme > g[transform]")).toHaveCount(0);
   await expect(page.getByLabel("Момент измерения")).toHaveValue(
     "2026-09-29T12:00:00",
   );
@@ -239,7 +235,7 @@ test("CRM scenario and aggregate choice change the true predicted series and gra
       .locator(".native-chart-tooltip p")
       .filter({ hasText: "Прогноз CRM" });
     return Number(
-      (await tooltip.locator("b").textContent())?.replace(/\s/g, ""),
+      (await tooltip.locator("b").textContent())?.replace(/\s/g, "").replace("м³/сут", ""),
     );
   };
   await expect.poll(predicted).toBe(5760);
@@ -277,6 +273,7 @@ test("selected pump exposes the legacy engineering assessment alongside pressure
 }) => {
   await fixture(page);
   await section(page, "scheme");
+  await page.getByRole("button", { name: /НА-1/ }).first().click();
   const equipment = page.getByLabel("Выбранное оборудование");
   await expect(equipment).toContainText(/КПД.*факт|Фактический КПД/i);
   await expect(equipment).toContainText(/КПД.*ном|Номинальный КПД/i);

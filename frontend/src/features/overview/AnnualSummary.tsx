@@ -1,3 +1,4 @@
+import { metricLinks } from "../inspection/inspection.mjs";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "./dashboardData.mjs";
 import { metricAssessment } from "../../shared/metrics/metricAssessment.mjs";
@@ -21,6 +22,7 @@ export function AnnualSummary({ audit }: { audit: Audit }) {
       <section className="metric-group annual-group" aria-label="Показатели годовой оценки">
         <div className="kpis">
           <MetricCard
+            links={metricLinks("efficiency_loss")}
             label="Потери по КПД"
             value={null}
             unit=""
@@ -31,6 +33,7 @@ export function AnnualSummary({ audit }: { audit: Audit }) {
             ]}
           />
           <MetricCard
+            links={metricLinks("throttle_loss")}
             label="Потери дросселирования"
             value={null}
             unit=""

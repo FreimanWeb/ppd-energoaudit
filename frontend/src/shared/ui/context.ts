@@ -1,4 +1,5 @@
 export type PageProps = {
+  inspectionKey?: string;
   objectId: string;
   aggregateId: string;
   day: string;

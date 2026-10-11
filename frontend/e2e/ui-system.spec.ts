@@ -57,7 +57,7 @@ test('component catalogue exposes real numeric, loading and calendar states', as
 
 test('all application sections keep page-level reflow at desktop and narrow widths', async ({ page }, testInfo) => {
   test.setTimeout(120000);
-  const sections = ['overview', 'snapshot', 'telemetry', 'scheme', 'forecast', 'crm', 'crm-wells', 'losses', 'working-point', 'measures', 'sources', 'formulas', 'onboarding'];
+  const sections = ['overview', 'snapshot', 'telemetry', 'forecast', 'crm', 'crm-wells', 'losses', 'working-point', 'measures', 'sources', 'formulas', 'onboarding'];
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?object=kns54an&aggregate=' + encodeURIComponent('НА-1') + '&day=2026-09-29#overview');

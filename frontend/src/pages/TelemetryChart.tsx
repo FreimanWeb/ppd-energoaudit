@@ -1,4 +1,5 @@
 import { Plot, type Trace } from "../charts/Plot";
+import type { TimeInteraction } from "../charts/types";
 import { signalShape } from "./fidelity.mjs";
 
 export type TelemetrySignal = {
@@ -11,10 +12,12 @@ export function TelemetryChart({
   title,
   series,
   timestamp,
+  timeInteraction,
 }: {
   title: string;
   series: TelemetrySignal[];
   timestamp?: string;
+  timeInteraction?: TimeInteraction;
 }) {
   const colors = [
     "var(--chart-primary)",
@@ -26,6 +29,7 @@ export function TelemetryChart({
       <h3>{title}</h3>
       <Plot
         title={title}
+        timeInteraction={timeInteraction}
         data={series.map((signal, index) => ({
           type: "scatter",
           mode: "lines+markers",

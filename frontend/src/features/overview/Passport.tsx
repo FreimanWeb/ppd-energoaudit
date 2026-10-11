@@ -1,7 +1,7 @@
+import { formatEfficiency } from "../../shared/format/number.mjs";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "./dashboardData.mjs";
 import { Dictionary } from "./Dictionary";
-import { Panel } from "../../shared/ui/Panel";
 
 export function Passport({ audit }: { audit: Audit }) {
   const p = audit.passport?.pump,
@@ -9,22 +9,26 @@ export function Passport({ audit }: { audit: Audit }) {
     rm = audit.regime,
     view = dashboardData(audit);
   return (
-    <Panel title="Паспорт и исходный режим">
-      <details className="metric-disclosure">
-        <summary>Показать паспорт и исходные данные</summary>
+    <details className="page-panel passport-panel">
+      <summary>
+        <svg className="passport-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+        <h2>Паспорт и исходный режим</h2>
+      </summary>
         <div className="chart-grid">
           <div>
             <h3>Насос</h3>
             <Dictionary values={{
               Модель: p?.model,
               Тип: p?.kind,
-              "Q_ном, м³/ч": p?.q_nom,
-              "H_ном, м": p?.h_nom,
-              "η_нас.ном, о.е.": p?.eta_nom,
-              "P_ном, кВт": p?.power_nom,
-              "n, об/мин": p?.n_rpm,
-              "Кривая Q-H": p?.curve_qh?.length ? "Паспортные координаты" : "Отсутствует",
-              "Кривая Q-η": p?.curve_qeta?.length ? "Паспортные координаты" : "Отсутствует",
+              "Номинальная подача (Q_ном), м³/ч": p?.q_nom,
+              "Номинальный напор (H_ном), м": p?.h_nom,
+              "Номинальный КПД насоса (η_нас.ном)": formatEfficiency(p?.eta_nom),
+              "Номинальная мощность (P_ном), кВт": p?.power_nom,
+              "Частота вращения (n), об/мин": p?.n_rpm,
+              "Кривая подачи и напора (Q–H)": p?.curve_qh?.length ? "Паспортные координаты" : "Отсутствует",
+              "Кривая подачи и КПД (Q–η)": p?.curve_qeta?.length ? "Паспортные координаты" : "Отсутствует",
             }} />
           </div>
           <div>
@@ -32,42 +36,41 @@ export function Passport({ audit }: { audit: Audit }) {
             <Dictionary values={{
               Модель: m?.model,
               Тип: m?.synchronous ? "синхронный" : "асинхронный",
-              "P_ном, кВт": m?.p_nom,
-              "η_ЭД.ном, о.е.": m?.eta_nom,
-              "cos φ": m?.cos_phi,
-              "U, кВ": m?.voltage_kv,
-              ПЧ: audit.passport?.vfd ? "Есть" : "Нет",
-              "КПД трансмиссии": audit.passport?.transmission?.efficiency,
+              "Номинальная мощность (P_ном), кВт": m?.p_nom,
+              "Номинальный КПД ЭД (η_ЭД.ном)": formatEfficiency(m?.eta_nom),
+              "Коэффициент мощности (cos φ)": m?.cos_phi,
+              "Напряжение (U), кВ": m?.voltage_kv,
+              "Частотный преобразователь": audit.passport?.vfd ? "Есть" : "Нет",
+              "КПД трансмиссии": formatEfficiency(audit.passport?.transmission?.efficiency),
             }} />
           </div>
         </div>
         <div className="chart-grid">
           <div>
-            <h3>{view.source === "Телеметрия" ? "Показатель давления" : "Выездной замер"}</h3>
+            <h3>{view.source === "Телеметрия" ? "Измерения режима" : "Выездной замер"}</h3>
             <Dictionary values={{
               Источник: view.source,
               ...(view.timestamp ? { "Время замера": view.timestamp.replace("T", " ") } : {}),
-              "p_вх, МПа": rm.p_in,
-              "p_вых, МПа": rm.p_out,
-              "p_БГ, МПа": rm.p_bg,
-              "Δp, МПа": rm.p_out - rm.p_in,
+              "Давление на приёме (p_вх), МПа": rm.p_in,
+              "Давление на выкиде (p_вых), МПа": rm.p_out,
+              "Давление блока гребёнок (p_БГ), МПа": rm.p_bg,
+              "Перепад давления (Δp), МПа": rm.p_out - rm.p_in,
             }} />
           </div>
           <div>
             <h3>Суточные данные и свойства жидкости</h3>
             <Dictionary values={{
-              "ρ, кг/м³": rm.rho,
-              "ν, сСт": rm.nu,
-              "Q_сут, м³": rm.q_day,
-              "Моточасы, ч": rm.t,
-              "W, кВт·ч": rm.w,
-              "Q мгновенный, м³/ч": rm.q_fact,
-              "P_эл средняя, кВт": rm.p_electric,
-              "T_год, ч": rm.t_year,
+              "Плотность (ρ), кг/м³": rm.rho,
+              "Кинематическая вязкость (ν), сСт": rm.nu,
+              "Объём закачки за сутки (Q_сут), м³": rm.q_day,
+              "Наработка за сутки (T_сут), ч": rm.t,
+              "Энергия за сутки (W), кВт·ч": rm.w,
+              "Мгновенная подача (Q), м³/ч": rm.q_fact,
+              "Средняя электрическая мощность (P_эл), кВт": rm.p_electric,
+              "Годовая наработка (T_год), ч": rm.t_year,
             }} />
           </div>
         </div>
-      </details>
-    </Panel>
+    </details>
   );
 }

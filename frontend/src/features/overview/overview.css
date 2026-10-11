@@ -1,33 +1,69 @@
 .overview-page { display: grid; gap: var(--space-5); }
 .overview-page .page-panel { margin: 0; min-width: 0; }
-.overview-primary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); align-items: start; }
-.overview-primary > .page-panel { height: 100%; }
-.overview-primary .metric-disclosure { margin: 0; }
-.overview-primary .metric-disclosure > summary { padding: var(--space-2) 0; }
+.overview-primary { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: var(--space-5); align-items: stretch; width: 100%; }
+.overview-primary > .page-panel { min-height: 100%; padding: var(--space-4); }
 .overview-page .metric-group { margin: var(--space-3) 0 0; }
 .overview-page .annual-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .overview-page .annual-group .metric-values { grid-column: auto; max-width: none; }
-.overview-page .efficiency-group { max-width: none; }
-.overview-page .metric-efficiency-disclosure { max-width: none; }
+.passport-panel > summary { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-3); list-style: none; }
+.passport-panel > summary::-webkit-details-marker { display: none; }
+.passport-panel > summary h2 { margin: 0; }
+.passport-chevron { flex-shrink: 0; transition: transform 160ms var(--motion-ease); }
+.passport-panel[open] .passport-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .passport-chevron { transition: none; } }
 .overview-section-link { display: inline-block; margin-top: var(--space-4); font-size: var(--text-label); color: var(--accent-strong); }
 .overview-page .notice p { margin: var(--space-2) 0; }
 .overview-page .notice a { color: inherit; text-underline-offset: 3px; }
 @media (max-width: 1100px) { .overview-primary { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .overview-page { gap: var(--space-4); } .overview-page .annual-group .kpis { grid-template-columns: 1fr; } .overview-page .metric-values-row { flex-wrap: wrap; } }
 
-.overview-page .ure-panel .metric-card.metric-values { max-width: 380px; margin-inline: auto; }
+.overview-primary .panel-heading { flex-wrap: wrap; gap: var(--space-2); margin: 0; }
+.overview-primary .metric-card { padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.overview-primary .metric-card.metric-values { width: 100%; max-width: none; }
+.overview-primary .metric-group { margin: 0; }
+.overview-primary .metric-segment-heading,
+.overview-primary .metric-label { min-height: 36px; align-items: center; justify-content: center; text-align: center; }
+.overview-primary .metric-segment-label,
+.overview-primary .metric-label { font-size: var(--text-caption); color: var(--content-muted); }
+.overview-primary .metric-segment-heading { max-width: 100%; gap: 0; }
+.overview-primary .metric-actions summary { padding-inline: 0; }
+.overview-primary .metric-segment-label { min-width: 0; }
+.overview-primary .metric-segment-divider { margin-inline: var(--space-half); }
+.overview-primary .metric-card strong { display: block; margin-top: var(--space-1); font-size: var(--text-value); line-height: 1.2; }
+.overview-primary .metric-card strong.metric-empty { font-size: var(--text-body); }
+.overview-primary .metric-label > span { flex: 0 1 auto; }
+.reference-toggle.ds-button { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 28px; padding: var(--space-1) var(--space-2); font-size: var(--text-caption); border-color: transparent; background: var(--surface-subtle); }
 
-.overview-page .ure-panel .metric-card, .overview-page .efficiency-group .metric-card { border: 0; box-shadow: none; background: transparent; border-radius: 0; }
-.overview-page .efficiency-group > .metric-values { max-width: none; }
-.reference-toggle.ds-button { min-height: 28px; padding: var(--space-1) var(--space-2); font-size: var(--text-caption); border-color: transparent; background: var(--surface-subtle); }
-.ure-values { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0fr); align-items: start; transition: grid-template-columns 220ms var(--motion-ease); margin-top: var(--space-3); }
-.overview-page .ure-values > .metric-card.metric-values { grid-column: auto; }
-.ure-reference-slide { min-width: 0; overflow: hidden; visibility: hidden; opacity: 0; transform: translateX(12px); transition: opacity 180ms var(--motion-ease), transform 220ms var(--motion-ease), visibility 220ms; }
-.ure-values.is-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.ure-values.is-open .ure-reference-slide { visibility: visible; opacity: 1; transform: translateX(0); }
-.ure-values.is-open > .metric-card { border-inline-end: 1px solid var(--border-subtle); }
-.overview-page .efficiency-group .metric-group .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
-.overview-page .efficiency-group .metric-group .metric-card + .metric-card { border-inline-start: 1px solid var(--border-subtle); }
-@media (prefers-reduced-motion: reduce) { .ure-values, .ure-reference-slide { transition: none; } }
+.overview-disclosure-chevron { flex-shrink: 0; transition: transform 160ms var(--motion-ease); }
+.reference-toggle[aria-expanded="true"] .overview-disclosure-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .overview-disclosure-chevron { transition: none; } }
 
-.ure-values .metric-values-row { align-items: flex-start; }
+.overview-metric-values { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0fr); align-items: center; margin-top: var(--space-2); transition: grid-template-columns 240ms var(--motion-ease); }
+.overview-metric-values-ure { --details-width: 25; }
+.overview-metric-values-efficiency { --details-width: 60; }
+.overview-metric-main, .overview-metric-details { min-width: 0; }
+.overview-metric-details { overflow: hidden; visibility: hidden; opacity: 0; transform: translateX(10px); transition: opacity 180ms var(--motion-ease), transform 240ms var(--motion-ease), visibility 240ms; }
+.overview-primary .overview-metric-details > :is(.metric-card, .metric-group) { width: calc(1cqw * var(--details-width)); }
+.overview-metric-values-ure.is-open { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); }
+.overview-metric-values-efficiency.is-open { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+.overview-metric-values.is-open .overview-metric-details { overflow: visible; visibility: visible; opacity: 1; transform: translateX(0); }
+.overview-metric-values.is-animating > :is(.overview-metric-main, .overview-metric-details) { overflow: hidden; }
+.overview-metric-details::before { content: ""; position: absolute; top: 50%; left: 0; height: 36px; width: 1px; background: var(--border-subtle); transform: translateY(-50%); }
+.overview-primary .overview-metric-details .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+.overview-primary .overview-metric-details .kpi { text-align: center; }
+.overview-primary .overview-metric-details .kpi { position: relative; }
+.overview-primary .overview-metric-details .kpi + .kpi::before { content: ""; position: absolute; top: 50%; left: 0; height: 36px; width: 1px; background: var(--border-subtle); transform: translateY(-50%); }
+.overview-primary .overview-metric-details .tooltip-value { text-align: center; }
+
+@media (max-width: 600px) {
+  .overview-metric-values { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr 0fr; transition: grid-template-rows 240ms var(--motion-ease); }
+  .overview-metric-values.is-open { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr 1fr; }
+  .overview-metric-details { min-height: 0; overflow: hidden; }
+  .overview-primary .overview-metric-details > :is(.metric-card, .metric-group) { width: 100cqw; }
+  .overview-metric-details::before { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .overview-metric-values, .overview-metric-details { transition: none; } }
+.efficiency-difference { position: absolute; top: 0; right: 0; color: var(--metric-danger); font-size: var(--text-caption); font-weight: var(--weight-medium); line-height: 1; transform: translate(100%, -35%); white-space: nowrap; }
+.efficiency-difference-arrow { font-weight: 700; }
+.efficiency-difference-value { display: inline-block; margin-left: 1px; transform: translateY(2px); }
+.metric-reading-annotated { position: relative; }

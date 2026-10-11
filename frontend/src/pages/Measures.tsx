@@ -1,3 +1,4 @@
+import { followInternalLink } from "../shared/ui/navigation";
 import { Tooltip } from "../shared/ui/Tooltip";
 import { useState } from "react";
 import { economicDisplay } from "./fidelity.mjs";
@@ -5,6 +6,8 @@ import { useResource, segment } from "../shared/api";
 import { Plot, type Trace } from "../charts/Plot";
 import { Panel } from "../shared/ui/Panel";
 import { Status } from "../shared/ui/Status";
+import { inspectionFor, relatedMeasures, inspectionHref } from "../features/inspection/inspection.mjs";
+import { InspectionLinks } from "../features/inspection/InspectionLinks";
 import { Table } from "../shared/ui/Table";
 import { contextBody, type PageProps } from "../shared/ui/context";
 import { fmt } from "../shared/ui/format";
@@ -17,6 +20,7 @@ type Annual = {
   capex_krub: number;
   payback_years: number | null;
   note: string;
+  addresses?: string;
 };
 type Year = {
   year: number;
@@ -98,8 +102,11 @@ export function MeasuresPage(p: PageProps) {
     }),
   );
   const data = resource.data;
+  const related = relatedMeasures(data?.annual ?? [], p.inspectionKey);
+  const focus = inspectionFor(p.inspectionKey);
+  const horizonRows = focus ? data?.horizon.filter(item => related.some(annual => annual.measure_id === item.measure_id)) ?? [] : data?.horizon ?? [];
   const chosen =
-      data?.horizon.find((x) => x.measure_id === measure) ?? data?.horizon[0],
+      horizonRows.find((x) => x.measure_id === measure) ?? horizonRows[0],
     profile = data?.profile;
   const cash = chosen?.years ?? [];
   const displayed = chosen ? economicDisplay(chosen) : undefined;
@@ -232,6 +239,15 @@ export function MeasuresPage(p: PageProps) {
             {data.scope.annual_runtime_is_assumed ? " (допущение)" : ""}.
             <Tooltip label="Расчёт годового эффекта" content="Эффекты разных мероприятий нельзя автоматически складывать: они могут устранять одни и те же потери." />
           </p>
+          {focus && <section className="inspection-result" aria-label="Связанные мероприятия">
+            <InspectionLinks metric={p.inspectionKey} />
+            <h3>Мероприятия по выбранной причине потерь</h3>
+            {related.length ? <Table rows={related.map(economicDisplay)} columns={annualColumns} />
+              : <p className="notice">Для выбранной составляющей нет применимых мероприятий в реестре. Проверьте данные и технологические ограничения.</p>}
+            <a onClick={followInternalLink} href={inspectionHref("losses", p.inspectionKey)}>Вернуться к составляющей потерь</a>
+            <button type="button" onClick={() => { const url = new URL(location.href); url.searchParams.delete("inspect"); history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); }}>Показать все мероприятия</button>
+          </section>}
+          {!focus && <>
           <h3>Годовой реестр мероприятий</h3>
           <Table
             rows={data.annual.map(economicDisplay)}
@@ -259,6 +275,7 @@ export function MeasuresPage(p: PageProps) {
             />
             </details>
           )}
+          </>}
           {basis === "forecast" && (
             <>
               <h3>Экономика на горизонте</h3>
@@ -271,7 +288,7 @@ export function MeasuresPage(p: PageProps) {
                       value={chosen.measure_id}
                       onChange={(e) => setMeasure(e.target.value)}
                     >
-                      {data.horizon.map((m) => (
+                      {horizonRows.map((m) => (
                         <option key={m.measure_id} value={m.measure_id}>
                           {m.name}
                         </option>

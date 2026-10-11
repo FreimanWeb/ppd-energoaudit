@@ -1,3 +1,6 @@
+import { efficiencyPercent } from "../../shared/format/number.mjs";
+import { inspectionFor, sourceKeys } from "../inspection/inspection.mjs";
+import { InspectionLinks } from "../inspection/InspectionLinks";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "./dashboardData.mjs";
 import { Panel } from "../../shared/ui/Panel";
@@ -24,7 +27,7 @@ const inputs: {
   { key: "t_year", parameter: "Годовая наработка · T_год", unit: "ч", source: "T_год" },
 ];
 
-export function SourcesView({ audit }: { audit: Audit }) {
+export function SourcesView({ audit, inspectionKey }: { audit: Audit; inspectionKey?: string }) {
   const view = dashboardData(audit);
   const source = (key: string) =>
     audit.sources[key] ??
@@ -36,6 +39,7 @@ export function SourcesView({ audit }: { audit: Audit }) {
       ? audit.quality.basis.flow
       : input.basis ? audit.quality.basis[input.basis] : undefined;
     return {
+      key: input.key,
       parameter: input.parameter,
       value: input.key === "t_year" ? audit.scope.annual_runtime_hours : audit.regime[input.key],
       unit: input.unit,
@@ -45,6 +49,22 @@ export function SourcesView({ audit }: { audit: Audit }) {
       basis: input.key === "t_year" ? view.runtime : basis ?? "Не сохранено",
     };
   });
+  const formulaIds = inspectionFor(inspectionKey)?.formulas ?? [];
+  const passportRows = [
+    ...(formulaIds.includes("14") ? [
+      { parameter: "КПД двигателя номинальный", value: efficiencyPercent(audit.passport.motor.eta_nom), unit: "%" },
+      { parameter: "КПД насоса номинальный", value: efficiencyPercent(audit.passport.pump.eta_nom), unit: "%" },
+      { parameter: "КПД передачи", value: efficiencyPercent(audit.passport.transmission.efficiency), unit: "%" },
+    ] : []),
+    ...(formulaIds.includes("24") ? [
+      { parameter: "Номинальная мощность ЭД", value: audit.passport.motor.p_nom, unit: "кВт" },
+      { parameter: "КПД двигателя номинальный", value: efficiencyPercent(audit.passport.motor.eta_nom), unit: "%" },
+    ] : []),
+    ...(formulaIds.includes("27") ? [
+      { parameter: "КПД передачи", value: efficiencyPercent(audit.passport.transmission.efficiency), unit: "%" },
+      { parameter: "Наличие ПЧ", value: audit.passport.vfd ? "Есть" : "Нет", unit: "" },
+    ] : []),
+  ];
   const additionalSources = Object.fromEntries(
     Object.entries(audit.sources).filter(([key]) =>
       !inputs.some((input) => input.source === key),
@@ -60,7 +80,10 @@ export function SourcesView({ audit }: { audit: Audit }) {
       {!Object.keys(audit.sources).length && (
         <p className="notice">Источники не сохранены у ранее загруженной телеметрии.</p>
       )}
+      <InspectionLinks metric={inspectionKey} />
+      {inspectionFor(inspectionKey)?.sources.length === 0 && <p className="muted">Основание — паспортные данные агрегата; они доступны на обзоре в паспорте оборудования.</p>}
       <Table
+        rowHighlighted={row => sourceKeys(inspectionKey, audit).includes(String(row.key))}
         rows={rows}
         columns={[
           { key: "parameter", label: "Параметр" },
@@ -70,6 +93,11 @@ export function SourcesView({ audit }: { audit: Audit }) {
           { key: "basis", label: "Основание расчёта" },
         ]}
       />
+      {passportRows.length > 0 && <section aria-label="Паспортные входы показателя">
+        <h3>Паспортные входы показателя</h3>
+        <Table rows={passportRows} columns={[{key: "parameter", label: "Параметр"}, {key: "value", label: "Значение", digits: 1}, {key: "unit", label: "Единица"}]} />
+        <p className="muted">Паспорт выбранного агрегата. Источник файла для этих полей отдельно не сохранён в расчётном ответе.</p>
+      </section>}
       <p className="muted">
         {audit.scope.daily_kpi_is_fact
           ? "Суточный УРЭ основан на W / Q_сут."

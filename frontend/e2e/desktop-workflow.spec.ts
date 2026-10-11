@@ -7,9 +7,11 @@ test('desktop keeps one brand and task details without a global header or footer
   await expect(page.locator('.app-header, .breadcrumbs, .header-tag, .app > footer')).toHaveCount(0);
   await expect(page.locator('.page-heading .eyebrow')).toHaveCount(0);
   await expect(page.locator('.sidebar-brand')).toHaveCount(1);
-  const diagnostics = page.locator('details').filter({ has: page.getByText('Диагностика агрегата', { exact: true }) });
-  await expect(diagnostics).not.toHaveAttribute('open', '');
-  await diagnostics.locator('summary').click();
+  await expect(page.locator('nav a[href="#scheme"]')).toHaveCount(0);
+  await expect(page.locator('.equipment-scheme')).toBeVisible();
+  const diagnostics = page.getByRole('button', { name: 'Диагностика агрегата', exact: true });
+  await expect(diagnostics).toHaveAttribute('aria-expanded', 'false');
+  await diagnostics.click();
   await expect(page.getByText('КПД ЭД расчётный', { exact: true })).toBeVisible();
   await page.locator('nav a[href="#snapshot"]').click();
   await expect(page.getByRole('heading', { name: 'Режимный расчёт', exact: true })).toBeVisible();

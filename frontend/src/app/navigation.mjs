@@ -5,7 +5,6 @@ export const navigationSections = [
       { id: "overview", label: "Обзор", icon: "overview" },
       { id: "snapshot", label: "Режимный расчёт", icon: "snapshot" },
       { id: "telemetry", label: "Телеметрия", icon: "telemetry" },
-      { id: "scheme", label: "Схема ППД", icon: "scheme" },
     ],
   },
   {

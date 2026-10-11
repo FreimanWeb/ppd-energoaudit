@@ -23,3 +23,12 @@ test('metric precision follows units without changing source values', () => {
   assert.equal(formatting.formatMetric(366.667, 'кВт'), '366,7');
   assert.equal(formatting.formatMetric(.5954, 'о.е.', 2), '0,6');
 });
+
+test('efficiency display uses percentages without clamping invalid physics', () => {
+  assert.equal(formatting.formatEfficiency(.611), '61,1 %');
+  assert.equal(formatting.formatEfficiency(0), '0 %');
+  assert.equal(formatting.formatEfficiency(1), '100 %');
+  assert.equal(formatting.formatEfficiency(1.2), '120 %');
+  assert.equal(formatting.formatEfficiency(null), '—');
+  assert.equal(formatting.formatEfficiency(NaN), '—');
+});

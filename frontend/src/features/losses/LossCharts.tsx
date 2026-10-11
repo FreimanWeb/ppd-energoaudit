@@ -11,11 +11,13 @@ export function LossCharts({
   losses,
   status,
   mode = "decomposition",
+  onSelect,
 }: {
   power: number;
   losses: Loss[];
   status?: string;
   mode?: "decomposition" | "flow" | "percentage";
+  onSelect?: (name: string) => void;
 }) {
   if (status === "unfit")
     return (
@@ -29,11 +31,12 @@ export function LossCharts({
   const chart = lossChartData(power, losses);
   return (
     <>
-      {mode === "percentage" ? <LossPercentage power={power} losses={losses} /> : mode === "decomposition" ? <Plot
+      {mode === "percentage" ? <LossPercentage power={power} losses={losses} onSelect={onSelect} /> : mode === "decomposition" ? <Plot
+        onSelect={onSelect}
         title="Декомпозиция мощности"
         data={[chart.waterfall as Trace]}
         layout={{ height: 440, yaxis: { title: { text: "Мощность, кВт" } }, margin: { l: 65, r: 25, t: 20, b: 100 } }}
-      /> : <Plot title="Поток мощности" data={[chart.sankey as Trace]} layout={{ height: 380, margin: { l: 15, r: 15, t: 15, b: 15 } }} />}
+      /> : <Plot onSelect={onSelect} title="Поток мощности" data={[chart.sankey as Trace]} layout={{ height: 380, margin: { l: 15, r: 15, t: 15, b: 15 } }} />}
       {mode === "flow" && losses.some((x) => x.power_kw < 0) && (
         <p className="muted">
           Отрицательные составляющие показаны на диаграмме декомпозиции; поток

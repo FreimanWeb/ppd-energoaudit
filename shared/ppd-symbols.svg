@@ -11,8 +11,14 @@
     <path d="M-63 -20 V20 M-53 -20 V20 M-43 -20 V20 M-33 -20 V20 M-23 -20 V20" stroke="#b9ccc5"/>
     <path d="M-16 0 H4" stroke-width="4"/>
     <circle cx="30" cy="0" r="26" fill="var(--pump-fill, white)"/>
+    <g transform="translate(30 0)" fill="none">
+      <path id="ppd-pump-vane" d="M0 -8 C5 -15 11 -17 16 -14 C13 -7 9 -3 2 0"/>
+      <use href="#ppd-pump-vane" transform="rotate(72)"/>
+      <use href="#ppd-pump-vane" transform="rotate(144)"/>
+      <use href="#ppd-pump-vane" transform="rotate(216)"/>
+      <use href="#ppd-pump-vane" transform="rotate(288)"/>
+    </g>
     <circle cx="30" cy="0" r="8" fill="#d8e3df"/>
-    <path d="M30 -8 Q42 -11 44 -1 M38 7 Q44 15 34 20 M22 7 Q14 13 10 3 M23 -7 Q16 -15 26 -19" fill="none"/>
     <path d="M56 0 H72" stroke-width="4"/>
   </g>
   <g id="ppd-source" stroke="currentColor" fill="#edf4f1" stroke-width="1.6">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TelemetryChart, type TelemetrySignal } from "./TelemetryChart";
 import { useResource, segment } from "../shared/api";
 import { Panel } from "../shared/ui/Panel";
@@ -13,7 +13,7 @@ type Telemetry = {
   series: TelemetrySignal[];
 };
 export function TelemetryPage(
-  p: PageProps & { viewerOnly?: boolean; availableDates?: string[] },
+  p: PageProps & { viewerOnly?: boolean; availableDates?: string[]; onSelectTimestamp?: (timestamp: string) => void; selectableTimestamps?: string[] },
 ) {
   const [mode, setMode] = useState(p.viewerOnly ? "period" : "day"),
     [startChoice, setStart] = useState(""),
@@ -34,6 +34,9 @@ export function TelemetryPage(
       ? `/objects/${segment(p.objectId)}/telemetry?aggregate_id=${segment(p.aggregateId)}&start=${from}&end=${to}`
       : null,
   );
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [viewport, setViewport] = useState<[number, number] | null>(null);
+  useEffect(() => { setCursor(null); setViewport(null); }, [p.objectId, p.aggregateId, from, to]);
   const records = data.data?.records ?? [];
   const series = data.data?.series ?? [];
   const pressures = series.filter((signal) => signal.unit === "МПа");
@@ -43,6 +46,18 @@ export function TelemetryPage(
   const additional = series.filter((signal) =>
     signal.unit !== "МПа" && signal.unit !== "кВт" && signal.unit !== "м³/ч",
   );
+  const domain = useMemo<[number, number]>(() => {
+    const times = series.flatMap((signal) => signal.points.map((point) => new Date(point.timestamp).getTime())).filter(Number.isFinite);
+    return times.length ? times.reduce<[number, number]>((range, time) => [Math.min(range[0], time), Math.max(range[1], time)], [Infinity, -Infinity]) : [0, 1];
+  }, [series]);
+  const selectable = new Map((p.selectableTimestamps ?? []).map((timestamp) => [new Date(timestamp).getTime(), timestamp]));
+  const selectTimestamp = (value: number) => {
+    const sample = series.flatMap(signal => signal.points).find(point => new Date(point.timestamp).getTime() === value && point.value != null && Number.isFinite(point.value));
+    const timestamp = p.selectableTimestamps ? selectable.get(value) : sample?.timestamp;
+    if (sample && timestamp) p.onSelectTimestamp?.(timestamp);
+  };
+  const interaction = { cursor, onCursor: setCursor, viewport, onViewport: setViewport, domain, onSelectX: selectTimestamp, showBrush: false };
+  const firstChart = pressures.length ? "pressures" : primary[0]?.metric ?? additional[0]?.metric;
   const marker = mode === "day" ? p.timestamp || undefined : undefined;
   const columns = records.length
     ? Object.keys(records[0]).map((key) => ({
@@ -119,12 +134,12 @@ export function TelemetryPage(
           {series.length ? (
             <>
               {pressures.length > 0 && (
-                <TelemetryChart title="Давления" series={pressures} timestamp={marker} />
+                <TelemetryChart title="Давления" series={pressures} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === "pressures" }} />
               )}
               {primary.length > 0 && (
                 <div className="chart-grid">
                   {primary.map((signal) => (
-                    <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} />
+                    <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signal.metric }} />
                   ))}
                 </div>
               )}
@@ -133,7 +148,7 @@ export function TelemetryPage(
                   <summary>Дополнительные измерения ({additional.length})</summary>
                   <div className="chart-grid">
                     {additional.map((signal) => (
-                      <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} />
+                      <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signal.metric }} />
                     ))}
                   </div>
                 </details>

@@ -1,36 +1,42 @@
 import { test, expect } from '@playwright/test';
 
-test('efficiency gauge sits below the two KPI cards without a duplicate caption', async ({ page }) => {
-  await page.goto('/?object=kns54an&aggregate=' + encodeURIComponent('НА-1') + '&day=2026-09-29#overview');
-
-  const panel = page.locator('.page-panel').filter({
-    has: page.getByRole('heading', { name: 'КПД', exact: true }),
+async function efficiency(page: import('@playwright/test').Page, actual: number|null, nominal: number|null, status='assumptions') {
+  await page.route('**/snapshot-audit', async route => {
+    const response=await route.fetch(), audit=await response.json();
+    Object.assign(audit.audit.metrics,{eta_unit:actual,eta_nom:nominal});
+    audit.quality.status=status;
+    await route.fulfill({response,json:audit});
   });
+  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#overview');
+  const panel=page.locator('.page-panel').filter({has:page.getByRole('heading',{name:'КПД',exact:true})});
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+test('efficiency uses two values and a point difference without a traffic light',async({page})=>{
+  const panel=await efficiency(page,.611,.704);
   await expect(panel.locator('.metric-segment')).toHaveCount(2);
-  const disclosure = panel.locator('.metric-efficiency-disclosure');
-  const verticalOrder = await panel.evaluate((element) => {
-    const cards = [...element.querySelectorAll('.efficiency-group > .metric-card')];
-    const gauge = element.querySelector('.metric-efficiency-disclosure');
-    return {
-      cardBottom: Math.max(...cards.map((card) => card.getBoundingClientRect().bottom)),
-      gaugeTop: gauge?.getBoundingClientRect().top ?? 0,
-      cardLeft: Math.min(...cards.map((card) => card.getBoundingClientRect().left)),
-      cardRight: Math.max(...cards.map((card) => card.getBoundingClientRect().right)),
-      gaugeLeft: gauge?.getBoundingClientRect().left ?? 0,
-      gaugeRight: gauge?.getBoundingClientRect().right ?? 0,
-    };
-  });
-  expect(verticalOrder.gaugeTop).toBeGreaterThanOrEqual(verticalOrder.cardBottom);
-  expect(Math.abs(verticalOrder.gaugeLeft - verticalOrder.cardLeft)).toBeLessThan(1);
-  expect(Math.abs(verticalOrder.gaugeRight - verticalOrder.cardRight)).toBeLessThan(1);
-
-  await disclosure.locator('summary').click();
-  const gauge = panel.locator('.gauge-chart');
-  await expect(gauge).toBeVisible();
-  await expect(gauge.locator('.gauge-caption')).toHaveCount(0);
-  await expect(gauge).toHaveAttribute('role', 'img');
-  await expect(gauge).toHaveAttribute('aria-label', /Фактический КПД.*номинальный/);
-  const bands = gauge.locator('.gauge-band');
-  await expect(bands).toHaveCount(3);
-  expect(await bands.evaluateAll((paths) => new Set(paths.map((path) => path.getAttribute('fill'))).size)).toBe(3);
+  await expect(panel.locator('.metric-segment strong')).toHaveText(['61,1', '70,4']);
+  await expect(panel.locator('.metric-segment .metric-unit')).toHaveText(['%', '%']);
+  await expect(panel.locator('.metric-segment').first().locator('sup')).toHaveText('↓9,3');
+  await expect(panel.getByLabel('Разница КПД')).toHaveCSS('position', 'absolute');
+  await expect(panel.getByLabel('Разница КПД')).toHaveCSS('color', 'rgb(217, 45, 32)');
+  await expect(panel.locator('p.efficiency-difference')).toHaveCount(0);
+  await expect(panel.getByText('Светофор КПД',{exact:true})).toHaveCount(0);
+  await expect(panel.locator('.gauge-chart')).toHaveCount(0);
+  await panel.getByText('Диагностика агрегата',{exact:true}).click();
+  await expect(panel.getByText('Коэф. загрузки ЭД',{exact:true})).toBeVisible();
+  await expect(panel.getByLabel('Разобрать: КПД агрегата',{exact:true})).toBeVisible();
 });
+
+test('a positive difference keeps its sign',async({page})=>{
+  const panel=await efficiency(page,.9,.8);
+  await expect(panel.getByLabel('Разница КПД')).toHaveText('↑10');
+});
+
+for (const [actual,nominal,status] of [[null,.8,'assumptions'],[1.2,.8,'assumptions'],[.6,null,'assumptions'],[.6,.8,'unfit'],[.8,.8,'assumptions'],[.6,0,'assumptions']] as const)
+  test(`efficiency omits unsupported or zero difference ${actual}/${nominal}/${status}`,async({page})=>{
+    const panel=await efficiency(page,actual,nominal,status);
+    await expect(panel.getByLabel('Разница КПД')).toHaveCount(0);
+    await expect(panel.locator('.gauge-chart')).toHaveCount(0);
+  });

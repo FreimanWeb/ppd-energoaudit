@@ -20,11 +20,14 @@ test('loss presentation switches between decomposition and flow without changing
   await motor.hover();
   await expect(plot.locator('.visx-bar.is-active')).toHaveCount(1);
   await expect(plot.getByRole('status')).toContainText('Потери двигателя');
-  await expect(plot.getByRole('status').locator('b')).toHaveText('-120');
+  await expect(plot.getByRole('status').locator('b')).toHaveText('120 кВт');
   await expect(plot.getByRole('status')).not.toContainText('Потери передачи');
+  await expect(plot.getByRole('status').locator('strong')).toHaveText('Потери двигателя');
+  await expect(plot.getByRole('status').locator('.chart-tooltip-share')).toHaveText('20 %');
+  await expect(motor).toHaveAttribute('stroke', 'transparent');
   await transmission.hover();
   await expect(plot.locator('.visx-bar.is-active')).toHaveCount(1);
-  await expect(plot.getByRole('status').locator('b')).toHaveText('-190');
+  await expect(plot.getByRole('status').locator('b')).toHaveText('190 кВт');
   await expect(motor).not.toHaveClass(/is-active/);
   await page.getByText('Таблица составляющих', { exact: true }).click();
   const tableBefore = await page.locator('table').innerText();
@@ -34,6 +37,9 @@ test('loss presentation switches between decomposition and flow without changing
   await expect(page.getByText(/Отрицательные составляющие показаны/)).toBeVisible();
   await expect(page.locator('.flow-node-label').filter({ hasText: 'Коррекция' })).toHaveCount(0);
   expect(await page.locator('table').innerText()).toBe(tableBefore);
+  await page.locator('.flow-node').filter({ hasText: 'Полезная мощность' }).hover();
+  await expect(page.locator('.flow-chart').getByRole('status').locator('b')).toHaveText('300 кВт');
+  await expect(page.locator('.flow-chart').getByRole('status').locator('.chart-tooltip-share')).toHaveText('50 %');
   await page.getByRole('button', { name: 'Структура, %', exact: true }).click();
   await expect(page.getByText(/Для режима с отрицательными коррекциями/)).toBeVisible();
   await expect(page.locator('.plot-wrap')).toHaveCount(0);
@@ -41,7 +47,7 @@ test('loss presentation switches between decomposition and flow without changing
   await expect(plot).toBeVisible();
   await expect(page.locator('svg.visx-flow')).toHaveCount(0);
   await plot.getByRole('button', { name: /^Коррекция:/ }).hover();
-  await expect(plot.getByRole('status').locator('b')).toHaveText('10');
+  await expect(plot.getByRole('status').locator('b')).toHaveText('-10 кВт');
 });
 
 test('percentage structure uses original shares and fixes the axis at 100 percent', async ({ page }, testInfo) => {
@@ -62,7 +68,7 @@ test('percentage structure uses original shares and fixes the axis at 100 percen
   await expect(plot.locator('svg.visx-chart')).toBeVisible();
   await expect(plot.locator('.visx-axis-x').getByText('100', { exact: true })).toBeVisible();
   await plot.getByRole('button', { name: /^Полезная мощность:/ }).hover();
-  await expect(plot.getByRole('status').locator('b')).toHaveText('60');
+  await expect(plot.getByRole('status').locator('b')).toHaveText('60 кВт');
   await expect(page.getByText('Показанные составляющие: 90% подведённой мощности.')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('percentage-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 320, height: 844 });

@@ -1,3 +1,5 @@
+import { formatEfficiency, formatNumber } from "../format/number.mjs";
+
 /**
  * @param {unknown} value
  * @param {unknown} reference
@@ -9,7 +11,7 @@ export function metricAssessment(value, reference, direction, usable = true, eff
   if (typeof value !== "number" || !Number.isFinite(value))
     return {tone: "neutral", caption: "Нет значения", reason: "Показатель отсутствует или не является конечным числом."};
   if (efficiency && (value < 0 || value > 1))
-    return {tone: "bad", caption: "Физическая ошибка", reason: "КПД должен находиться между 0 и 1; проверьте исходные данные."};
+    return {tone: "bad", caption: "Физическая ошибка", reason: "КПД должен находиться между 0 и 100 %; проверьте исходные данные."};
   if (!usable)
     return {tone: "neutral", caption: "Данные непригодны", reason: "Качество исходного режима не позволяет оценить состояние оборудования."};
   if (typeof reference !== "number" || !Number.isFinite(reference))
@@ -18,6 +20,6 @@ export function metricAssessment(value, reference, direction, usable = true, eff
   return {
     tone: bad ? "bad" : "good",
     caption: value === reference ? "На уровне сравнения" : value > reference ? "Выше сравнения" : "Ниже сравнения",
-    reason: `Значение сравнивается с ${reference}. ${direction === "higher" ? "Превышение" : "Снижение"} требует внимания.`,
+    reason: `Значение сравнивается с ${efficiency ? formatEfficiency(reference) : formatNumber(reference, 3)}. ${direction === "higher" ? "Превышение" : "Снижение"} требует внимания.`,
   };
 }

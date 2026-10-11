@@ -1,9 +1,17 @@
-import { Fragment } from "react";
+import { followInternalLink } from "./navigation";
+import { Fragment, type ReactNode } from "react";
 import { formatMetric } from "../format/number.mjs";
 import { Tooltip } from "./Tooltip";
 import "./metrics.css";
+type Link = { label: string; href: string };
+function MetricActions({ links, label }: { links?: Link[]; label: string }) {
+  return links?.length ? <details className="metric-actions" onKeyDown={event => {
+    if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); }
+  }}><summary aria-label={`Разобрать: ${label}`}>⋯</summary><nav aria-label={`Действия: ${label}`}>{links.map(link => <a onClick={followInternalLink} href={link.href} key={link.label}>{link.label}</a>)}</nav></details> : null;
+}
 
 export type MetricSegment = {
+  valueSuffix?: ReactNode;
   label: string;
   value: unknown;
   unit: string;
@@ -11,6 +19,7 @@ export type MetricSegment = {
   tone?: string;
   reason?: string;
   digits?: number;
+  links?: Link[];
 };
 
 export type Metric = {
@@ -22,11 +31,17 @@ export type Metric = {
   caption?: string;
   reason?: string;
   segments?: MetricSegment[];
+  helpOnValue?: boolean;
   digits?: number;
+  links?: Link[];
 };
 
+function explanation(...texts: (string | undefined)[]) {
+  return texts.filter(Boolean).flatMap(text => text!.split(/\n\s*\n/)).map((paragraph, index) => <p key={index}>{paragraph}</p>);
+}
+
 export function MetricCard({
-  label, value, unit, help, tone = "neutral", caption, reason, segments, digits,
+  label, value, unit, help, tone = "neutral", caption, reason, segments, digits, links, helpOnValue = false,
 }: Metric) {
   return (
     <div
@@ -36,7 +51,8 @@ export function MetricCard({
       {label && (
         <div className="metric-label">
           <span>{label}</span>
-          <Tooltip label={label} content={`${help}${reason ? ` ${reason}` : ""}`} />
+          <MetricActions links={links} label={label} />
+          {!helpOnValue && <Tooltip label={label} content={explanation(help, reason)} />}
         </div>
       )}
       {segments ? (
@@ -45,12 +61,14 @@ export function MetricCard({
             <Fragment key={item.label}>
               {index > 0 && <span className="metric-segment-divider" aria-hidden="true" />}
               <div className="metric-segment" data-tone={item.tone ?? "neutral"}>
-                {item.label && <span className="metric-segment-label">{item.label}</span>}
+                {item.label && <div className="metric-segment-heading"><span className="metric-segment-label">{item.label}</span><MetricActions links={item.links} label={label ? `${label}: ${item.label}` : item.label} /></div>}
                 <Tooltip
                   label={label ? `${label}: ${item.label}` : item.label}
-                  content={item.reason ? `${item.help} ${item.reason}` : item.help}
+                  content={explanation(item.help, item.reason)}
                 >
-                  <strong className={item.value == null ? "metric-empty" : undefined}>{item.value == null ? "Нет данных" : formatMetric(item.value, item.unit, item.digits)}</strong>
+                  <span className={item.valueSuffix ? "metric-reading metric-reading-annotated" : "metric-reading"}>
+                    <strong className={item.value == null ? "metric-empty" : undefined}>{item.value == null ? "Нет данных" : formatMetric(item.value, item.unit, item.digits)}</strong>{item.valueSuffix}
+                  </span>
                 </Tooltip>
                 <small className="metric-unit">{item.unit}</small>
               </div>
@@ -59,7 +77,7 @@ export function MetricCard({
         </div>
       ) : (
         <>
-          <Tooltip label={`Оценка ${label}`} content={[caption, reason].filter(Boolean).join(". ")}>
+          <Tooltip label={helpOnValue ? label : `Оценка ${label}`} content={explanation(helpOnValue ? help : undefined, caption, reason)}>
             <strong className={value == null ? "metric-empty" : undefined}>{value == null ? "Нет данных" : formatMetric(value, unit, digits)}</strong>
           </Tooltip>
           <small className="metric-unit">{unit || "о.е."}</small>

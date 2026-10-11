@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { segment, useResource } from "../shared/api";
-import { fmt } from "../shared/ui/format";
 import { Calendar } from "../features/analysis-context/Calendar";
-import { Scheme } from "../features/scheme/Scheme";
+import { SchemePanel } from "../features/scheme/SchemePanel";
 import { OverviewView } from "../features/overview/OverviewView";
 import { SnapshotView } from "../features/overview/SnapshotView";
 import { SourcesView } from "../features/overview/SourcesView";
@@ -101,7 +100,7 @@ export function App({ logout }: { logout?: () => void }) {
     : snapshots.data?.at(-1);
   const timestamp = timestampChoice || snapshot?.timestamp || "";
   const topology = useResource<Topology>(
-    objectPath && page === "scheme" ? `${objectPath}/topology` : null,
+    objectPath && page === "overview" ? `${objectPath}/topology` : null,
   );
   const result = useResource<Audit>(
     mode === "field_trip" && aggregatePath
@@ -124,13 +123,10 @@ export function App({ logout }: { logout?: () => void }) {
       : null,
   );
   const branchPressures = useResource<Record<string, {p_in_mpa: number; p_out_mpa: number}>>(
-    objectPath && page === "scheme" && mode === "analysis" && day && timestamp
+    objectPath && page === "overview" && mode === "analysis" && day && timestamp
       ? `${objectPath}/scheme-pressures?day=${day}&timestamp=${segment(timestamp)}`
       : null,
   );
-  const node =
-    topology.data?.nodes.find((n) => n.id === nodeChoice) ??
-    topology.data?.nodes.find((n) => n.agg === aggregate?.code);
   const context: PageProps = {
     objectId: object?.code ?? "",
     aggregateId: aggregate?.code ?? "",
@@ -138,8 +134,36 @@ export function App({ logout }: { logout?: () => void }) {
     timestamp: snapshot?.timestamp ?? "",
     source,
     audit,
+    inspectionKey: new URL(location.href).searchParams.get("inspect") ?? "",
   };
   const contextKey = `${object?.code}/${aggregate?.code}/${mode}`;
+  const telemetryRequest = useRef(0);
+  const [telemetryMessage, setTelemetryMessage] = useState("");
+  useEffect(() => { telemetryRequest.current += 1; setTelemetryMessage(""); }, [object?.code, aggregate?.code, day, mode, page]);
+  async function selectTelemetryTimestamp(value: string) {
+    if (mode !== "analysis" || !aggregatePath) return;
+    const request = ++telemetryRequest.current;
+    const selectedDay = value.slice(0, 10);
+    setTelemetryMessage("Проверяем доступность снимка…");
+    try {
+      let available = selectedDay === day ? snapshots.data : undefined;
+      if (!available) {
+        const response = await fetch(`/api${aggregatePath}/snapshots?day=${encodeURIComponent(selectedDay)}`);
+        if (!response.ok) throw new Error("snapshot lookup failed");
+        available = await response.json() as Snapshot[];
+      }
+      if (request !== telemetryRequest.current) return;
+      if (!available?.some(item => item.timestamp === value)) {
+        setTelemetryMessage("На выбранное время нет пригодного снимка. Текущий расчёт сохранён.");
+        return;
+      }
+      setTelemetryMessage("");
+      changeSelection({day: selectedDay, timestamp: value});
+      location.hash = "snapshot";
+    } catch {
+      if (request === telemetryRequest.current) setTelemetryMessage("Не удалось проверить снимок. Текущий расчёт сохранён; повторите выбор.");
+    }
+  }
   function changeSelection(patch: Partial<typeof selection>) {
     const next = {
       object: object?.code ?? objectChoice,
@@ -298,30 +322,6 @@ export function App({ logout }: { logout?: () => void }) {
                 </div>
               )}
             </section>
-            {clarifications.data?.length ? (
-              <details className="clarifications">
-                <summary>
-                  Требуют уточнения ({clarifications.data.length})
-                </summary>
-                {clarifications.data.map((c, i) => (
-                  <p key={i}>
-                    <strong>
-                      {(
-                        {
-                          pump_eta_nom: "КПД насоса",
-                          motor_eta_nom: "КПД ЭД",
-                          t_year: "Годовая наработка",
-                          transmission_eff: "КПД трансмиссии",
-                        } as Record<string, string>
-                      )[c.field] ?? c.field}
-                    </strong>
-                    : {fmt(c.provisional_value)}
-                    <br />
-                    {c.reason}
-                  </p>
-                ))}
-              </details>
-            ) : null}
           </div>
           <div className="sidebar-divider" />
           <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
@@ -422,18 +422,20 @@ export function App({ logout }: { logout?: () => void }) {
           </div>
         )}
         {page === "overview" && audit && (
-          <OverviewView audit={audit} context={context} />
+          <OverviewView audit={audit} context={context} clarifications={clarifications.data ?? []} scheme={<SchemePanel topology={topology.data} audit={audit} aggregate={aggregate?.code ?? ""} pressures={branchPressures.data} selected={nodeChoice} onClear={() => setNode("")} status={<Notice {...topology} />} onSelect={n => { if (n.agg && aggregates.data?.some(a => a.code === n.agg) && n.agg !== aggregate?.code) chooseAggregate(n.agg); setNode(n.id); }} />} />
         )}
         {page === "snapshot" && audit && <SnapshotView audit={audit} />}
-        {page === "losses" && audit && <LossesView audit={audit} />}
-        {page === "sources" && audit && <SourcesView audit={audit} />}
+        {page === "losses" && audit && <LossesView audit={audit} inspectionKey={context.inspectionKey} />}
+        {page === "sources" && audit && <SourcesView audit={audit} inspectionKey={context.inspectionKey} />}
         {page === "formulas" && audit && <FormulasPage {...context} />}
+        {page === "telemetry" && telemetryMessage && <p className="notice" role="status">{telemetryMessage}</p>}
         {page === "telemetry" && (
           <TelemetryPage
             key={contextKey}
             {...context}
             viewerOnly={mode === "telemetry_view"}
             availableDates={dates.data?.dates}
+            onSelectTimestamp={mode === "analysis" ? selectTelemetryTimestamp : undefined}
           />
         )}
         {page === "forecast" && <ForecastPage key={contextKey} {...context} />}
@@ -445,100 +447,6 @@ export function App({ logout }: { logout?: () => void }) {
         {page === "measures" && <MeasuresPage key={contextKey} {...context} />}
         {page === "onboarding" && (
           <OnboardingPage key={contextKey} {...context} />
-        )}
-        {page === "scheme" && (
-          <section className="scheme-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Технологическая схема ППД</h2>
-                <p>{topology.data?.title}</p>
-              </div>
-              <span className="tag">
-                {topology.data?.is_typical ? "Типовая схема" : "Схема объекта"}
-              </span>
-            </div>
-            <Notice {...topology} />
-            {topology.data && (
-              <div className="scheme-layout">
-                <div className="scheme-canvas">
-                  <Scheme
-                    key={object?.code}
-                    topology={topology.data}
-                    aggregate={aggregate?.code ?? ""}
-                    audit={audit}
-                        pressures={branchPressures.data}
-                    selected={node?.id ?? ""}
-                    onSelect={(n) => {
-                      setNode(n.id);
-                      if (
-                        n.agg &&
-                        aggregates.data?.some((a) => a.code === n.agg) &&
-                        n.agg !== aggregate?.code
-                      )
-                        chooseAggregate(n.agg);
-                    }}
-                  />
-                </div>
-                <aside aria-label="Выбранное оборудование">
-                  <div className="eyebrow">ОБОРУДОВАНИЕ</div>
-                  <h3>{node?.label || "Выберите узел"}</h3>
-                  {node?.sub && <p>{node.sub}</p>}
-                  {node?.hint && <p className="muted">{node.hint}</p>}
-                  {node && !node.hint && <p className="muted">{({
-                    valve: "дросселирование: срезается ΔP·Q; кандидат на частотное регулирование",
-                    wells: "Приёмистость P–Q; ограничение по лимиту закачки",
-                    reservoir: "Отклик пласта (CRM): полезная и циркулирующая закачка",
-                  } as Record<string, string>)[node.type]}</p>}
-                  {node?.type === "source" && audit && <dl>
-                    <dt>Давление на приёме</dt><dd>{fmt(audit.regime.p_in)} МПа</dd>
-                    <dt>Подача за сутки</dt><dd>{fmt(audit.regime.q_day, 0)} м³/сут</dd>
-                  </dl>}
-                  {node?.type === "manifold" && audit && <dl>
-                    <dt>Давление БГ</dt><dd>{fmt(audit.regime.p_bg)} МПа</dd>
-                    <dt>Давление на выкиде</dt><dd>{fmt(audit.regime.p_out)} МПа</dd>
-                  </dl>}
-                  {node?.agg === aggregate?.code && audit && (
-                    <>
-                    <dl>
-                      <dt>Давление на приёме</dt>
-                      <dd>{fmt(audit.regime.p_in)} МПа</dd>
-                      <dt>Давление на выкиде</dt>
-                      <dd>{fmt(audit.regime.p_out)} МПа</dd>
-                      <dt>Мощность в момент измерения</dt>
-                      <dd>{fmt(audit.snapshot?.power_kw)} кВт</dd>
-                      <dt>Мощность для расчёта</dt>
-                      <dd>{fmt(audit.audit.metrics.p_electric_kw)} кВт</dd>
-                      <dt>Напор</dt>
-                      <dd>{fmt(audit.audit.metrics.h_fact_m)} м</dd>
-                      <dt>Фактический КПД</dt>
-                      <dd>{fmt(audit.audit.metrics.eta_unit, 3)} о.е.</dd>
-                      <dt>Номинальный КПД</dt>
-                      <dd>{fmt(audit.audit.metrics.eta_nom, 3)} о.е.</dd>
-                    </dl>
-                    <details><summary>Диагностика и потери</summary>
-                    <dl>
-                      <dt>Оценка КПД</dt>
-                      <dd>{audit.quality.status === "unfit" ? "Данные непригодны для оценки" : audit.pump_assessment.name}</dd>
-                      <dt>Коэффициент загрузки двигателя</dt>
-                      <dd>{fmt(audit.audit.metrics.load_factor, 3)}</dd>
-                      <dt>УРЭ фактический / расчётный</dt>
-                      <dd>{fmt(audit.audit.metrics.sec_fact_kwh_m3, 3)} / {fmt(audit.audit.metrics.sec_calc_kwh_m3, 3)} кВт·ч/м³</dd>
-                      {audit.quality.status !== "unfit" && <>
-                        <dt>Потери по КПД</dt>
-                        <dd>{fmt(audit.annual_summary.efficiency_energy_kwh, 0)} кВт·ч/год</dd>
-                      </>}
-                    </dl>
-                    </details>
-                    </>
-                  )}
-                  <p className="muted sidebar-note">
-                    Измерения относятся только к выбранному агрегату и снимку.
-                  </p>
-                </aside>
-              </div>
-            )}
-            <p className="scheme-source">{topology.data?.source}</p>
-          </section>
         )}
         {needAudit &&
           !audit &&

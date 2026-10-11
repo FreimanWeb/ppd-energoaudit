@@ -19,3 +19,9 @@ test("metric comparison follows the physical direction and preserves zero", () =
   assert.equal(assess(1.1, null, "lower", false, true).tone, "bad");
   assert.equal(assess(-.1, .8, "lower", true, true).tone, "bad");
 });
+
+test("efficiency assessments retain fractional inputs and explain percent references", () => {
+  const result = metrics.metricAssessment(.611, .704, "lower", true, true);
+  assert.equal(result.tone, "bad");
+  assert.match(result.reason, /70,4 %/);
+});

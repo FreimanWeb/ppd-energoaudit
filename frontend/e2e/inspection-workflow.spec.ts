@@ -1,0 +1,40 @@
+import { test, expect } from '@playwright/test';
+
+const fixture='/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12%3A00%3A00#overview';
+test('metric evidence retains the measurement and opens related sources and formulas', async ({page})=>{
+ await page.goto(fixture);
+ const fact=page.locator('.overview-metric-values-ure .metric-segment').filter({has:page.getByText('Факт',{exact:true})});
+ await expect(fact).toBeVisible();
+ await page.screenshot({path:'/tmp/ppd-question-overview.png',fullPage:true});
+ await fact.getByLabel('Разобрать: Факт',{exact:true}).click();
+ await fact.getByRole('link',{name:'Источники',exact:true}).click();
+ await expect(page.locator('main')).toContainText('УРЭ факт');
+ await expect(page.locator('tr[data-highlighted="true"]')).toHaveCount(2);
+ await page.screenshot({path:'/tmp/ppd-question-sources.png',fullPage:true});
+ expect(new URL(page.url()).searchParams.get('timestamp')).toBe('2026-09-29T12:00:00');
+ await page.getByRole('link',{name:'Формулы показателя',exact:true}).click();
+ const selected=page.locator('.formula-card[data-highlighted="true"]');
+ await expect(selected).toHaveCount(1);
+ await expect(selected.locator('details')).toHaveAttribute('open','');
+ await expect(selected).toContainText('(16)');
+ await page.reload();
+ await expect(page.locator('.formula-card[data-highlighted="true"] details')).toHaveAttribute('open','');
+});
+test('efficiency deviation leads to its losses and applicable measures without inventing payback',async({page})=>{
+ await page.goto(fixture);
+ const fact=page.locator('.overview-metric-values-ure .metric-segment').filter({has:page.getByText('Факт',{exact:true})});
+ await fact.getByLabel('Разобрать: Факт',{exact:true}).click();
+ await fact.getByRole('link',{name:'Потери',exact:true}).click();
+ await expect(page.getByLabel('Разбор составляющей')).toContainText('Потери КПД');
+ await expect(page.getByLabel('Предлагаемые мероприятия')).toContainText('восстановление КПД');
+ await expect(page.getByLabel('Составляющая потерь')).toHaveCount(0);
+ await expect(page.locator('main')).not.toContainText('связи этой составляющей');
+ await page.getByRole('link',{name:'Оценить мероприятия',exact:true}).click();
+ await expect(page.getByLabel('Связанные мероприятия')).toContainText('восстановление КПД');
+ await expect(page.getByLabel('Связанные мероприятия')).toContainText('Требует оценки');
+ await page.screenshot({path:'/tmp/ppd-question-measures.png',fullPage:true});
+ expect(new URL(page.url()).searchParams.get('aggregate')).toBe('НА-1');
+ expect(new URL(page.url()).searchParams.get('timestamp')).toBe('2026-09-29T12:00:00');
+ await page.getByRole('button',{name:'Показать все мероприятия',exact:true}).click();
+ await expect(page.locator('main')).toContainText('Годовой реестр мероприятий');
+});

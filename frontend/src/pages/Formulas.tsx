@@ -1,5 +1,7 @@
 import 'katex/dist/katex.min.css';
-import { useState } from "react";
+import { inspectionFor } from "../features/inspection/inspection.mjs";
+import { InspectionLinks } from "../features/inspection/InspectionLinks";
+import { useEffect, useState } from "react";
 import { Panel } from "../shared/ui/Panel";
 import { Button } from "../shared/ui/Button";
 import { fmt } from "../shared/ui/format";
@@ -18,9 +20,13 @@ const groups = [
 
 export function FormulasPage(p: PageProps) {
   const rows = Object.entries(p.audit?.audit.trace ?? {}).sort(([a], [b]) => parseInt(a) - parseInt(b));
-  const [opened, setOpened] = useState<Record<string, boolean>>({});
+  const related = inspectionFor(p.inspectionKey)?.formulas ?? [];
+  const [opened, setOpened] = useState<Record<string, boolean>>(() => Object.fromEntries(related.map(id => [id, true])));
+  useEffect(() => { setOpened(previous => ({ ...previous, ...Object.fromEntries((inspectionFor(p.inspectionKey)?.formulas ?? []).map(id => [id, true])) })); }, [p.inspectionKey]);
   const allOpen = rows.length > 0 && rows.every(([id]) => opened[id]);
   return <Panel title="Как получено каждое число — формулы методики" help="Формула → подстановка величин выбранного режима → результат. Расчёт выполняется общей моделью.">
+    <InspectionLinks metric={p.inspectionKey} />
+    {p.inspectionKey && inspectionFor(p.inspectionKey) && !rows.some(([id]) => related.includes(id)) && <p className="notice">Для этого показателя формула не сохранена в расчётной трассировке. Проверьте источники и паспортные данные.</p>}
     {rows.length ? <>
       <Button variant="secondary" onClick={() => setOpened(Object.fromEntries(rows.map(([id]) => [id, !allOpen])))}>
         {allOpen ? "Свернуть все" : "Раскрыть все"}
@@ -33,7 +39,7 @@ export function FormulasPage(p: PageProps) {
           <h3>{group.title}</h3>
           {entries.map(([id, raw]) => {
         const entry = raw as Entry;
-        return <article className="formula-card" key={id}>
+        return <article className="formula-card" data-highlighted={related.includes(id) || undefined} key={id}>
           <header><strong>({id}) {entry.name ?? 'Расчётная формула'}</strong><strong>{fmt(entry.value, 4)}</strong></header>
           <details open={!!opened[id]} onToggle={(event) => {
             const open = event.currentTarget.open;

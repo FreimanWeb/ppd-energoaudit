@@ -48,9 +48,10 @@ test("sidebar sections preserve every route with a distinct icon", async () => {
   const { navigationSections, pages } = await import("./app/navigation.mjs");
   assert.ok(navigationSections, "sectioned navigation is missing");
   assert.deepEqual(navigationSections.map(s => s.label), ["Состояние системы", "Энергоэффективность", "Прогнозирование", "Данные и методика"]);
-  assert.equal(pages.length, 13);
-  assert.equal(new Set(pages.map(p => p.id)).size, 13);
-  assert.equal(new Set(pages.map(p => p.icon)).size, 13);
+  assert.equal(pages.length, 12);
+  assert.equal(new Set(pages.map(p => p.id)).size, 12);
+  assert.equal(new Set(pages.map(p => p.icon)).size, 12);
+  assert.equal(pages.some(p => p.id === "scheme"), false);
   assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
 });
 

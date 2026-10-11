@@ -8,7 +8,6 @@
 .metric-segment-label { color: var(--content-muted); font-size: var(--text-caption); }
 .metric-segment[data-tone="bad"] strong { color: var(--metric-danger); }
 .metric-segment-divider { align-self: center; width: 1px; height: 36px; margin: 0 var(--space-1-5); background: var(--border-subtle); }
-.ure-panel .metric-card.metric-values { grid-column: 1 / -1; width: 100%; max-width: none; border: 0; padding: var(--space-1) 0; }
 .metric-card .metric-label { display: flex; align-items: start; justify-content: space-between; gap: var(--space-1); min-height: 34px; font-size: var(--text-caption); line-height: 1.4; }
 .metric-group .metric-card strong { display: block; font-size: var(--text-value); line-height: 1.2; margin-top: var(--space-1); overflow-wrap: anywhere; }
 .metric-card .metric-unit { display: block; font-size: var(--text-caption); color: var(--content-muted); margin-top: var(--space-1); }
@@ -19,11 +18,17 @@
 .metric-segments button { border: 0; border-radius: var(--radius-input); padding: var(--space-1-5) 11px; background: transparent; font-size: var(--text-caption); color: var(--content-muted); cursor: pointer; }
 .metric-segments button[aria-pressed="true"] { background: var(--surface); color: var(--content-primary); box-shadow: var(--shadow-sm); }
 .metric-segments button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.ure-panel .metric-group { margin-bottom: 0; }
-.metric-efficiency-disclosure { grid-column: 1 / -1; width: 100%; max-width: 380px; min-width: 0; justify-self: center; }
-.efficiency-group { width: 100%; max-width: 380px; }
-.efficiency-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .metric-card strong.metric-empty { font-size: var(--text-body); color: var(--content-muted); font-weight: var(--weight-medium); }
 .metric-disclosure { margin: var(--space-3) 0; }
 .metric-disclosure > summary { cursor: pointer; font-weight: var(--weight-semibold); padding: var(--space-3) 0; }
 @media (max-width: 450px) { .metric-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.metric-segment-heading { min-height: 18px; display: flex; align-items: center; justify-content: center; gap: var(--space-1); min-width: 0; }
+.metric-label > span { min-width: 0; flex: 1; }
+.metric-actions { position: relative; flex-shrink: 0; font-size: var(--text-caption); text-align: start; }
+.metric-actions summary { list-style: none; cursor: pointer; color: var(--content-muted); font-weight: var(--weight-semibold); padding: 0 3px; line-height: 18px; }
+.metric-actions summary::-webkit-details-marker { display: none; }
+.metric-actions summary:hover { color: var(--accent-strong); }
+.metric-actions nav { position: absolute; top: 100%; right: 0; z-index: 10; display: grid; gap: var(--space-2); min-width: 140px; padding: var(--space-3); background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+.metric-actions a { color: var(--accent-strong); text-underline-offset: 3px; white-space: nowrap; }
+.metric-segment-heading .metric-actions, .metric-label .metric-actions { margin: 0; }

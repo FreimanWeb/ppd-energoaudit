@@ -5,7 +5,7 @@ const context = '/?object=kns54an&aggregate=НА-1&day=2026-09-29';
 test('overview keeps fact and calculation primary and preserves secondary references', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(context + '#overview');
-  const ure = page.getByRole('region', { name: 'Удельный расход энергии', exact: true });
+  const ure = page.locator('.page-panel').filter({ has: page.getByRole('heading', { name: 'Удельный расход энергии', exact: true }) });
   await expect(ure.getByText('Факт', { exact: true })).toBeVisible();
   await expect(ure.getByText('Расчётный', { exact: true })).toBeVisible();
   await expect(ure.getByText('Цель ППД-2035', { exact: true })).not.toBeVisible();

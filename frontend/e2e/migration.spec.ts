@@ -9,7 +9,7 @@ async function selectFixture(page: Page) {
   await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
 }
 async function section(page: Page, hash: string) {
-  await page.locator(`nav a[href="#${hash}"]`).click();
+  await page.locator(`nav a[href="#${hash === "scheme" ? "overview" : hash}"]`).click();
   await expect(page.locator("main")).toBeVisible();
 }
 const chart = (page: Page) => page.locator(".plot-wrap").filter({has: page.locator("svg.visx-chart")}).first();
@@ -50,8 +50,9 @@ test("telemetry, forecast and real external CRM sources", async ({ page }) => {
   await expect.poll(() => powerLine.getAttribute("d").then(path => path?.match(/[MLHVCSQTAZ]/gi)?.length ?? 0)).toBeGreaterThan(4000);
   await hoverLineEnd(page, powerChart, "P_эл");
   const last = power.points.at(-1);
-  await expect(powerChart.locator(".native-chart-tooltip strong")).toHaveText(last.timestamp);
-  await expect(powerChart.locator(".native-chart-tooltip p").filter({hasText: "P_эл"}).locator("b")).toHaveText(new Intl.NumberFormat("ru-RU", {maximumFractionDigits: 3}).format(last.value));
+  await expect(powerChart.locator(".native-chart-tooltip strong")).toHaveText(await page.evaluate(timestamp => new Date(timestamp).toLocaleString("ru-RU"), last.timestamp));
+  await expect(powerChart.locator(".visx-crosshair")).toHaveAttribute("data-timestamp", String(await page.evaluate(timestamp => new Date(timestamp).getTime(), last.timestamp)));
+  await expect(powerChart.locator(".native-chart-tooltip p").filter({hasText: "P_эл"}).locator("b")).toHaveText(`${new Intl.NumberFormat("ru-RU", {maximumFractionDigits: 2}).format(last.value)} кВт`);
   await section(page, "forecast");
   await expect(chart(page)).toBeVisible();
   await section(page, "crm");
@@ -180,12 +181,13 @@ test("failed backend requests are visible and do not leave old calculations", as
   await expect(page.getByText("600", { exact: true })).toHaveCount(0);
 });
 
-test("scheme exposes real equipment and selecting a pump changes the shared aggregate", async ({
+test("overview scheme exposes real equipment and selecting a pump changes the shared aggregate", async ({
   page,
 }) => {
   await selectFixture(page);
   await section(page, "scheme");
-  await expect(page.locator("main svg").first()).toBeVisible();
+  await expect(page.locator(".equipment-scheme")).toBeVisible();
+  await expect.poll(() => page.locator(".pressure-label").count()).toBeGreaterThan(0);
   const pump = page.getByRole("button", { name: /НА-2/ }).first();
   await pump.click();
   await expect(page.getByLabel("Агрегат", { exact: true })).toHaveValue("НА-2");

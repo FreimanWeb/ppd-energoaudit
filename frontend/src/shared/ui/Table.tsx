@@ -8,9 +8,11 @@ export type TableColumn = { key: string; label: string; help?: ReactNode; align?
 export function Table({
   rows,
   columns,
+  rowHighlighted,
 }: {
   rows: Record<string, unknown>[];
   columns: TableColumn[];
+  rowHighlighted?: (row: Record<string, unknown>) => boolean;
 }) {
   const { container, scrollable } = useHorizontalOverflow(rows);
   const numeric = (column: TableColumn) => column.align === "end" || (column.align !== "start" && rows.some(row => typeof row[column.key] === "number"));
@@ -27,7 +29,7 @@ export function Table({
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i}>
+            <tr key={i} data-highlighted={rowHighlighted?.(r) || undefined}>
               {columns.map((c) => (
                 <td key={c.key} className={numeric(c) ? "numeric-cell" : "text-cell"}>{fmt(r[c.key], c.digits)}</td>
               ))}
