@@ -14,6 +14,9 @@ export function lossChartData(input, items) {
         "Полезная мощность",
       ],
       y: [input, ...losses.map((x) => -x.power_kw), useful?.power_kw ?? 0],
+      tooltip: [{ value: input, unit: "кВт", share: input > 0 ? 1 : undefined },
+        ...losses.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name })),
+        { value: useful?.power_kw ?? 0, unit: "кВт", share: useful?.share, selection: useful?.name }],
       connector: { line: { color: "#d5dedb" } },
       decreasing: { marker: { color: "#c76e62" } },
       increasing: { marker: { color: "#c58b25" } },
@@ -23,6 +26,7 @@ export function lossChartData(input, items) {
       type: "sankey",
       arrangement: "snap",
       node: {
+        tooltip: [{ value: input, unit: "кВт", share: input > 0 ? 1 : undefined }, ...flows.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name }))],
         label: ["Подведённая мощность", ...flows.map((x) => x.name)],
         color: [
           "#426b80",
@@ -34,6 +38,7 @@ export function lossChartData(input, items) {
         thickness: 20,
       },
       link: {
+        tooltip: flows.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name })),
         source: flows.map(() => 0),
         target: flows.map((_, i) => i + 1),
         value: flows.map((x) => x.power_kw),

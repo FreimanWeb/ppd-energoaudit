@@ -43,3 +43,21 @@ test('marker-only points use supplied factual labels while lines retain timestam
  const line=buildChartModel([{type:'scatter',mode:'lines+markers',x:['2026-09-29T01:00:00'],y:[0],text:['Комментарий']}]);
  assert.equal(line.series[0].points[0].label,'2026-09-29T01:00:00');
 });
+
+test('loss tooltip values and selection survive renderer geometry without changing signed drawing values', async () => {
+ const { lossChartData } = await import('../pages/lossChartData.mjs');
+ const { barIntervals } = await import('./cartesianGeometry.mjs');
+ const data=lossChartData(100,[{name:'Полезная',power_kw:60,share:.6,category:'полезная'},{name:'Потери',power_kw:45,share:.45,category:'потеря'},{name:'Коррекция',power_kw:-5,share:-.05,category:'потеря'}]);
+ const waterfall=buildChartModel([data.waterfall]);
+ const bars=barIntervals(waterfall);
+ assert.equal(bars[1].value,-45);
+ assert.deepEqual(bars[1].point.tooltip,{value:45,unit:'кВт',share:.45,selection:'Потери'});
+ assert.equal(bars[2].point.tooltip.value,-5);
+ assert.equal(bars[0].point.customdata,undefined);
+ const flow=buildChartModel([data.sankey]);
+ assert.equal(flow.nodes[0].tooltip.value,100);
+ assert.equal(flow.nodes[1].tooltip.share,.6);
+ assert.equal(flow.links[1].tooltip.selection,'Потери');
+ const percent=buildChartModel([{type:'bar',orientation:'h',name:'Полезная',x:[60],y:[''],tooltip:[{value:60,unit:'кВт',share:.6,selection:'Полезная'}]}]);
+ assert.equal(barIntervals(percent)[0].point.tooltip.share,.6);
+});

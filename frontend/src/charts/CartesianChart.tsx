@@ -3,6 +3,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -11,12 +12,13 @@ import { ParentSize } from "@visx/responsive";
 import { scaleBand, scaleLinear, scaleTime } from "@visx/scale";
 import { LinePath, Area, Bar } from "@visx/shape";
 import { curveLinear, curveStepAfter } from "@visx/curve";
-import { Brush } from "@visx/brush";
+import { Brush, type BrushProps } from "@visx/brush";
 import type {
   CartesianModel,
   AxisModel,
   SeriesModel,
   PointModel,
+  TimeInteraction,
 } from "./types";
 import {
   barIntervals,
@@ -25,6 +27,7 @@ import {
 } from "./cartesianGeometry.mjs";
 import { chartTheme } from "./theme";
 import { Tooltip as ExplanationTooltip } from "../shared/ui/Tooltip";
+import { ChartTooltip, type ChartTooltipRow } from "./ChartTooltip";
 import "./charts.css";
 
 const number = (value: unknown) =>
@@ -93,7 +96,7 @@ type BarInterval = {
 };
 type Tip = {
   title: string;
-  rows: { name: string; value: number | [number, number]; color: string }[];
+  rows: ChartTooltipRow[];
   x: number;
   y: number;
 };
@@ -175,6 +178,7 @@ export function CartesianPlot({
   viewport = null,
   onViewport,
   onSelect,
+  timeInteraction,
 }: {
   model: CartesianModel;
   width: number;
@@ -183,20 +187,29 @@ export function CartesianPlot({
   viewport?: [number, number] | null;
   onViewport?: (value: [number, number] | null) => void;
   onSelect?: (id: string) => void;
+  timeInteraction?: TimeInteraction;
 }) {
   const id = useId().replace(/:/g, "");
+  const brushRef = useRef<NonNullable<BrushProps["innerRef"]>["current"]>(null);
   const [tip, setTip] = useState<Tip | null>(null);
   const [activeBar, setActiveBar] = useState<string | null>(null);
-  const hasBrush = model.xAxis.type === "time" && model.data.length > 2;
+  const hasBrush = model.xAxis.type === "time" && model.data.length > 2 && timeInteraction?.showBrush !== false;
   const left = model.yAxis.hidden ? 12 : model.horizontal ? 110 : 66,
     right = 20,
     top = 24,
     bottom = model.xAxis.hidden ? 12 : 48;
   const innerWidth = Math.max(10, width - left - right),
     innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 48 : 0));
+  useEffect(() => {
+    if (viewport === null && brushRef.current) brushRef.current.updateBrush((state) => ({
+      ...state, start: { x: 0, y: 0 }, end: { x: innerWidth, y: 24 },
+      extent: { x0: 0, x1: innerWidth, y0: 0, y1: 24 },
+    }));
+  }, [viewport === null, innerWidth]);
   const projection = useMemo(() => {
     const visible = model.series.filter((s) => !hidden.includes(s.id));
     const domains = chartDomains(model, hidden, viewport);
+    if (timeInteraction && !viewport) domains.x = timeInteraction.domain;
     const xScale = makeScale(
       model.xAxis,
       domains.x,
@@ -228,14 +241,15 @@ export function CartesianPlot({
       bars: barIntervals(model, hidden, viewport) as BarInterval[],
       domains,
     };
-  }, [model, hidden, viewport, innerWidth, innerHeight]);
+  }, [model, hidden, viewport, innerWidth, innerHeight, timeInteraction?.domain]);
   const { xScale, yScale, series, xs, pointMaps, bars } = projection;
   const x = (value: number | string) => coordinate(xScale, model.xAxis, value),
     y = (value: number | string) => coordinate(yScale, model.yAxis, value);
   const barOnly =
     model.variant === "waterfall" ||
     model.series.every((s) => s.type === "bar");
-  const unit = model.horizontal ? model.xAxis.label : model.yAxis.label;
+  const axisLabel = model.horizontal ? model.xAxis.label : model.yAxis.label;
+  const unit = axisLabel.includes(",") ? axisLabel.split(",").at(-1)?.trim() : axisLabel;
   function showIndex(index: number, py = innerHeight / 2) {
     const value = xs[index];
     if (value === undefined) return;
@@ -251,13 +265,25 @@ export function CartesianPlot({
               ? ([p.low, p.high] as [number, number])
               : p.y,
           color: p.color ?? s.color,
+          unit,
         },
       ];
     });
     const title = points.find(Boolean)?.label ?? number(value);
     setTip({ title, rows, x: left + x(value), y: top + py });
     setActiveBar(null);
+    timeInteraction?.onCursor(Number(value));
   }
+  useEffect(() => {
+    if (!timeInteraction) return;
+    const value = timeInteraction.cursor;
+    if (value == null || x(value) < 0 || x(value) > innerWidth) { setTip(null); return; }
+    const rows = series.flatMap(({ series: s }) => {
+      const point = s.points.find((p) => Number(p.x) === value);
+      return point?.y != null ? [{ name: s.name, value: point.y, color: s.color, unit }] : [];
+    });
+    setTip({ title: new Date(value).toLocaleString("ru-RU"), rows, x: left + x(value), y: top + innerHeight / 2 });
+  }, [timeInteraction?.cursor, viewport, model, width, hidden]);
   function pointer(event: React.PointerEvent<SVGSVGElement>) {
     if (barOnly || (event.target as Element).closest(".visx-bar")) return;
     const bounds = event.currentTarget.getBoundingClientRect(),
@@ -265,6 +291,7 @@ export function CartesianPlot({
       py = event.clientY - bounds.top - top;
     if (px < 0 || px > innerWidth || py < 0 || py > innerHeight) {
       setTip(null);
+      timeInteraction?.onCursor(null);
       return;
     }
     let index = 0;
@@ -315,24 +342,38 @@ export function CartesianPlot({
         height={height}
         role="img"
         aria-label={model.title}
+        data-time-domain={projection.domains.x.join(",")}
+        onClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const px = event.clientX - bounds.left - left, py = event.clientY - bounds.top - top;
+          if (!(event.target as Element).closest(".visx-brush") && px >= 0 && px <= innerWidth && py >= 0 && py <= innerHeight && timeInteraction?.cursor != null)
+            timeInteraction.onSelectX?.(timeInteraction.cursor);
+        }}
         tabIndex={barOnly ? -1 : 0}
         onPointerMove={pointer}
         onPointerLeave={() => {
           setTip(null);
           setActiveBar(null);
+          timeInteraction?.onCursor(null);
         }}
         onKeyDown={(event) => {
           if ((event.target as Element).closest(".visx-bar")) return;
           if (event.key === "Escape") {
             setTip(null);
+            timeInteraction?.onCursor(null);
+            return;
+          }
+          if (event.key === "Enter" && timeInteraction?.cursor != null) {
+            event.preventDefault();
+            timeInteraction.onSelectX?.(timeInteraction.cursor);
             return;
           }
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
             return;
           event.preventDefault();
-          const previous = xs.findIndex((v) =>
-            pointMaps.some((map) => map.get(v)?.label === tip?.title),
-          );
+          const previous = xs.findIndex((v) => timeInteraction
+            ? Number(v) === timeInteraction.cursor
+            : pointMaps.some((map) => map.get(v)?.label === tip?.title));
           const next =
             event.key === "Home"
               ? 0
@@ -381,6 +422,7 @@ export function CartesianPlot({
             )}
           </g>
           <g clipPath={`url(#clip-${id})`}>
+            {timeInteraction?.cursor != null && <line className="visx-crosshair" data-timestamp={timeInteraction.cursor} x1={x(timeInteraction.cursor)} x2={x(timeInteraction.cursor)} y1={0} y2={innerHeight} stroke={chartTheme.text} strokeDasharray="3 3" pointerEvents="none" />}
             {series
               .filter(({ series: s }) => s.type === "line" || s.type === "band")
               .map(({ series: s, points }) => (
@@ -416,11 +458,13 @@ export function CartesianPlot({
               const show = () => {
                 setActiveBar(key);
                 setTip({
-                  title: bar.point.label ?? number(bar.point.x),
+                  title: bar.point.label || bar.series.name,
                   rows: [
                     {
-                      name: bar.series.name,
-                      value: bar.value,
+                      name: bar.point.tooltip || model.series.length === 1 ? undefined : bar.series.name,
+                      value: bar.point.tooltip?.value ?? bar.value,
+                      unit: bar.point.tooltip?.unit ?? unit,
+                      share: bar.point.tooltip?.share,
                       color: bar.point.color ?? bar.series.color,
                     },
                   ],
@@ -440,30 +484,29 @@ export function CartesianPlot({
                   height={bh}
                   rx={4}
                   fill={bar.point.color ?? bar.series.color}
-                  stroke={activeBar === key ? chartTheme.text : "transparent"}
+                  stroke="transparent"
                   strokeWidth={1}
                   role="button"
                   tabIndex={0}
                   aria-label={`${bar.series.name}: ${number(bar.value)} ${unit}`}
                   onPointerEnter={show}
                   onPointerMove={show}
-                  onPointerLeave={() => setActiveBar(null)}
+                  onPointerLeave={() => { setActiveBar(null); setTip(null); }}
                   onFocus={show}
                   onBlur={() => {
                     setActiveBar(null);
                     setTip(null);
                   }}
+                  onClick={() => { const selection = bar.point.tooltip?.selection ?? bar.point.customdata; if (selection) onSelect?.(selection); }}
                   onKeyDown={(event) => {
+                    const selection = bar.point.tooltip?.selection ?? bar.point.customdata;
+                    if (selection && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelect?.(selection); }
                     if (event.key === "Escape") {
                       setTip(null);
                       setActiveBar(null);
                     }
                   }}
-                >
-                  <title>
-                    {bar.series.name}: {number(bar.value)} {unit}
-                  </title>
-                </Bar>
+                />
               );
             })}
             {series
@@ -483,7 +526,7 @@ export function CartesianPlot({
                         setTip({
                           title: point.label ?? number(point.x),
                           rows: [
-                            { name: s.name, value: point.y as number, color },
+                            { name: s.name, value: point.y as number, color, unit },
                           ],
                           x: left + cx,
                           y: top + cy,
@@ -493,7 +536,6 @@ export function CartesianPlot({
                         point.customdata && onSelect?.(point.customdata)
                       }
                     >
-                      <title>{point.label ?? s.name}</title>
                       {point.shape === "diamond" ? (
                         <path
                           d={`M${cx},${cy - r} L${cx + r},${cy} L${cx},${cy + r} L${cx - r},${cy} Z`}
@@ -664,8 +706,9 @@ export function CartesianPlot({
               aria-label="Выбор временного диапазона"
             >
               <Brush
+                innerRef={brushRef}
                 xScale={scaleLinear({
-                  domain: chartDomains(model, hidden).x as [number, number],
+                  domain: timeInteraction?.domain ?? chartDomains(model, hidden).x as [number, number],
                   range: [0, innerWidth],
                 })}
                 yScale={scaleLinear({ domain: [0, 1], range: [24, 0] })}
@@ -684,44 +727,23 @@ export function CartesianPlot({
                   stroke: chartTheme.green,
                   strokeOpacity: 0.4,
                 }}
-                onChange={(bounds) =>
-                  bounds && onViewport?.([Number(bounds.x0), Number(bounds.x1)])
-                }
+                onChange={(bounds) => {
+                  if (bounds) {
+                    const domain = timeInteraction?.domain ?? chartDomains(model, hidden).x as [number, number];
+                    const range: [number, number] = [Math.max(Number(domain[0]), Number(bounds.x0)), Math.min(Number(domain[1]), Number(bounds.x1))];
+                    onViewport?.(Math.abs(range[0] - Number(domain[0])) < 1 && Math.abs(range[1] - Number(domain[1])) < 1 ? null : range);
+                  }
+                }}
                 useWindowMoveEvents
               />
             </g>
           )}
         </g>
       </svg>
-      {tip && (
-        <div
-          className="native-chart-tooltip visx-tooltip"
-          role="status"
-          aria-live="polite"
-          style={{
-            left: Math.max(8, Math.min(width - 250, tip.x + 12)),
-            top: Math.max(4, Math.min(height - 100, tip.y - 30)),
-          }}
-        >
-          {tip.title && <strong>{tip.title}</strong>}
-          {tip.rows.map((row, i) => (
-            <p key={i}>
-              <span
-                className="native-chart-tooltip-swatch"
-                style={{ background: row.color }}
-              />
-              <span>{row.name}</span>
-              <b>
-                {Array.isArray(row.value)
-                  ? row.value.map(number).join(" — ")
-                  : number(row.value)}
-              </b>
-            </p>
-          ))}
-          {!tip.rows.length && <p>Нет измерений</p>}
-          {unit && <small>{unit}</small>}
-        </div>
-      )}
+      {tip && <ChartTooltip title={tip.title} rows={tip.rows} style={{
+        left: Math.max(8, Math.min(width - 250, tip.x + 12)),
+        top: Math.max(4, Math.min(height - 100, tip.y - 30)),
+      }} />}
     </div>
   );
 }
@@ -729,13 +751,17 @@ export function CartesianPlot({
 export function CartesianChart({
   model,
   onSelect,
+  timeInteraction,
 }: {
   model: CartesianModel;
   onSelect?: (id: string) => void;
+  timeInteraction?: TimeInteraction;
 }) {
   const [choices, setChoices] = useState<Record<string, boolean>>({});
-  const [viewport, setViewport] = useState<[number, number] | null>(null);
-  useEffect(() => setViewport(null), [model]);
+  const [localViewport, setLocalViewport] = useState<[number, number] | null>(null);
+  const viewport = timeInteraction?.viewport ?? localViewport;
+  const setViewport = timeInteraction?.onViewport ?? setLocalViewport;
+  useEffect(() => { if (!timeInteraction) setLocalViewport(null); }, [model]);
   const hidden = useMemo(
     () =>
       model.series
@@ -756,6 +782,7 @@ export function CartesianChart({
                 viewport={viewport}
                 onViewport={setViewport}
                 onSelect={onSelect}
+                timeInteraction={timeInteraction}
               />
             ) : null
           }
@@ -783,7 +810,7 @@ export function CartesianChart({
             ))}
         </div>
       )}
-      {model.xAxis.type === "time" && model.data.length > 2 && (
+      {model.xAxis.type === "time" && model.data.length > 2 && timeInteraction?.showBrush !== false && (
         <div className="native-chart-note">
           <ExplanationTooltip
             label="Масштаб графика"

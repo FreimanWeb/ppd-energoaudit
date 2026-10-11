@@ -34,7 +34,6 @@ export function NetworkChart({ model, onSelect }: { model: NetworkModel; onSelec
                 }}
                 onFocus={() => setFocused(node.id)} onBlur={() => setFocused(null)}
                 onMouseEnter={() => setFocused(node.id)} onMouseLeave={() => setFocused(null)}>
-                <title>{node.label}: {node.detail}</title>
                 <rect className="network-hit-area" x={cx - Math.max(22, node.label.length * 4)}
                   y={cy - radius - 24} width={Math.max(44, node.label.length * 8)}
                   height={radius * 2 + 28} fill="transparent" pointerEvents="all" />

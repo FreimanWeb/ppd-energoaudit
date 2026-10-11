@@ -9,6 +9,8 @@ export function barIntervals(model, hidden = [], viewport = null) {
         y: point.value,
         label: point.label,
         color: point.color,
+        tooltip: point.tooltip,
+        customdata: point.tooltip?.selection,
       },
       start: point.start,
       end: point.end,

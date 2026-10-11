@@ -5,10 +5,14 @@
 .flow-legend strong{font-weight: var(--weight-semibold);white-space:nowrap}
 .chart-color-key{display:inline-block;flex:0 0 8px;width:8px;height:8px;border-radius:3px}
 .network-node{cursor:pointer;outline:none}
-.network-node:focus .network-marker{stroke:var(--chart-status-warning);stroke-width:4px}
-.network-node:hover .network-marker{stroke:var(--chart-status-warning)}
+.network-node:focus-visible .network-marker{stroke:var(--chart-focus);stroke-width:3px}
+
 .network-tooltip{min-height:50px;border-top:1px solid var(--chart-grid);padding:10px 0;display:flex;flex-wrap:wrap;gap:5px 12px;font-size: var(--text-caption);color:var(--chart-axis)}
-.network-tooltip strong{color:var(--chart-primary)}
+.network-tooltip strong{color:var(--chart-content);flex-basis:100%;border-bottom:1px solid var(--chart-grid);padding-bottom:6px}
 .gauge-chart{max-width:380px;margin-inline:auto}
 .flow-node-label{font-size: var(--text-caption);line-height:15px;color:var(--chart-axis);overflow-wrap:anywhere}
 .visx-chart{display:block;max-width:100%}
+
+.flow-link,.flow-node{outline:none;cursor:pointer}
+.flow-link:focus-visible,.flow-node:focus-visible{outline:2px solid var(--chart-focus);outline-offset:3px}
+.flow-chart .visx-tooltip{position:absolute;pointer-events:none;z-index:2}

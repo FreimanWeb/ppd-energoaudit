@@ -35,7 +35,7 @@
   background: var(--surface-hover);
 }
 .native-chart-legend button:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--chart-focus);
 }
 .native-chart-legend button[aria-pressed="false"] {
   opacity: 0.45;
@@ -116,7 +116,7 @@
   font: var(--text-caption) var(--font-ui);
 }
 .native-chart .visx-chart:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--chart-focus);
   outline-offset: -3px;
   border-radius: 8px;
 }
@@ -131,10 +131,9 @@
     filter 160ms ease,
     stroke 160ms ease;
 }
-.native-chart .visx-bar.is-active,
 .native-chart .visx-bar:focus-visible {
   filter: brightness(0.95);
-  stroke: var(--chart-axis);
+  stroke: var(--chart-focus);
   stroke-width: 1.5px;
 }
 .native-chart .visx-tooltip {
@@ -169,3 +168,14 @@
     opacity: 1;
   }
 }
+
+.chart-tooltip-share { font-variant-numeric: tabular-nums; }
+
+.plot-wrap[data-input="pointer"] .visx-chart:focus,
+.plot-wrap[data-input="pointer"] .visx-chart:focus-visible,
+.plot-wrap[data-input="pointer"] .flow-link:focus,
+.plot-wrap[data-input="pointer"] .flow-node:focus { outline: 0; }
+.plot-wrap[data-input="pointer"] .visx-bar:focus { stroke: transparent; }
+.plot-wrap[data-input="pointer"] .network-node:focus .network-marker { stroke: white; stroke-width: 2px; }
+
+.chart-tooltip-compact b { margin-left: 0; font-size: var(--text-body); }

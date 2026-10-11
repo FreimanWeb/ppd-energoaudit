@@ -14,7 +14,7 @@ export function buildChartModel(traces,layout={},title='') {
  const base={title,height:layout.height??360,margin:{top:layout.margin?.t??20,right:layout.margin?.r??24,bottom:layout.margin?.b??40,left:layout.margin?.l??55}};
  if(!traces.length) return {...base,kind:'empty',message:'Нет данных для графика.'};
  const first=traces[0];
- if(first.type==='sankey') return {...base,kind:'sankey',nodes:(first.node?.label??[]).map((name,i)=>({name:text(name),color:color(at(first.node?.color,i,chartColors[i%chartColors.length]))})),links:(first.link?.value??[]).map((value,i)=>({source:first.link.source[i],target:first.link.target[i],value,color:color(at(first.link.color,i,'var(--chart-secondary)'))}))};
+ if(first.type==='sankey') return {...base,kind:'sankey',nodes:(first.node?.label??[]).map((name,i)=>({name:text(name),tooltip:first.node?.tooltip?.[i],color:color(at(first.node?.color,i,chartColors[i%chartColors.length]))})),links:(first.link?.value??[]).map((value,i)=>({source:first.link.source[i],target:first.link.target[i],value,tooltip:first.link.tooltip?.[i],color:color(at(first.link.color,i,'var(--chart-secondary)'))}))};
  if(first.type==='indicator') return {...base,title:first.title?.text??title,kind:'gauge',value:first.value??0,range:first.gauge?.axis?.range??[0,1],threshold:first.gauge?.threshold?.value,thresholdColor:color(first.gauge?.threshold?.line?.color,chartTheme.gray),color:color(first.gauge?.bar?.color),steps:first.gauge?.steps??[],valueFormat:first.number?.valueformat};
  const nodesTrace=traces.find(trace=>trace.customdata?.length&&trace.mode?.includes('markers'));
  if(nodesTrace){
@@ -51,7 +51,7 @@ export function buildChartModel(traces,layout={},title='') {
    const value=numeric(raw)??0,measure=first.measure?.[i]??'relative';
    const start=measure==='relative'?running:0,end=measure==='total'?running:measure==='absolute'?value:running+value;
    running=end;
-   return {label:text(first.x?.[i]),start,end,value,measure,color:color(measure==='relative'?(value<0?first.decreasing?.marker?.color:first.increasing?.marker?.color):first.totals?.marker?.color,measure==='relative'?(value<0?chartTheme.red:chartTheme.amber):chartTheme.green)};
+   return {label:text(first.x?.[i]),start,end,value,measure,tooltip:first.tooltip?.[i],color:color(measure==='relative'?(value<0?first.decreasing?.marker?.color:first.increasing?.marker?.color):first.totals?.marker?.color,measure==='relative'?(value<0?chartTheme.red:chartTheme.amber):chartTheme.green)};
   });
   model.data=model.waterfall.map(point=>({x:point.label,start:point.start,end:point.end,value:point.value,span:[Math.min(point.start,point.end),Math.max(point.start,point.end)]}));
   return model;
@@ -63,7 +63,7 @@ export function buildChartModel(traces,layout={},title='') {
   const lower=band?traces[i-1]:null;
   const points=coords.map((x,j)=>{
    const label=trace.mode?.includes('markers')&&!trace.mode.includes('lines')?at(trace.text,j,at(trace.hovertext,j,x)):x;
-   const point={x:categoryValue(x),y:numeric(values[j]),label:text(label)};
+   const point={x:categoryValue(x),y:numeric(values[j]),label:text(label),...(trace.tooltip?.[j]?{tooltip:trace.tooltip[j]}:{}),...(typeof trace.customdata?.[j]==='string'?{customdata:trace.customdata[j]}:{})};
    if(band){const index=lower.x?.findIndex(v=>v===x)??-1;point.low=numeric(lower.y?.[index]);point.high=point.y;}
    else{if(trace.type==='bar'&&Array.isArray(trace.marker?.color))point.color=color(trace.marker.color[j]);if(trace.mode?.includes('markers')){point.color=color(at(trace.marker?.color,j,trace.line?.color??chartColors[i%chartColors.length]));point.size=at(trace.marker?.size,j,7);point.shape=at(trace.marker?.symbol,j,'circle');}}
    return point;
