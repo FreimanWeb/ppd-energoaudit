@@ -1,5 +1,26 @@
 import { test, expect } from '@playwright/test';
 
+test('a single power chart spans the row and period controls stay compact', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const times = ['00:00', '06:00', '12:00', '18:00'].map(time => `2026-09-29T${time}:00`);
+  await page.route('**/api/objects/kns54an/telemetry?*', route => route.fulfill({ json: {
+    records: [], series: [
+      { metric: 'P_вх', unit: 'МПа', points: times.map(timestamp => ({ timestamp, value: 2 })) },
+      { metric: 'P_эл', unit: 'кВт', points: times.map(timestamp => ({ timestamp, value: 600 })) },
+    ],
+  } }));
+  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#telemetry');
+  const pressure = page.getByRole('group', { name: 'Давления', exact: true });
+  const power = page.getByRole('group', { name: 'P_эл', exact: true });
+  await expect(power.locator('svg.visx-chart')).toBeVisible();
+  const pressureBox = await pressure.boundingBox(), powerBox = await power.boundingBox();
+  expect(powerBox!.width).toBeCloseTo(pressureBox!.width, 1);
+  const track = await pressure.locator('.brush-range-track').boundingBox();
+  expect(track!.height).toBeLessThanOrEqual(20);
+  const handle = await page.getByRole('slider', { name: 'Начало периода', exact: true }).boundingBox();
+  expect(handle!.height).toBeGreaterThanOrEqual(24);
+});
+
 test('telemetry shares real sample cursor and viewport, and selects only available snapshots', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1100 });
   const day = '2026-09-29';
@@ -16,8 +37,14 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   const charts = page.locator('main svg.visx-chart');
   await expect(charts).toHaveCount(3);
   const first = charts.first();
+  await first.click({ position: { x: 100, y: 10 } });
+  expect(await first.evaluate(node => getComputedStyle(node).outlineWidth)).toBe('0px');
+  await expect(page.getByText('Границы видимого периода', { exact: true })).toBeVisible();
+  await expect(page.getByText('Начало:', { exact: false })).toBeVisible();
+  await expect(page.getByText('Конец:', { exact: false })).toBeVisible();
   await first.focus();
   await first.press('Home');
+  expect(await first.evaluate(node => getComputedStyle(node).outlineWidth)).toBe('2px');
   await expect(page.locator('main .visx-crosshair')).toHaveCount(3);
   await first.press('ArrowRight');
   for (const crosshair of await page.locator('main .visx-crosshair').all())
@@ -38,6 +65,21 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   expect(zoom).not.toBe(`${new Date(times[0]).getTime()},${new Date(times[3]).getTime()}`);
   await page.getByRole('button', { name: 'Весь период', exact: true }).click();
   for (const chart of await charts.all()) await expect(chart).toHaveAttribute('data-time-domain', `${new Date(times[0]).getTime()},${new Date(times[3]).getTime()}`);
+  const end = page.getByRole('slider', { name: 'Конец периода', exact: true });
+  await end.focus();
+  await end.press('ArrowLeft');
+  expect(Number(await end.getAttribute('aria-valuenow'))).toBeLessThan(new Date(times[3]).getTime());
+  const keyboardZoom = await first.getAttribute('data-time-domain');
+  for (const chart of await charts.all()) await expect(chart).toHaveAttribute('data-time-domain', keyboardZoom!);
+  await end.press('End');
+  const begin = page.getByRole('slider', { name: 'Начало периода', exact: true });
+  await begin.focus();
+  await begin.press('ArrowRight');
+  expect(Number(await begin.getAttribute('aria-valuenow'))).toBeGreaterThan(new Date(times[0]).getTime());
+  await begin.press('Home');
+  await expect(page.getByRole('button', { name: 'Весь период', exact: true })).toHaveCount(0);
+  await first.click({ position: { x: 100, y: 10 } });
+  expect(await first.evaluate(node => getComputedStyle(node).outlineWidth)).toBe('0px');
   await first.focus();
   await first.press('Home');
   await first.press('ArrowRight');

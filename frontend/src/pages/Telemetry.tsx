@@ -137,7 +137,7 @@ export function TelemetryPage(
                 <TelemetryChart title="Давления" series={pressures} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === "pressures" }} />
               )}
               {primary.length > 0 && (
-                <div className="chart-grid">
+                <div className="chart-grid telemetry-chart-grid">
                   {primary.map((signal) => (
                     <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signal.metric }} />
                   ))}
@@ -146,7 +146,7 @@ export function TelemetryPage(
               {additional.length > 0 && (
                 <details>
                   <summary>Дополнительные измерения ({additional.length})</summary>
-                  <div className="chart-grid">
+                  <div className="chart-grid telemetry-chart-grid">
                     {additional.map((signal) => (
                       <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signal.metric }} />
                     ))}

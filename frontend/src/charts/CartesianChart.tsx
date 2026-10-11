@@ -199,11 +199,11 @@ export function CartesianPlot({
     top = 24,
     bottom = model.xAxis.hidden ? 12 : 48;
   const innerWidth = Math.max(10, width - left - right),
-    innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 48 : 0));
+    innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 56 : 0));
   useEffect(() => {
     if (viewport === null && brushRef.current) brushRef.current.updateBrush((state) => ({
-      ...state, start: { x: 0, y: 0 }, end: { x: innerWidth, y: 24 },
-      extent: { x0: 0, x1: innerWidth, y0: 0, y1: 24 },
+      ...state, start: { x: 0, y: 0 }, end: { x: innerWidth, y: 16 },
+      extent: { x0: 0, x1: innerWidth, y0: 0, y1: 16 },
     }));
   }, [viewport === null, innerWidth]);
   const projection = useMemo(() => {
@@ -323,6 +323,25 @@ export function CartesianPlot({
     }
     showIndex(index, py);
   }
+  const brushDomain = (timeInteraction?.domain ?? chartDomains(model, hidden).x) as [number, number];
+  const visiblePeriod = viewport ?? brushDomain;
+  function moveBoundary(event: React.KeyboardEvent<SVGGElement>, leftBoundary: boolean) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    brushRef.current?.updateBrush(state => {
+      const min = leftBoundary ? 0 : state.extent.x0 + 1;
+      const max = leftBoundary ? state.extent.x1 - 1 : innerWidth;
+      const current = leftBoundary ? state.extent.x0 : state.extent.x1;
+      const target = event.key === "Home" ? min : event.key === "End" ? max : current + (event.key === "ArrowRight" ? 1 : -1) * innerWidth / 100;
+      const value = Math.max(min, Math.min(max, target));
+      const x0 = leftBoundary ? value : state.extent.x0, x1 = leftBoundary ? state.extent.x1 : value;
+      return { ...state, start: { x: x0, y: 0 }, end: { x: x1, y: 16 }, extent: { x0, x1, y0: 0, y1: 16 } };
+    });
+  }
+  const periodLabel = (value: number) => innerWidth < 360
+    ? new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
+    : axisTick(value, "time");
   const gridScale = model.horizontal ? xScale : yScale;
   const ticks = "ticks" in gridScale ? gridScale.ticks(4) : [];
   const categoryScale = model.horizontal ? yScale : xScale;
@@ -703,23 +722,44 @@ export function CartesianPlot({
             <g
               className="visx-brush"
               transform={`translate(0,${innerHeight + 44})`}
-              aria-label="Выбор временного диапазона"
+              role="group"
+              aria-label="Границы видимого периода"
             >
+              <text className="brush-range-title" y="-12">Границы видимого периода</text>
+              {innerWidth > 480 && <text className="brush-range-hint" x={innerWidth} y="-12" textAnchor="end">Перетащите левый или правый край ↔</text>}
+              <rect className="brush-range-track" width={innerWidth} height="16" rx="4" />
+              <text className="brush-range-date" y="32">Начало: {periodLabel(visiblePeriod[0])}</text>
+              <text className="brush-range-date" x={innerWidth} y="32" textAnchor="end">Конец: {periodLabel(visiblePeriod[1])}</text>
               <Brush
                 innerRef={brushRef}
                 xScale={scaleLinear({
                   domain: timeInteraction?.domain ?? chartDomains(model, hidden).x as [number, number],
                   range: [0, innerWidth],
                 })}
-                yScale={scaleLinear({ domain: [0, 1], range: [24, 0] })}
+                yScale={scaleLinear({ domain: [0, 1], range: [16, 0] })}
                 width={innerWidth}
-                height={24}
+                height={16}
                 brushDirection="horizontal"
-                handleSize={8}
+                handleSize={24}
                 resizeTriggerAreas={["left", "right"]}
                 initialBrushPosition={{
                   start: { x: 0, y: 0 },
-                  end: { x: innerWidth, y: 24 },
+                  end: { x: innerWidth, y: 16 },
+                }}
+                renderBrushHandle={({ x: handleX, width: handleWidth, height: handleHeight, className, isBrushActive }) => {
+                  if (!isBrushActive) return null;
+                  const leftBoundary = className.endsWith("-left");
+                  return <g className={`${className} brush-boundary-handle`} transform={`translate(${handleX},0)`}
+                    role="slider" tabIndex={0} aria-label={leftBoundary ? "Начало периода" : "Конец периода"}
+                    aria-orientation="horizontal"
+                    aria-valuemin={leftBoundary ? brushDomain[0] : visiblePeriod[0] + 1}
+                    aria-valuemax={leftBoundary ? visiblePeriod[1] - 1 : brushDomain[1]}
+                    aria-valuenow={visiblePeriod[leftBoundary ? 0 : 1]}
+                    aria-valuetext={axisTick(visiblePeriod[leftBoundary ? 0 : 1], "time")}
+                    onKeyDown={event => moveBoundary(event, leftBoundary)}>
+                    <rect y="-4" width={handleWidth} height={handleHeight + 8} rx="5" />
+                    <path d={`M ${handleWidth / 2 - 2} 4 V ${handleHeight - 4} M ${handleWidth / 2 + 2} 4 V ${handleHeight - 4}`} />
+                  </g>;
                 }}
                 selectedBoxStyle={{
                   fill: chartTheme.green,

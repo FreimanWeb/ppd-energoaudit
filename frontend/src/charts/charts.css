@@ -115,7 +115,8 @@
   max-width: 100%;
   font: var(--text-caption) var(--font-ui);
 }
-.native-chart .visx-chart:focus-visible {
+.native-chart .visx-chart { outline: none; }
+.plot-wrap[data-input="keyboard"] .visx-chart:focus-visible {
   outline: 2px solid var(--chart-focus);
   outline-offset: -3px;
   border-radius: 8px;
@@ -151,6 +152,14 @@
 .native-chart .visx-brush {
   cursor: col-resize;
 }
+.brush-range-title { fill: var(--chart-content); font-size: var(--text-caption); font-weight: var(--weight-semibold); }
+.brush-range-hint, .brush-range-date { fill: var(--chart-axis); font-size: 11px; pointer-events: none; }
+.brush-range-track { fill: var(--surface-subtle); stroke: var(--chart-grid); }
+.brush-boundary-handle { outline: none; cursor: ew-resize; touch-action: none; }
+.brush-boundary-handle rect { fill: var(--surface); stroke: var(--chart-primary); stroke-width: 1.5; }
+.brush-boundary-handle path { fill: none; stroke: var(--chart-primary); stroke-width: 1.5; pointer-events: none; }
+.brush-boundary-handle:hover rect { fill: var(--surface-hover); }
+.plot-wrap[data-input="keyboard"] .brush-boundary-handle:focus-visible rect { stroke: var(--chart-focus); stroke-width: 2; }
 .native-chart-note button {
   font: inherit;
   border: 0;
