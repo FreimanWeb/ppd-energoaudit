@@ -50,6 +50,7 @@ class MeasureEvaluation:
     capex_krub: float
     payback_years: float | None  # None если без CAPEX/нет эффекта
     note: str = ""
+    addresses: str = ""
 
 
 def _throttle_saving(a: AuditResult) -> float:
@@ -149,6 +150,7 @@ def evaluate(measure: Measure, audit: AuditResult, tariff: float = 4.68) -> Meas
     )
     return MeasureEvaluation(
         measure_id=measure.id,
+        addresses=measure.addresses,
         name=measure.name,
         cls=measure.cls.value,
         energy_saving_kwh=round(energy, 1),

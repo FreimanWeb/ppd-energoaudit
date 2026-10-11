@@ -54,6 +54,12 @@ def test_pure_curves_preserve_legacy_models():
     assert view["system"][0]["h"] == 350
     assert view["qeta"][0]["eta"] == pytest.approx(0.8 * (1 - 0.9 * 0.8**2))
     assert view["notes"]
+    assert view["point"]["eta_pump"] is None
+    assert view["point"]["eta"] == 0.65
+    audit.eta_pump = 0.78
+    view = analysis.working_point(audit)
+    assert view["point"]["eta_pump"] == 0.78
+    assert view["point"]["eta"] == 0.65
 
 
 def test_measures_flat_fallback_and_unfit_guard():

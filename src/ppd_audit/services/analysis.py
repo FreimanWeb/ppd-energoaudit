@@ -82,7 +82,7 @@ def working_point(audit):
         "system": [{"q": float(qv), "h": float(h)} for qv, h in zip(sc[0], sc[1], strict=True)]
         if sc
         else [],
-        "point": {"q": q, "h": reg.h_fact, "eta": reg.eta_unit},
+        "point": {"q": q, "h": reg.h_fact, "eta": reg.eta_unit, "eta_pump": audit.eta_pump},
         "nominal": {
             "q": None if volumetric else p.q_nom,
             "h": None if volumetric else p.h_nom,
