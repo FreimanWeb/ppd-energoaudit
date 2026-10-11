@@ -5,12 +5,15 @@ const precision = {
   'м': 1, 'м³': 1, 'м³/ч': 1, 'м³/сут': 1, 'кВт': 1, 'ч': 1,
 };
 
+const numberFormats = new Map();
+
 /** @param {unknown} value @param {number} [digits] */
 export function formatNumber(value, digits = 2) {
   if (value == null || (typeof value === 'number' && !Number.isFinite(value))) return '—';
-  return typeof value === 'number'
-    ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(value)
-    : String(value);
+  if (typeof value !== 'number') return String(value);
+  if (!numberFormats.has(digits))
+    numberFormats.set(digits, new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }));
+  return numberFormats.get(digits).format(value);
 }
 
 /** @param {unknown} value @param {string} unit @param {number} [digits] */

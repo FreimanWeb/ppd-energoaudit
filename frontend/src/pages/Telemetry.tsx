@@ -38,14 +38,15 @@ export function TelemetryPage(
   const [viewport, setViewport] = useState<[number, number] | null>(null);
   useEffect(() => { setCursor(null); setViewport(null); }, [p.objectId, p.aggregateId, from, to]);
   const records = data.data?.records ?? [];
-  const series = data.data?.series ?? [];
-  const pressures = series.filter((signal) => signal.unit === "МПа");
-  const primary = series.filter((signal) =>
-    signal.unit === "кВт" || signal.unit === "м³/ч",
-  );
-  const additional = series.filter((signal) =>
-    signal.unit !== "МПа" && signal.unit !== "кВт" && signal.unit !== "м³/ч",
-  );
+  const { series, pressures, primary, additional } = useMemo(() => {
+    const series = data.data?.series ?? [];
+    return {
+      series,
+      pressures: series.filter(signal => signal.unit === "МПа"),
+      primary: series.filter(signal => signal.unit === "кВт" || signal.unit === "м³/ч").map(signal => [signal]),
+      additional: series.filter(signal => signal.unit !== "МПа" && signal.unit !== "кВт" && signal.unit !== "м³/ч").map(signal => [signal]),
+    };
+  }, [data.data?.series]);
   const domain = useMemo<[number, number]>(() => {
     const times = series.flatMap((signal) => signal.points.map((point) => new Date(point.timestamp).getTime())).filter(Number.isFinite);
     return times.length ? times.reduce<[number, number]>((range, time) => [Math.min(range[0], time), Math.max(range[1], time)], [Infinity, -Infinity]) : [0, 1];
@@ -57,9 +58,9 @@ export function TelemetryPage(
     if (sample && timestamp) p.onSelectTimestamp?.(timestamp);
   };
   const interaction = { cursor, onCursor: setCursor, viewport, onViewport: setViewport, domain, onSelectX: selectTimestamp, showBrush: false };
-  const firstChart = pressures.length ? "pressures" : primary[0]?.metric ?? additional[0]?.metric;
+  const firstChart = pressures.length ? "pressures" : primary[0]?.[0]?.metric ?? additional[0]?.[0]?.metric;
   const marker = mode === "day" ? p.timestamp || undefined : undefined;
-  const columns = records.length
+  const columns = useMemo(() => records.length
     ? Object.keys(records[0]).map((key) => ({
         key,
         label:
@@ -77,11 +78,12 @@ export function TelemetryPage(
             } as Record<string, string>
           )[key] ?? key,
       }))
-    : [];
+    : [], [records]);
   const shownPage = Math.min(
     page,
     Math.max(0, Math.ceil(records.length / 200) - 1),
   );
+  const recordsTable = useMemo(() => <Table rows={records.slice(shownPage * 200, (shownPage + 1) * 200)} columns={columns} />, [records, shownPage, columns]);
   return (
     <Panel
       title="Телеметрия"
@@ -138,8 +140,8 @@ export function TelemetryPage(
               )}
               {primary.length > 0 && (
                 <div className="chart-grid telemetry-chart-grid">
-                  {primary.map((signal) => (
-                    <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signal.metric }} />
+                  {primary.map((signals) => (
+                    <TelemetryChart key={signals[0].metric} title={signals[0].metric} series={signals} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signals[0].metric }} />
                   ))}
                 </div>
               )}
@@ -147,8 +149,8 @@ export function TelemetryPage(
                 <details>
                   <summary>Дополнительные измерения ({additional.length})</summary>
                   <div className="chart-grid telemetry-chart-grid">
-                    {additional.map((signal) => (
-                      <TelemetryChart key={signal.metric} title={signal.metric} series={[signal]} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signal.metric }} />
+                    {additional.map((signals) => (
+                      <TelemetryChart key={signals[0].metric} title={signals[0].metric} series={signals} timestamp={marker} timeInteraction={{ ...interaction, showBrush: firstChart === signals[0].metric }} />
                     ))}
                   </div>
                 </details>
@@ -159,10 +161,7 @@ export function TelemetryPage(
           )}
           <details>
             <summary>Таблица исходных измерений ({records.length})</summary>
-            <Table
-              rows={records.slice(shownPage * 200, (shownPage + 1) * 200)}
-              columns={columns}
-            />
+            {recordsTable}
             {records.length > 200 && (
               <div className="page-controls">
                 <button

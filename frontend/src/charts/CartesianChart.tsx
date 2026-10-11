@@ -30,18 +30,11 @@ import { Tooltip as ExplanationTooltip } from "../shared/ui/Tooltip";
 import { ChartTooltip, type ChartTooltipRow } from "./ChartTooltip";
 import "./charts.css";
 
-const number = (value: unknown) =>
-  typeof value === "number"
-    ? new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 3 }).format(value)
-    : String(value ?? "—");
+const chartNumberFormat = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 3 });
+const tickDateFormat = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const number = (value: unknown) => typeof value === "number" ? chartNumberFormat.format(value) : String(value ?? "—");
 function axisTick(value: unknown, type: string) {
-  if (type === "time")
-    return new Intl.DateTimeFormat("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(Number(value)));
+  if (type === "time") return tickDateFormat.format(new Date(Number(value)));
   const text = number(value);
   return type === "category" && text.length > 18
     ? `${text.slice(0, 16)}…`
