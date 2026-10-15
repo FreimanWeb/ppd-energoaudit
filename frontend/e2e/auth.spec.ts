@@ -13,9 +13,9 @@ test("configured login gate rejects wrong password and logout removes API access
   await expect(page.getByRole("alert")).toBeVisible();
   await page.getByLabel("Пароль", { exact: true }).fill("e2e-known-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByLabel("Объект", { exact: true })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Состояние объектов", exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Объект", { exact: true })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Состояние объектов", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Выйти", exact: true }).click();
   await expect(page.getByLabel("Пароль", { exact: true })).toBeVisible();
   expect(

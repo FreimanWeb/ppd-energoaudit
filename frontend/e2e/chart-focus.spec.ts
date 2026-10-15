@@ -19,6 +19,7 @@ test('pointer focus has no chart frame, while Tab outlines chart elements in bla
 
   await page.getByRole('button',{name:'Поток мощности',exact:true}).click();
   const flow=page.getByRole('group',{name:'Поток мощности',exact:true});
+  await expect(flow.locator('svg.visx-chart')).toBeVisible();
   await page.getByRole('button',{name:'Структура, %',exact:true}).focus();
   await page.keyboard.press('Tab');
   const link=flow.locator('.flow-link').first();

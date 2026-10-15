@@ -2,7 +2,7 @@ import { selectDate } from "./helpers";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 async function selectFixture(page: Page) {
-  await page.goto("/");
+  await page.goto("/#overview");
   await page.getByLabel("Объект", { exact: true }).selectOption("kns54an");
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
   await selectDate(page, "2026-09-29");
@@ -129,7 +129,7 @@ test("all source modes preserve their restrictions", async ({ page }) => {
 
 test("mobile sidebar restores focus on Escape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/#overview");
   const toggle = page.getByRole("button", { name: "Открыть боковую панель" });
   await toggle.click();
   await expect(

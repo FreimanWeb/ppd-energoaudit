@@ -1,4 +1,6 @@
 const iconPaths = {
+  portfolio: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z M6 6h1 M17 6h1",
+  timeline: "M3 3v18h18 M6 15l4-5 4 3 6-7 M6 19h14",
   overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   snapshot: "M4 17a9 9 0 1 1 16 0 M12 12l4-4 M6 12h1 M12 6v1 M17 12h1 M8 20h8",
   telemetry: "M3 12h4l3-7 4 14 3-7h4",

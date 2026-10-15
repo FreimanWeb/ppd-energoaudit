@@ -2,7 +2,9 @@ export const navigationSections = [
   {
     label: "Состояние системы",
     pages: [
-      { id: "overview", label: "Обзор", icon: "overview" },
+      { id: "portfolio", label: "Все объекты", icon: "portfolio" },
+      { id: "timeline", label: "Обзор и история", icon: "timeline" },
+      { id: "overview", label: "Разбор режима", icon: "overview" },
       { id: "snapshot", label: "Режимный расчёт", icon: "snapshot" },
       { id: "telemetry", label: "Телеметрия", icon: "telemetry" },
     ],
@@ -43,9 +45,20 @@ const fieldPages = new Set([
 ]);
 /** @param {string} mode @param {string} page */
 export function pageForMode(mode, page) {
+  if (page === "portfolio") return page;
   if (mode === "telemetry_view") return "telemetry";
   if (mode === "field_trip") return fieldPages.has(page) ? page : "overview";
   return pages.some((p) => p.id === page) ? page : "overview";
+}
+
+/** @param {string} href */
+export function initialPage(href) {
+  const url = new URL(href);
+  if (url.hash) return url.hash.slice(1);
+  const context = readAnalysisContext(href);
+  if (context.mode === "field_trip") return "overview";
+  if (context.mode === "telemetry_view") return "telemetry";
+  return context.object ? "timeline" : "portfolio";
 }
 /** @param {import('../shared/types').Plant[]} objects @param {string[]} waters @param {string[]} ngdus */
 export function filterObjects(objects, waters, ngdus) {

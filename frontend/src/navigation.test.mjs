@@ -15,6 +15,18 @@ test("mode navigation retains the Streamlit view boundaries", async () => {
   assert.equal(pageForMode("analysis", "not-a-page"), "overview");
 });
 
+test("monitoring starts with all objects and opens object history without requiring a snapshot", async () => {
+  const nav = await import("./app/navigation.mjs");
+  assert.equal(typeof nav.initialPage, "function");
+  assert.equal(nav.initialPage("http://localhost/"), "portfolio");
+  assert.equal(nav.initialPage("http://localhost/?object=kns54an"), "timeline");
+  assert.equal(nav.initialPage("http://localhost/?mode=field_trip"), "overview");
+  assert.equal(nav.initialPage("http://localhost/?mode=telemetry_view"), "telemetry");
+  assert.equal(nav.initialPage("http://localhost/?object=kns54an#snapshot"), "snapshot");
+  assert.equal(nav.pageForMode("analysis", "timeline"), "timeline");
+  assert.equal(nav.pageForMode("field_trip", "portfolio"), "portfolio");
+});
+
 test("filters preserve empty selections as all and combined selections", async () => {
   assert.ok(
     existsSync(new URL("./app/navigation.mjs", import.meta.url)),
@@ -48,9 +60,9 @@ test("sidebar sections preserve every route with a distinct icon", async () => {
   const { navigationSections, pages } = await import("./app/navigation.mjs");
   assert.ok(navigationSections, "sectioned navigation is missing");
   assert.deepEqual(navigationSections.map(s => s.label), ["Состояние системы", "Энергоэффективность", "Прогнозирование", "Данные и методика"]);
-  assert.equal(pages.length, 12);
-  assert.equal(new Set(pages.map(p => p.id)).size, 12);
-  assert.equal(new Set(pages.map(p => p.icon)).size, 12);
+  assert.equal(pages.length, 14);
+  assert.equal(new Set(pages.map(p => p.id)).size, 14);
+  assert.equal(new Set(pages.map(p => p.icon)).size, 14);
   assert.equal(pages.some(p => p.id === "scheme"), false);
   assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
 });

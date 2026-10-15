@@ -6,12 +6,15 @@ import { OverviewView } from "../features/overview/OverviewView";
 import { SnapshotView } from "../features/overview/SnapshotView";
 import { SourcesView } from "../features/overview/SourcesView";
 import { LossesView } from "../features/losses/LossesView";
+import { PortfolioView } from "../features/monitoring/PortfolioView";
+import { TimelineView } from "../features/monitoring/TimelineView";
 import {
   navigationSections,
   pageForMode,
   filterObjects,
   readAnalysisContext,
   analysisContextURL,
+  initialPage,
 } from "./navigation.mjs";
 import { TelemetryPage } from "../pages/Telemetry";
 import { ForecastPage } from "../pages/Forecast";
@@ -49,12 +52,12 @@ export function App({ logout }: { logout?: () => void }) {
   } = selection;
   const [nodeChoice, setNode] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false),
-    [rawPage, setPage] = useState(location.hash.slice(1) || "overview");
+    [rawPage, setPage] = useState(() => initialPage(location.href));
   const [waters, setWaters] = useState<string[]>([]),
     [ngdus, setNgdus] = useState<string[]>([]);
   useEffect(() => {
     const update = () => {
-      setPage(location.hash.slice(1) || "overview");
+      setPage(initialPage(location.href));
       setSelection(readAnalysisContext(location.href));
       setNode("");
       window.scrollTo({ top: 0, behavior: "instant" });
@@ -68,15 +71,17 @@ export function App({ logout }: { logout?: () => void }) {
   }, []);
   const page = pageForMode(mode, rawPage),
     source = mode === "field_trip" ? "field_trip" : "telemetry";
+  const monitoringPage = page === "portfolio" || page === "timeline";
   const objects = useResource<Plant[]>("/catalog/objects");
   const filtered = filterObjects(objects.data ?? [], waters, ngdus);
+  const selectableObjects = monitoringPage ? objects.data ?? [] : filtered;
   const object =
-    filtered.find((o) => o.code === objectChoice) ??
-    filtered.find((o) => o.code === "kns54an") ??
-    filtered[0];
+    selectableObjects.find((o) => o.code === objectChoice) ??
+    selectableObjects.find((o) => o.code === "kns54an") ??
+    selectableObjects[0];
   const objectPath = object ? `/objects/${segment(object.code)}` : null;
   const aggregates = useResource<Aggregate[]>(
-    objectPath ? `${objectPath}/aggregates` : null,
+    objectPath && !monitoringPage ? `${objectPath}/aggregates` : null,
   );
   const aggregate =
     aggregates.data?.find((a) => a.code === aggregateChoice) ??
@@ -87,11 +92,11 @@ export function App({ logout }: { logout?: () => void }) {
       ? `${objectPath}/aggregates/${segment(aggregate.code)}`
       : null;
   const dates = useResource<Dates>(
-    aggregatePath && mode !== "field_trip" ? `${aggregatePath}/dates` : null,
+    aggregatePath && !monitoringPage && mode !== "field_trip" ? `${aggregatePath}/dates` : null,
   );
   const day = dayChoice || dates.data?.default_date || dates.data?.dates.at(-1) || "";
   const snapshots = useResource<Snapshot[]>(
-    aggregatePath && day && mode === "analysis"
+    aggregatePath && day && !monitoringPage && mode === "analysis"
       ? `${aggregatePath}/snapshots?day=${day}`
       : null,
   );
@@ -103,9 +108,9 @@ export function App({ logout }: { logout?: () => void }) {
     objectPath && page === "overview" ? `${objectPath}/topology` : null,
   );
   const result = useResource<Audit>(
-    mode === "field_trip" && aggregatePath
+    !monitoringPage && mode === "field_trip" && aggregatePath
       ? `${aggregatePath}/field-trip-audit`
-      : aggregatePath && snapshot && mode === "analysis"
+      : !monitoringPage && aggregatePath && snapshot && mode === "analysis"
         ? `${aggregatePath}/snapshot-audit`
         : null,
     source === "field_trip"
@@ -118,7 +123,7 @@ export function App({ logout }: { logout?: () => void }) {
   const clarifications = useResource<
     { field: string; provisional_value: number | string; reason: string }[]
   >(
-    objectPath && aggregate && mode === "analysis"
+    objectPath && aggregate && !monitoringPage && mode === "analysis"
       ? `${objectPath}/clarifications?aggregate_id=${segment(aggregate.code)}`
       : null,
   );
@@ -139,16 +144,18 @@ export function App({ logout }: { logout?: () => void }) {
   const contextKey = `${object?.code}/${aggregate?.code}/${mode}`;
   const telemetryRequest = useRef(0);
   const [telemetryMessage, setTelemetryMessage] = useState("");
-  useEffect(() => { telemetryRequest.current += 1; setTelemetryMessage(""); }, [object?.code, aggregate?.code, day, mode, page]);
+  useEffect(() => { telemetryRequest.current += 1; setTelemetryMessage(""); }, [object?.code, aggregate?.code, aggregateChoice, day, mode, page]);
   async function selectTelemetryTimestamp(value: string) {
-    if (mode !== "analysis" || !aggregatePath) return;
+    const selectedAggregate = monitoringPage ? aggregateChoice : aggregate?.code;
+    if (mode !== "analysis" || !objectPath || !selectedAggregate) return;
+    const selectedPath = `${objectPath}/aggregates/${segment(selectedAggregate)}`;
     const request = ++telemetryRequest.current;
     const selectedDay = value.slice(0, 10);
     setTelemetryMessage("Проверяем доступность снимка…");
     try {
       let available = selectedDay === day ? snapshots.data : undefined;
       if (!available) {
-        const response = await fetch(`/api${aggregatePath}/snapshots?day=${encodeURIComponent(selectedDay)}`);
+        const response = await fetch(`/api${selectedPath}/snapshots?day=${encodeURIComponent(selectedDay)}`);
         if (!response.ok) throw new Error("snapshot lookup failed");
         available = await response.json() as Snapshot[];
       }
@@ -158,8 +165,13 @@ export function App({ logout }: { logout?: () => void }) {
         return;
       }
       setTelemetryMessage("");
-      changeSelection({day: selectedDay, timestamp: value});
-      location.hash = "snapshot";
+      const next = {object: object!.code, aggregate: selectedAggregate, mode, day: selectedDay, timestamp: value};
+      const url = new URL(analysisContextURL(location.href, next));
+      url.hash = "snapshot";
+      history.pushState(null, "", url);
+      setSelection(next);
+      setPage("snapshot");
+      window.scrollTo({top: 0, behavior: "instant"});
     } catch {
       if (request === telemetryRequest.current) setTelemetryMessage("Не удалось проверить снимок. Текущий расчёт сохранён; повторите выбор.");
     }
@@ -180,6 +192,20 @@ export function App({ logout }: { logout?: () => void }) {
     changeSelection({aggregate: code});
     setNode("");
   }
+  function openObject(code: string) {
+    const next = {object: code, aggregate: "", day: "", timestamp: "", mode: "analysis"};
+    const url = new URL(analysisContextURL(location.href, next));
+    for (const key of ["start", "end", "inspect"]) url.searchParams.delete(key);
+    url.hash = "timeline";
+    history.pushState(null, "", url);
+    setSelection(next);
+    setPage("timeline");
+    setNode("");
+    setWaters([]);
+    setNgdus([]);
+    setSidebarOpen(false);
+    window.scrollTo({top: 0, behavior: "instant"});
+  }
   function chooseDay(value: string) {
     changeSelection({day: value, timestamp: ""});
   }
@@ -188,6 +214,7 @@ export function App({ logout }: { logout?: () => void }) {
     location.hash = pageForMode(value, rawPage);
   }
   useEffect(() => {
+    if (monitoringPage) return;
     // Пользователь или history могли изменить URL после render этого effect.
     const current = readAnalysisContext(location.href);
     if (Object.entries(selection).some(([key, value]) => current[key as keyof typeof current] !== value)) return;
@@ -207,7 +234,7 @@ export function App({ logout }: { logout?: () => void }) {
       history.replaceState(null, "", href);
       setSelection(next);
     }
-  }, [object?.code, aggregate?.code, mode, day, timestamp, dates.data, snapshots.data, selection]);
+  }, [monitoringPage, object?.code, aggregate?.code, mode, day, timestamp, dates.data, snapshots.data, selection]);
   const blockedPage = page !== rawPage && rawPage !== "overview";
   const needAudit = [
     "overview",
@@ -221,7 +248,7 @@ export function App({ logout }: { logout?: () => void }) {
   const missingSnapshot = mode === "analysis" && Boolean(timestampChoice) && Boolean(snapshots.data?.length) && !snapshot;
   return (
     <div
-      className={`app ${sidebarOpen ? "sidebar-open" : ""}`}
+      className={`app ${page === "portfolio" ? "app-portfolio" : ""} ${sidebarOpen ? "sidebar-open" : ""}`}
       onKeyDown={(event) => {
         if (event.key === "Escape" && sidebarOpen) {
           setSidebarOpen(false);
@@ -229,23 +256,30 @@ export function App({ logout }: { logout?: () => void }) {
         }
       }}
     >
-      <a className="skip-link" href="#overview">
-        Перейти к расчёту
+      <a className="skip-link" href="#main-content" onClick={event => {event.preventDefault(); document.getElementById("main-content")?.focus();}}>
+        Перейти к содержимому
       </a>
-      <aside
+      {page !== "portfolio" && <aside
         className="app-sidebar"
         id="app-sidebar"
         aria-label="Параметры и навигация"
       >
-        <div className="sidebar-brand brand">
+        <a className="sidebar-brand brand" href="#portfolio" aria-label="Перейти ко всем объектам" onClick={() => setSidebarOpen(false)}>
           <span className="brand-mark">ППД</span>
           <div>
             <strong>Энергоаудит</strong>
             <span>Цифровая платформа</span>
           </div>
-        </div>
+        </a>
         <div className="sidebar-content">
-          <div className="analysis-panel">
+          {monitoringPage && <div className="monitoring-sidebar-intro">
+            <div className="eyebrow sidebar-section-title">МОНИТОРИНГ</div>
+            <p>Состояние объектов и история изменений</p>
+            {page === "timeline" && <label>Объект<select aria-label="Объект" value={object?.code ?? ""} onChange={event => openObject(event.target.value)}>
+              {objects.data?.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
+            </select></label>}
+          </div>}
+          {!monitoringPage && <div className="analysis-panel">
             <div className="eyebrow sidebar-section-title">ПАРАМЕТРЫ АНАЛИЗА</div>
             <section className="selectors" aria-label="Выбор режима">
               <label>
@@ -322,13 +356,13 @@ export function App({ logout }: { logout?: () => void }) {
                 </div>
               )}
             </section>
-          </div>
+          </div>}
           <div className="sidebar-divider" />
           <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
-            {navigationSections.map(section => (
+            {navigationSections.filter(section => page !== "portfolio" || section.pages.some(item => item.id === "portfolio")).map(section => (
               <section key={section.label} className="nav-section" aria-label={section.label}>
                 <h2 className="eyebrow nav-section-title">{section.label}</h2>
-                {section.pages.map((item) => {
+                {section.pages.filter(item => page !== "portfolio" || item.id === "portfolio").map((item) => {
                   const available = pageForMode(mode, item.id) === item.id;
                   return (
                     <a
@@ -352,8 +386,8 @@ export function App({ logout }: { logout?: () => void }) {
           </nav>
         </div>
         {logout && <div className="sidebar-footer sidebar-session"><button onClick={logout}>Выйти</button></div>}
-      </aside>
-      <button
+      </aside>}
+      {page !== "portfolio" && <button
         className="sidebar-toggle"
         aria-label={
           sidebarOpen ? "Закрыть боковую панель" : "Открыть боковую панель"
@@ -367,18 +401,22 @@ export function App({ logout }: { logout?: () => void }) {
         }}
       >
         <Icon name="menu" />
-      </button>
+      </button>}
       <main id="main-content" tabIndex={-1}>
-        <div className="page-heading">
+        {page === "portfolio" && logout && <div className="portfolio-session"><button onClick={logout}>Выйти</button></div>}
+        {page !== "portfolio" && <div className="page-heading">
           <h1>{object?.name ?? "Энергоаудит ППД"}</h1>
           <p>
             {object
               ? `${object.ngdu_name} · ${object.water_type} вода`
               : "Выберите объект для анализа оборудования и режима работы"}
           </p>
-        </div>
+        </div>}
+        {page === "portfolio" && <PortfolioView onOpenObject={openObject} />}
+        {page === "timeline" && object && <TimelineView key={object.code} objectId={object.code} objectName={object.name} aggregateId={aggregateChoice} onAggregateChange={code => changeSelection({aggregate: code, day: "", timestamp: ""})} onInspect={selectTelemetryTimestamp} />}
+        {page === "timeline" && telemetryMessage && <p className="notice" role="status">{telemetryMessage}</p>}
         <Notice {...objects} />
-        {objects.data && !filtered.length && <div className="notice" role="status">
+        {page !== "portfolio" && objects.data && !filtered.length && <div className="notice" role="status">
           <p>{objects.data.length ? "Нет объектов с выбранными фильтрами. Измените тип воды или НГДУ." : "Каталог объектов пуст."}</p>
           {(waters.length > 0 || ngdus.length > 0) && <button type="button" onClick={() => { setWaters([]); setNgdus([]); }}>Сбросить фильтры</button>}
         </div>}

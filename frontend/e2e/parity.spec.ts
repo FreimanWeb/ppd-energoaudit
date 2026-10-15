@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { selectDate } from "./helpers";
 async function fixture(page: Page) {
-  await page.goto("/");
+  await page.goto("/#overview");
   await page.getByLabel("Объект", { exact: true }).selectOption("kns54an");
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
   await selectDate(page, "2026-09-29");

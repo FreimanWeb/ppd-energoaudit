@@ -40,7 +40,7 @@ test("shared URLs survive loading, reload, a new tab and browser history", async
 });
 test("analysis parameters stay above independently scrolling navigation", async ({page}) => {
   await page.setViewportSize({width: 1440, height: 800});
-  await page.goto("/");
+  await page.goto("/#overview");
   await page.getByLabel("Объект", {exact: true}).selectOption("kns54an");
   await page.getByLabel("Агрегат", {exact: true}).selectOption("НА-1");
   await selectDate(page, "2026-09-29");
