@@ -10,6 +10,7 @@ import { LossCharts } from "./LossCharts";
 import { Panel } from "../../shared/ui/Panel";
 import { Table } from "../../shared/ui/Table";
 import { fmt } from "../../shared/ui/format";
+import { NetworkLosses } from "./NetworkLosses";
 
 export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionKey?: string }) {
   const [mode, setMode] = useState<"decomposition" | "flow" | "percentage">("decomposition");
@@ -28,7 +29,9 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
   );
   const measures = relatedMeasures(proposals.data?.annual ?? [], metric);
   return (
-    <Panel title="Цифровая карта потерь мощности" help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
+    <>
+    {audit.audit.object_id === "kns54an" && <NetworkLosses key={`${audit.source}:${audit.audit.object_id}:${audit.audit.aggregate_id}:${timestamp ?? ""}`} audit={audit} />}
+    <Panel title={audit.audit.object_id === "kns54an" ? "Агрегат и обвязка до блока гребёнок" : "Цифровая карта потерь мощности"} caption={audit.audit.object_id === "kns54an" ? "Полезная мощность здесь — на выходе блока гребёнок, до внешних трубопроводов и скважин. Конечная полезная мощность для закачки показана в карте всей цепочки выше." : undefined} help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
       {view.usable ? (
         <>
           {view.losses.length > 0 && <div className="metric-toolbar">
@@ -77,5 +80,6 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
         </>
       ) : <p className="notice error">Карта потерь не построена: режим непригоден для экономических выводов.</p>}
     </Panel>
+    </>
   );
 }

@@ -2,8 +2,13 @@ import { formatEfficiency } from "../../shared/format/number.mjs";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "./dashboardData.mjs";
 import { Dictionary } from "./Dictionary";
+import { segment, useResource } from "../../shared/api";
+import { Status } from "../../shared/ui/Status";
 
 export function Passport({ audit }: { audit: Audit }) {
+  const runtime = useResource<{ reading: { hours: number; as_of: string; basis: string; source: string } | null }>(
+    `/objects/${segment(audit.audit.object_id)}/aggregates/${segment(audit.audit.aggregate_id)}/runtime-reading`,
+  );
   const p = audit.passport?.pump,
     m = audit.passport?.motor,
     rm = audit.regime,
@@ -71,6 +76,19 @@ export function Passport({ audit }: { audit: Audit }) {
             }} />
           </div>
         </div>
+        <section aria-label="Накопленная наработка агрегата">
+          <h3>Накопленная наработка</h3>
+          <Status {...runtime} empty="Нет сведений о накопленной наработке." />
+          {runtime.data?.reading ? <>
+            <Dictionary values={{
+              "Наработка с начала эксплуатации, ч": runtime.data.reading.hours,
+              "Дата показания": runtime.data.reading.as_of,
+            }} />
+            <p className="muted">{runtime.data.reading.basis}</p>
+            <p className="muted">Источник: {runtime.data.reading.source}</p>
+            <p className="muted">Накопленный счётчик не используется вместо годовой наработки в расчётах энергии.</p>
+          </> : runtime.data && <p className="muted">Показание накопленной наработки не предоставлено.</p>}
+        </section>
     </details>
   );
 }

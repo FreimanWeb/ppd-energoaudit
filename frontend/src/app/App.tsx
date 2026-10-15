@@ -145,7 +145,7 @@ export function App({ logout }: { logout?: () => void }) {
   const telemetryRequest = useRef(0);
   const [telemetryMessage, setTelemetryMessage] = useState("");
   useEffect(() => { telemetryRequest.current += 1; setTelemetryMessage(""); }, [object?.code, aggregate?.code, aggregateChoice, day, mode, page]);
-  async function selectTelemetryTimestamp(value: string) {
+  async function selectTelemetryTimestamp(value: string, targetPage: "snapshot" | "losses" = "snapshot") {
     const selectedAggregate = monitoringPage ? aggregateChoice : aggregate?.code;
     if (mode !== "analysis" || !objectPath || !selectedAggregate) return;
     const selectedPath = `${objectPath}/aggregates/${segment(selectedAggregate)}`;
@@ -167,10 +167,10 @@ export function App({ logout }: { logout?: () => void }) {
       setTelemetryMessage("");
       const next = {object: object!.code, aggregate: selectedAggregate, mode, day: selectedDay, timestamp: value};
       const url = new URL(analysisContextURL(location.href, next));
-      url.hash = "snapshot";
+      url.hash = targetPage;
       history.pushState(null, "", url);
       setSelection(next);
-      setPage("snapshot");
+      setPage(targetPage);
       window.scrollTo({top: 0, behavior: "instant"});
     } catch {
       if (request === telemetryRequest.current) setTelemetryMessage("Не удалось проверить снимок. Текущий расчёт сохранён; повторите выбор.");

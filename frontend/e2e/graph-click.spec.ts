@@ -34,7 +34,7 @@ test('CRM graph accepts a real well click and keyboard activation', async ({ pag
 test('charts and full flow labels fit their container after mobile resize', async ({ page }) => {
   await fixture(page);
   await page.locator('nav a[href="#losses"]').click();
-  await page.getByRole('button', { name: 'Поток мощности', exact: true }).click();
+  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button', { name: 'Поток мощности', exact: true }).click();
   const plots = page.locator('svg.visx-chart');
   await expect(plots.first()).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -44,7 +44,7 @@ test('charts and full flow labels fit their container after mobile resize', asyn
     return chart.width > 0 && chart.width <= container.width + 1;
   }))).toBe(true);
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  const sankey = page.getByRole('group', { name: 'Поток мощности', exact: true });
+  const sankey = page.locator(".page-panel:not(:has(.network-losses))").getByRole('group', { name: 'Поток мощности', exact: true });
   await expect.poll(async () => sankey.evaluate(el => {
     const plot = el.getBoundingClientRect();
     const nodes = [...el.querySelectorAll('.flow-node rect')];

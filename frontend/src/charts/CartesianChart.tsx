@@ -470,7 +470,7 @@ export function CartesianPlot({
               const show = () => {
                 setActiveBar(key);
                 setTip({
-                  title: bar.point.label || bar.series.name,
+                  title: (model.variant === "waterfall" ? bar.point.tooltip?.selection : undefined) || bar.point.label || bar.series.name,
                   rows: [
                     {
                       name: bar.point.tooltip || model.series.length === 1 ? undefined : bar.series.name,

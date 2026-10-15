@@ -6,7 +6,9 @@ import { Button } from "../../shared/ui/Button";
 import { Panel } from "../../shared/ui/Panel";
 import { Range } from "../../shared/ui/Range";
 import { Status } from "../../shared/ui/Status";
-import { recentPeriod, timelineSignal, latestMetricPoint, timelineFocus } from "./timeline.mjs";
+import { Table } from "../../shared/ui/Table";
+import { formatNumber } from "../../shared/format/number.mjs";
+import { recentPeriod, timelineSignal, latestMetricPoint, timelineFocus, timelineComparison } from "./timeline.mjs";
 import "./timeline.css";
 
 type TimelinePoint = {
@@ -27,7 +29,7 @@ const dateLabel = (value: string) => new Date(value).toLocaleString("ru-RU", { d
 
 export function TimelineView({ objectId, objectName, aggregateId = "", onAggregateChange, onInspect }: {
   objectId: string; objectName: string; aggregateId?: string;
-  onAggregateChange: (code: string) => void; onInspect: (timestamp: string) => void;
+  onAggregateChange: (code: string) => void; onInspect: (timestamp: string, page?: "snapshot" | "losses") => void;
 }) {
   const [period, setPeriod] = useState<Period | null>(() => {
     const params = new URL(location.href).searchParams;
@@ -90,6 +92,7 @@ export function TimelineView({ objectId, objectName, aggregateId = "", onAggrega
     onSelectX: (value: number) => setSelected(data?.points.find(point => new Date(point.timestamp).getTime() === value) ?? null),
   };
   const focus = selected ?? timelineFocus(data?.points ?? []);
+  const comparison = focus ? timelineComparison(data?.points ?? [], focus.timestamp) : null;
   const basisLabels = { daily: "Суточные показатели", interval: "Измерения с интервалом 2 часа", mixed: "Смешанная детализация: суточные и интервальные данные", none: "Измерений пока нет" };
   return <div className="timeline-view">
     <Panel title="Последние показатели" caption={`${objectName} · Обзор состояния и история работы`}>
@@ -137,11 +140,30 @@ export function TimelineView({ objectId, objectName, aggregateId = "", onAggrega
         </>}
         <div className="timeline-inspect" aria-live="polite"><div><strong>{focus ? dateLabel(focus.timestamp) : "Выберите момент на графике"}</strong>
           <p className="muted">{!aggregateId ? "Для подробного разбора выберите агрегат." : focus?.snapshot_timestamp ? focus.basis === "daily" ? "Доступен подробный расчёт доступного режима за выбранные сутки." : "Доступен подробный расчёт по измерениям выбранного момента." : "Подробный режим для этого момента недоступен. Показатели истории остаются доступны на графиках."}</p></div>
-          <Button variant="secondary" disabled={!aggregateId || !focus?.snapshot_timestamp} onClick={() => { if (aggregateId && focus?.snapshot_timestamp) onInspect(focus.snapshot_timestamp); }}>Разобрать режим</Button>
+          <div className="timeline-inspect-actions">
+            <Button variant="secondary" disabled={!aggregateId || !focus?.snapshot_timestamp} onClick={() => { if (aggregateId && focus?.snapshot_timestamp) onInspect(focus.snapshot_timestamp); }}>Разобрать режим</Button>
+            {objectId === "kns54an" && <Button disabled={!aggregateId || !focus?.snapshot_timestamp} onClick={() => { if (aggregateId && focus?.snapshot_timestamp) onInspect(focus.snapshot_timestamp, "losses"); }}>Разобрать потери по цепочке</Button>}
+          </div>
         </div>
       </>}
     </Panel>
     <Panel title="Что проверить" caption="Наблюдения помогают найти возможную причину. Это гипотезы для проверки оператором.">
+      {comparison && <section className="timeline-comparison" aria-label="Изменение режима">
+        <h3>{comparison.change_pct > 0 ? "УРЭ вырос" : comparison.change_pct < 0 ? "УРЭ снизился" : "УРЭ без изменений"}: {formatNumber(comparison.change_pct, 1)} %</h3>
+        <p className="muted">{dateLabel(comparison.before.timestamp)} → {dateLabel(comparison.after.timestamp)}. Предыдущая доступная точка той же временной базы.</p>
+        <Table rows={[
+          {name: "УРЭ, кВт·ч/м³", key: "sec_kwh_m3"},
+          comparison.after.basis === "daily" ? {name: "Закачка за сутки, м³", key: "volume_m3"} : {name: "Расход, м³/ч", key: "flow_m3h"},
+          {name: "Мощность, кВт", key: "power_kw"},
+          {name: "Давление на входе, МПа", key: "p_in_mpa"},
+          {name: "Давление на выходе, МПа", key: "p_out_mpa"},
+        ].map(metric => ({
+          name: metric.name,
+          before: comparison.before[metric.key as keyof TimelinePoint],
+          after: comparison.after[metric.key as keyof TimelinePoint],
+        }))} columns={[{key:"name",label:"Показатель"},{key:"before",label:"Было"},{key:"after",label:"Стало"}]} />
+        <p className="muted">Условия работы могли измениться. Пустое значение означает отсутствие синхронного измерения; таблица не устанавливает причину ухудшения.</p>
+      </section>}
       {data?.observations.length ? <div className="timeline-observations">{data.observations.map((observation, index) => <article key={index} className={`timeline-observation ${observation.tone}`}><strong>{observation.title}</strong><p>{observation.detail}</p></article>)}</div> : <p className="muted">Пока недостаточно данных для сравнения. Графики показывают доступные измерения без автоматического заключения о причине.</p>}
       <details><summary>Данные и ограничения</summary><p>Ожидаемый интервал новой телеметрии — 2 часа. Суточные показатели не превращаются в двухчасовые измерения. Для всей станции используются суммарные показатели; КПД отдельных насосов не усредняется.</p>
         {(data?.notes ?? []).map((note, index) => <p className="muted" key={index}>{note}</p>)}</details>

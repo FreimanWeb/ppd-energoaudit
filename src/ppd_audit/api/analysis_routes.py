@@ -15,13 +15,15 @@ from ..services.analysis import (
     onboarding,
     working_point,
 )
+from ..services.armits_data import load_network, runtime_reading
 from ..services.audit import run_energy_audit
 from ..services.forecast_data import injection_profile
+from ..services.network_losses import build_network_analysis
 from ..services.result_scope import result_scope
 from ..services.telemetry_audit import object_from_database, run_snapshot_audit
 from ..services.telemetry_quality import QualityIssue, TelemetryQuality
 from ..spec import load_object_spec
-from .analysis_contracts import AnalysisContext, MeasuresRequest
+from .analysis_contracts import AnalysisContext, MeasuresRequest, NetworkLossRequest
 from .dashboard import _day_window, _require_ids
 
 
@@ -188,3 +190,45 @@ def onboarding_view(object_id: str, aggregate_id: str, at: str | None = None):
         return onboarding(obj.aggregate(aggregate_id))
     except (KeyError, ValueError, FileNotFoundError) as exc:
         raise HTTPException(400, detail=str(exc)) from exc
+
+
+@router.get("/objects/{object_id}/aggregates/{aggregate_id}/runtime-reading")
+def aggregate_runtime_reading(object_id: str, aggregate_id: str):
+    _require_ids(_database(), object_id, aggregate_id)
+    return {"reading": runtime_reading(object_id, aggregate_id)}
+
+
+@router.post("/objects/{object_id}/aggregates/{aggregate_id}/network-losses")
+def network_losses_view(object_id: str, aggregate_id: str, request: NetworkLossRequest):
+    database = _database()
+    _require_ids(database, object_id, aggregate_id)
+    network = load_network(object_id)
+    if network is None:
+        return {
+            "status": "unavailable",
+            "measures": [],
+            "comparison": None,
+            "warnings": ["Сеть АРМИТС пока подключена только для КНС-54."],
+        }
+    _, audit, _, quality, sources = _context(database, object_id, aggregate_id, request)
+    if quality.status == "unfit":
+        return {
+            "status": "unavailable",
+            "measures": [],
+            "comparison": None,
+            "warnings": ["Выбранный режим непригоден для построения энергетического баланса."]
+            + [issue.message for issue in quality.issues],
+        }
+    try:
+        result = build_network_analysis(
+            audit, network, request.scenario.model_dump(), request.intervention
+        )
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    result["runtime_reading"] = runtime_reading(object_id, aggregate_id)
+    result["context"] = request.model_dump(exclude={"scenario"})
+    result["sources"] = sources
+    result["warnings"] = list(
+        dict.fromkeys([issue.message for issue in quality.issues] + result.get("warnings", []))
+    )
+    return result

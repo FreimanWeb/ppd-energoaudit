@@ -2,13 +2,13 @@ import { test, expect } from '@playwright/test';
 
 test('pointer focus has no chart frame, while Tab outlines chart elements in black', async ({page})=>{
   await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#losses');
-  const plot=page.getByRole('group',{name:'Декомпозиция мощности',exact:true});
+  const plot=page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Декомпозиция мощности',exact:true});
   const svg=plot.locator('svg.visx-chart');
   await expect(svg).toBeVisible();
   await svg.click({position:{x:100,y:10}});
   await svg.evaluate(element=>(element as SVGSVGElement).focus());
   expect(await svg.evaluate(element=>getComputedStyle(element).outlineWidth)).toBe('0px');
-  await page.getByRole('button',{name:'Структура, %',exact:true}).focus();
+  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Структура, %',exact:true}).focus();
   await page.keyboard.press('Tab');
   const bar=plot.locator('.visx-bar').first();
   await expect(bar).toBeFocused();
@@ -17,10 +17,10 @@ test('pointer focus has no chart frame, while Tab outlines chart elements in bla
   await svg.evaluate(element=>(element as SVGSVGElement).focus());
   expect(await svg.evaluate(element=>getComputedStyle(element).outlineWidth)).toBe('0px');
 
-  await page.getByRole('button',{name:'Поток мощности',exact:true}).click();
-  const flow=page.getByRole('group',{name:'Поток мощности',exact:true});
+  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Поток мощности',exact:true}).click();
+  const flow=page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Поток мощности',exact:true});
   await expect(flow.locator('svg.visx-chart')).toBeVisible();
-  await page.getByRole('button',{name:'Структура, %',exact:true}).focus();
+  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Структура, %',exact:true}).focus();
   await page.keyboard.press('Tab');
   const link=flow.locator('.flow-link').first();
   await expect(link).toBeFocused();

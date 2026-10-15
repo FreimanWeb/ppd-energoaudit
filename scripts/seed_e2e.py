@@ -23,11 +23,14 @@ def seed(directory: Path) -> None:
     start = datetime(2026, 7, 1)
     for index in range(93):
         day = start + timedelta(days=index)
+        db.add_measurement(
+            "kns54an", None, day, "p_bg", 11, "МПа",
+            source_kind="scada", source_file="e2e-scada.csv",
+        )
         for aggregate in ("НА-1", "НА-2"):
             values = [
                 ("p_in", 1, "МПа"),
                 ("p_out", 12, "МПа"),
-                ("p_bg", 11, "МПа"),
                 ("q_day", 2880, "м³/сут"),
                 ("runtime", 24, "ч"),
                 ("energy", 14400 if index != 91 else 100, "кВт·ч"),

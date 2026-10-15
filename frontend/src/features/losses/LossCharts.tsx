@@ -12,12 +12,16 @@ export function LossCharts({
   status,
   mode = "decomposition",
   onSelect,
+  showSummary = true,
+  axisLabels,
 }: {
   power: number;
   losses: Loss[];
   status?: string;
   mode?: "decomposition" | "flow" | "percentage";
   onSelect?: (name: string) => void;
+  showSummary?: boolean;
+  axisLabels?: Record<string, string>;
 }) {
   if (status === "unfit")
     return (
@@ -29,6 +33,10 @@ export function LossCharts({
   if (!losses.length)
     return <p className="notice">Декомпозиция для выбранного режима недоступна.</p>;
   const chart = lossChartData(power, losses);
+  if (axisLabels) {
+    chart.waterfall.tooltip = chart.waterfall.tooltip.map((point, index) => ({ ...point, selection: chart.waterfall.x[index] }));
+    chart.waterfall.x = chart.waterfall.x.map(label => axisLabels[label] ?? label);
+  }
   return (
     <>
       {mode === "percentage" ? <LossPercentage power={power} losses={losses} onSelect={onSelect} /> : mode === "decomposition" ? <Plot
@@ -43,11 +51,11 @@ export function LossCharts({
           мощности отображает только положительные значения.
         </p>
       )}
-      <p className="muted">
+      {showSummary && <p className="muted">
         Подведённая мощность {fmt(power)} кВт · полезная{" "}
         {fmt(losses.find((x) => x.category === "полезная")?.power_kw)} кВт.
         <Tooltip label="Статьи потерь" content={<>Ширина потока соответствует мощности. Потери КПД — дополнительная мощность сверх паспортного состояния. Номинальные — базовые потери двигателя, насоса и передачи. Дросселирование — снижение давления арматурой. Гидравлические потери — сопротивление трубопровода и обвязки. Износ, неоптимальная подача и вязкость — составляющие ветки перекачки.</>} />
-      </p>
+      </p>}
     </>
   );
 }

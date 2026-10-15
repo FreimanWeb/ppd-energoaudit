@@ -71,15 +71,15 @@ test("loss graphs, working point, measures and connection templates", async ({
 }) => {
   await selectFixture(page);
   await section(page, "losses");
-  const waterfall = page.getByRole("group", {name: "Декомпозиция мощности", exact: true});
+  const waterfall = page.locator(".page-panel:not(:has(.network-losses))").getByRole("group", {name: "Декомпозиция мощности", exact: true});
   await expect(waterfall.locator("svg.visx-chart")).toBeVisible();
-  await expect(waterfall.locator(".visx-bar")).toHaveCount(2);
+  await expect(waterfall.locator(".visx-bar")).toHaveCount(6);
   const firstBar = waterfall.locator(".visx-bar").first();
   await expect(firstBar).toHaveAttribute("aria-label", /кВт/);
   await firstBar.focus();
   await expect(waterfall.locator(".native-chart-tooltip b").first()).toBeVisible();
-  const flow = page.getByRole("group", {name: "Поток мощности", exact: true});
-  await page.getByRole('button', { name: 'Поток мощности', exact: true }).click();
+  const flow = page.locator(".page-panel:not(:has(.network-losses))").getByRole("group", {name: "Поток мощности", exact: true});
+  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button', { name: 'Поток мощности', exact: true }).click();
   await expect(flow.locator("svg.visx-flow")).toBeVisible();
   expect(await flow.locator(".flow-link").count()).toBeGreaterThan(0);
   await expect(flow.locator(".flow-link").first()).toHaveAttribute("d", /^M/);

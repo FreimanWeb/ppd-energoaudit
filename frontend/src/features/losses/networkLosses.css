@@ -1,0 +1,27 @@
+.network-losses { min-width: 0; overflow-wrap: anywhere; }
+.network-losses > details { margin-block: 1rem; }
+.network-losses summary { cursor: pointer; font-weight: 600; }
+.network-losses details[open] > summary { margin-bottom: 1rem; }
+.network-losses .notice ul { margin: 0; padding-left: 1.25rem; }
+.network-losses .notice li + li { margin-top: .5rem; }
+.network-scenario-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; }
+.network-scenario-fields label { display: flex; flex-direction: column; gap: .4rem; }
+.network-scenario-fields input { width: 100%; box-sizing: border-box; padding: .6rem .75rem; color: inherit; background: var(--surface-input); border: 1px solid var(--border-form-control); border-radius: .5rem; font: inherit; }
+.network-scenario-fields small { color: var(--content-muted); }
+.network-balance-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 1rem; margin-block: 1.5rem; }
+.network-balance-totals dt { color: var(--content-muted); font-size: .875rem; }
+.network-balance-totals dd { margin: .35rem 0 0; font-size: 1.4rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.network-waterfall-scroll { max-width: 100%; overflow-x: auto; }
+.network-waterfall-wide { min-width: 800px; }
+.network-waterfall-hint { display: none; }
+.network-metadata { color: var(--content-secondary); padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.network-actions, .network-comparison { margin-block: var(--space-6); }
+.network-section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.network-section-heading h3 { margin: 0; }
+.network-measures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--space-4); }
+.network-measure { min-width: 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.network-measure h4 { margin: 0; font-size: var(--text-body-large); }
+.network-measure details { margin-bottom: var(--space-4); }
+.network-measure-saving { color: var(--accent-strong); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.network-losses li { overflow-wrap: anywhere; }
+@media (max-width: 1000px) { .network-waterfall-hint { display: block; } }

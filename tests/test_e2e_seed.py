@@ -20,6 +20,8 @@ def test_seed_real_data_and_unfit_day(tmp_path):
     result = run_snapshot_audit(db, "kns54an", "НА-1", start, end, snapshots[-1].timestamp)
     assert result.quality.status != "unfit"
     assert result.audit.regime.q == 120
+    assert result.audit.decomposition is not None
+    assert result.audit.decomposition.p_bg_useful > 0
     start, end = datetime(2026, 9, 30), datetime(2026, 10, 1)
     snap = telemetry_snapshots(db, "kns54an", "НА-1", start, end)[0]
     assert (

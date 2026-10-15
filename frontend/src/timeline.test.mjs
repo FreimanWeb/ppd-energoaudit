@@ -14,6 +14,24 @@ test('daily history is kept daily, missing values and zero remain distinct', () 
 test('recent period uses latest available date, includes requested number of dates', () => {
   assert.deepEqual(recentPeriod('2026-07-01T22:00:00', 7), { start: '2026-06-25', end: '2026-07-01' });
 });
+
+test('diagnostic comparison uses the selected time and the previous value of the same basis', async () => {
+  const { timelineComparison } = await import('./features/monitoring/timeline.mjs');
+  assert.equal(typeof timelineComparison, 'function');
+  const points = [
+    {timestamp:'2026-07-01T00:00:00',sec_kwh_m3:4,basis:'daily'},
+    {timestamp:'2026-07-01T02:00:00',sec_kwh_m3:8,basis:'interval'},
+    {timestamp:'2026-07-02T00:00:00',sec_kwh_m3:5,basis:'daily'},
+    {timestamp:'2026-07-02T12:00:00',sec_kwh_m3:null,basis:'none'},
+    {timestamp:'2026-07-03T00:00:00',sec_kwh_m3:6,basis:'daily'},
+  ];
+  const result = timelineComparison(points,'2026-07-02T12:00:00');
+  assert.equal(result.before, points[0]);
+  assert.equal(result.after, points[2]);
+  assert.equal(result.change_pct, 25);
+  assert.equal(timelineComparison(points,'2026-07-01T00:00:00'), null);
+  assert.equal(timelineComparison([],undefined), null);
+});
 test('mixed daily and interval measurements have a visible discontinuity', () => {
   const points = [
     { timestamp: '2026-07-01T00:00:00', sec_kwh_m3: 3, basis: 'daily' },
