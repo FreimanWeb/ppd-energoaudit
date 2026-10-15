@@ -716,7 +716,7 @@ tbody tr:last-child td {
 .login-card label {margin-top:24px;}
 .login-card input {width:100%;min-height:44px;font:inherit;border:1px solid var(--border-control);border-radius:12px;padding:10px;}
 .primary-button {background:var(--accent-strong);color:white;border:0;}
-.login-card .primary-button {margin-top:20px;width:100%;min-height:44px;}
+.login-card .ds-button {margin-top:20px;width:100%;min-height:44px;}
 .primary-button:hover {background:var(--accent-strong);}
 
 .nav-section { display: grid; gap: 4px; }
