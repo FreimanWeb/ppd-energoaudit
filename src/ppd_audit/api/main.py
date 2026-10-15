@@ -34,11 +34,13 @@ from .contracts import (
 )
 from .dashboard import router as dashboard_router
 from .data_routes import router as data_router
+from .monitoring_routes import router as monitoring_router
 
 
 app = FastAPI(title="PPD Energoaudit API", version="0.1.0")
 app.include_router(dashboard_router)
 app.include_router(data_router)
+app.include_router(monitoring_router)
 app.include_router(analysis_router)
 app.include_router(auth_router)
 app.add_middleware(AuthenticationMiddleware)
