@@ -17,18 +17,18 @@ const shiftMonth = (month: string, offset: number) => {
   return new Date(Date.UTC(year, number - 1 + offset, 1)).toISOString().slice(0, 7);
 };
 
-export function Calendar({ path, day, dates, onChange }: {
-  path: string; day: string; dates: string[]; onChange: (day: string) => void;
+export function Calendar({ path, day, dates, max, label = "Дата", onChange }: {
+  path?: string; day: string; dates?: string[]; max?: string; label?: string; onChange: (day: string) => void;
 }) {
   const [open, setOpen] = useState(false), [chosenMonth, setMonth] = useState("");
   const [position, setPosition] = useState({ left: 8, top: 8 });
   const trigger = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null);
   const monthInput = useRef<HTMLInputElement>(null);
-  const firstMonth = dates[0]?.slice(0, 7) ?? "", lastMonth = dates.at(-1)?.slice(0, 7) ?? "";
+  const firstMonth = dates?.[0]?.slice(0, 7) ?? "", lastMonth = dates?.at(-1)?.slice(0, 7) ?? max?.slice(0, 7) ?? "";
   const clampMonth = (value: string) => value < firstMonth ? firstMonth : value > lastMonth ? lastMonth : value;
   const month = clampMonth(chosenMonth || day.slice(0, 7) || lastMonth);
   const statuses = useResource<{ statuses: Record<string, string> }>(
-    open && month ? `${path}/calendar?month=${month}` : null,
+    open && month && path ? `${path}/calendar?month=${month}` : null,
   );
   function close() {
     setOpen(false);
@@ -73,9 +73,9 @@ export function Calendar({ path, day, dates, onChange }: {
     };
   }, [open]);
   return <div className="date-picker">
-    <span className="date-label">Дата</span>
-    <button ref={trigger} type="button" className="date-trigger" aria-label="Дата"
-      aria-haspopup="dialog" aria-expanded={open} data-date={day} disabled={!dates.length}
+    <span className="date-label">{label}</span>
+    <button ref={trigger} type="button" className="date-trigger" aria-label={label}
+      aria-haspopup="dialog" aria-expanded={open} data-date={day} disabled={dates?.length === 0}
       onClick={() => { if (open) close(); else { setMonth(""); setOpen(true); } }}>
       <span>{day ? day.split("-").reverse().join(".") : "Нет дат"}</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18M7 15h2m3 0h2m3 0h1"/></svg>
@@ -91,16 +91,16 @@ export function Calendar({ path, day, dates, onChange }: {
         {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(name => <span key={name} className="date-weekday">{name}</span>)}
         {monthDays(month).map((date: string | null, index: number) => {
           if (!date) return <span key={`blank-${index}`} />;
-          const available = dates.includes(date);
-          const status = available ? statuses.loading ? "loading" : statuses.data?.statuses[date] || "unknown" : "empty";
-          const title = available ? names[status] || names.unknown : "Нет телеметрии";
+          const available = dates ? dates.includes(date) : !max || date <= max;
+          const status = available ? path ? statuses.loading ? "loading" : statuses.data?.statuses[date] || "unknown" : "" : "empty";
+          const title = path ? available ? names[status] || names.unknown : "Нет телеметрии" : undefined;
           return <button key={date} type="button" disabled={!available} className={`date-cell ${status}`}
-            aria-label={`${date}: ${title}`} aria-pressed={date === day} title={title}
+            aria-label={title ? `${date}: ${title}` : date} aria-pressed={date === day} title={title}
             onClick={() => { onChange(date); close(); }}>{Number(date.slice(8))}</button>;
         })}
       </div>
-      <div className="date-legend">{["ready", "snapshot", "unfit", "insufficient"].map(status => <span key={status}><i className={status}/>{names[status]}</span>)}</div>
-      <span className="date-help">Цвет показывает пригодность данных для расчёта.</span>
+      {path && <><div className="date-legend">{["ready", "snapshot", "unfit", "insufficient"].map(status => <span key={status}><i className={status}/>{names[status]}</span>)}</div>
+      <span className="date-help">Цвет показывает пригодность данных для расчёта.</span></>}
     </div>, document.body)}
   </div>;
 }

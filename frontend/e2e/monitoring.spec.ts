@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectDate } from "./helpers";
 
 test("home shows every object and opens history without selecting a measurement", async ({ page }) => {
   await page.goto("/");
@@ -83,7 +84,7 @@ test("portfolio filter fields show clear labels and selected values", async ({ p
 test("portfolio offers up to six months of full-width charts in wide cards", async ({ page }) => {
   await page.setViewportSize({width: 1600, height: 1000});
   await page.goto("/");
-  await page.getByLabel("Дата окончания графиков").fill("2026-10-01");
+  await selectDate(page, "2026-10-01", "Дата окончания графиков");
   const card = page.locator(".portfolio-card").filter({has: page.getByRole("heading", {name: "КНС-54", exact: true})});
   await expect(card.locator(".portfolio-sparkline circle")).toHaveCount(30);
   await expect(page.getByLabel("Период графиков")).toHaveValue("30");
@@ -114,7 +115,7 @@ test("portfolio offers up to six months of full-width charts in wide cards", asy
 
 test("portfolio tooltip stays outside clipping containers and appears only while hovering", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("Дата окончания графиков").fill("2026-10-01");
+  await selectDate(page, "2026-10-01", "Дата окончания графиков");
   const card = page.locator(".portfolio-card").filter({has: page.getByRole("heading", {name: "КНС-54", exact: true})});
   const point = card.locator(".portfolio-sparkline circle").first();
   await point.scrollIntoViewIfNeeded();
@@ -153,15 +154,15 @@ test("portfolio defaults to today and uses a common selected end date for all ch
   await page.goto("/");
   const today = await page.evaluate(() => new Intl.DateTimeFormat("sv-SE", {timeZone:"Europe/Moscow"}).format(new Date()));
   const picker = page.getByLabel("Дата окончания графиков");
-  await expect(picker).toHaveValue(today);
-  await picker.fill("2026-10-15");
+  await expect(picker).toHaveAttribute("data-date",today);
+  await selectDate(page, "2026-10-15", "Дата окончания графиков");
   const card = page.locator(".portfolio-card").filter({has:page.getByRole("heading", {name:"КНС-54",exact:true})});
   await expect(card.locator(".portfolio-history-range time").last()).toHaveAttribute("datetime", "2026-10-15");
   await expect(card.locator(".portfolio-sparkline circle")).toHaveCount(16);
   const svg = card.locator(".portfolio-sparkline");
   const lastX = Number(await svg.locator("circle").last().getAttribute("cx"));
   expect(lastX / (await svg.boundingBox())!.width).toBeLessThan(0.6);
-  await picker.fill("2026-07-07");
+  await selectDate(page, "2026-07-07", "Дата окончания графиков");
   await page.getByLabel("Период графиков").selectOption("7");
   await expect(card.locator(".portfolio-sparkline circle")).toHaveCount(7);
   await expect(card.locator(".portfolio-history-range time").last()).toHaveAttribute("datetime", "2026-07-07");

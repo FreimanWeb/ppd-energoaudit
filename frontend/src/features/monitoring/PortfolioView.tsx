@@ -5,6 +5,7 @@ import { ChartTooltip } from "../../charts/ChartTooltip";
 import "../../charts/charts.css";
 import { Filters } from "../../app/components/Filters";
 import { Notice } from "../../app/components/Notice";
+import { Calendar } from "../analysis-context/Calendar";
 import { useResource } from "../../shared/api";
 import { formatNumber } from "../../shared/format/number.mjs";
 import { nearestSparklinePoint, portfolioHistory, sparklinePoints, visibleObjects } from "./portfolio.mjs";
@@ -112,7 +113,7 @@ export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) =
         <Filters title="Тип воды" options={[...new Set(objects.map(o => o.water_type))].sort()} chosen={water} onChange={setWater} />
         <label className="portfolio-status-filter"><span>Состояние</span><select value={status} onChange={event => setStatus(event.target.value)}><option value="all">Все состояния</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="portfolio-status-filter"><span>Период графиков</span><select value={historyDays} onChange={event => setHistoryDays(Number(event.target.value))}><option value="1">Сутки</option><option value="7">Неделя · 7 дней</option><option value="30">Месяц · 30 дней</option><option value="90">3 месяца · 90 дней</option><option value="180">6 месяцев · 180 дней</option></select></label>
-        <label className="portfolio-status-filter"><span>Дата окончания графиков</span><input type="date" value={endDate} max={today} onChange={event => {if (event.target.value) setEndDate(event.target.value);}} /></label>
+        <Calendar label="Дата окончания графиков" day={endDate} max={today} onChange={setEndDate} />
       </div>
       <p className="portfolio-period-note">Все графики заканчиваются выбранной датой. Участки без измерений остаются пустыми.</p>
     {resource.data && <>
