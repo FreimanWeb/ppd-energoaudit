@@ -148,4 +148,8 @@ def source_paths(root: Path) -> dict[str, Path]:
         "crm": Path(os.getenv("PPD_CRM_DIR", root / "data" / CRM_DIRNAME)),
         "downtime": Path(os.getenv("PPD_DOWNTIME_DIR", root / "data" / DOWNTIME_DIRNAME)),
         "scada_tags": Path(os.getenv("PPD_SCADA_TAGS_PATH", root / "config" / SCADA_TAGS_CONFIG)),
+        "network": Path(os.getenv("PPD_NETWORK_DIR", root / "data" / "network")),
+        "network_config": Path(
+            os.getenv("PPD_NETWORK_CONFIG", root / "config" / "network.yaml")
+        ),
     }

@@ -739,6 +739,7 @@ def _aggregate_spec(
             efficiency=passport["transmission_eff"],
         ),
         vfd=bool(passport["vfd"]),
+        runtime_total_h=aggregate.get("runtime_total_h"),
         regime=regime,
     )
 

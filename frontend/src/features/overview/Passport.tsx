@@ -23,6 +23,7 @@ export function Passport({ audit }: { audit: Audit }) {
               "η_нас.ном, о.е.": p?.eta_nom,
               "P_ном, кВт": p?.power_nom,
               "n, об/мин": p?.n_rpm,
+              "Наработка с начала эксплуатации, ч": audit.passport?.runtime_total_h,
               "Кривая Q-H": p?.curve_qh?.length ? "Паспортные координаты" : "Отсутствует",
               "Кривая Q-η": p?.curve_qeta?.length ? "Паспортные координаты" : "Отсутствует",
             }} />

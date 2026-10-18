@@ -9,6 +9,7 @@ const iconPaths = {
   losses: "M13 2 4 14h7l-1 8 10-13h-7z",
   "working-point": "M12 2v4 M12 18v4 M2 12h4 M18 12h4 M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0 M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0",
   measures: "M9 3h6v3h-6z M9 5H5v16h14V5h-4 M8 12l2 2 5-5 M8 18h7",
+  network: "M3 12h5 M8 12l5-6h4 M8 12l5 6h4 M17 6h4 M17 18h4 M13 12h8",
   sources: "M20 6c0 2-16 2-16 0s16-2 16 0 M4 6v12c0 4 16 4 16 0V6 M4 12c0 4 16 4 16 0",
   formulas: "M19 4H5l7 8-7 8h14",
   onboarding: "M3 8l9-5 9 5-9 5z M3 8v11l9 4V13 M21 8v5 M17 18h6 M20 15v6",

@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from ..db import AuditDatabase
-from ..services import catalog, crm_view, forecast_data, telemetry_view
+from ..services import catalog, crm_view, forecast_data, network_view, telemetry_view
 from ..services.telemetry_audit import telemetry_date_statuses
 from ..services.telemetry_series import reduce_pressure_points, telemetry_series
 from .data_contracts import (
@@ -17,6 +17,7 @@ from .data_contracts import (
     CrmFactResponse,
     CrmRun,
     ForecastResponse,
+    NetworkView,
     SourceError,
     TelemetryResponse,
     WellDowntime,
@@ -31,6 +32,8 @@ _ROOT = Path(__file__).resolve().parents[3]
 CRM_DIR = catalog.source_paths(_ROOT)["crm"]
 SCADA_TAGS = catalog.source_paths(_ROOT)["scada_tags"]
 DOWNTIME_DIR = catalog.source_paths(_ROOT)["downtime"]
+NETWORK_DIR = catalog.source_paths(_ROOT)["network"]
+NETWORK_CONFIG = catalog.source_paths(_ROOT)["network_config"]
 router = APIRouter()
 
 
@@ -247,3 +250,20 @@ def crm_monthly_view(object_id: str, run_code: str, well: str | None = None) -> 
         return report
     downtime = crm_view.well_downtime(DOWNTIME_DIR, object_id)
     return crm_view.monthly_view(report, downtime, well)
+
+
+@router.get("/objects/{object_id}/network", response_model=NetworkView | SourceError)
+def network(
+    object_id: str,
+    eta: Annotated[float | None, Query(gt=0, le=1)] = None,
+) -> dict:
+    """Разводящая сеть: трение в водоводах, прочие потери и штуцеры по скважинам.
+
+    ``eta`` — КПД насосной установки для годовой энергии; без него берётся
+    номинальный КПД агрегатов станции.
+    """
+    database = _database()
+    _require_ids(database, object_id)
+    return network_view.network_view(
+        database, NETWORK_DIR, NETWORK_CONFIG, object_id, tariff=catalog.tariff(), eta=eta
+    )

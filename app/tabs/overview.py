@@ -269,6 +269,11 @@ def _passport_and_regime(ctx: Ctx) -> None:
                 "H_ном, м": p.h_nom,
                 "η_нас.ном, о.е.": p.eta_nom,
                 "n, об/мин": p.n_rpm,
+                "Наработка с начала эксплуатации, ч": (
+                    fmt(ctx.agg.runtime_total_h, 0)
+                    if getattr(ctx.agg, "runtime_total_h", None) is not None
+                    else None
+                ),
             },
         )
     with col2:

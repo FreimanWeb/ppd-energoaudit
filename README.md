@@ -175,7 +175,8 @@ SQLite содержит:
 ## API
 
 Дополнительные источники можно задать через `PPD_CRM_DIR`,
-`PPD_DOWNTIME_DIR`, `PPD_SCADA_TAGS_PATH`; без них используются каталоги проекта.
+`PPD_DOWNTIME_DIR`, `PPD_SCADA_TAGS_PATH`, `PPD_NETWORK_DIR`, `PPD_NETWORK_CONFIG`;
+без них используются каталоги проекта (`data/network`, `config/network.yaml`).
 Полные схемы запросов и ответов доступны в OpenAPI.
 
 - `GET /auth/session`, `POST /auth/login`, `POST /auth/logout` — состояние входа,
@@ -196,6 +197,9 @@ SQLite содержит:
   месячный ряд, временное окно и отметки простоев, общие с Streamlit.
 - `GET /objects/{object_id}/well-downtime`, `/clarifications?aggregate_id=`
   — простои скважин и временные паспортные значения.
+- `GET /objects/{object_id}/network?eta=` — разводящая сеть: трение в водоводах
+  по реестру трубопроводов, перепады до устья и на штуцерах по карточкам АРМИТС,
+  годовые потери; `eta` — КПД насосной установки (по умолчанию номинальный).
 - `GET /objects/{object_id}/scheme-pressures?day=&timestamp=` — давление каждой
   ветки на общем моменте; отсутствующие снимки не заменяются чужими значениями.
 - `POST /objects/{object_id}/aggregates/{aggregate_id}/field-trip-audit`

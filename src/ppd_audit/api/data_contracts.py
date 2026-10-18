@@ -156,3 +156,89 @@ class WellMonthlyView(BaseModel):
     downtime_marks: list[WellDowntime]
     window: tuple[str, str] | None
     last: WellMonthTotal | None
+
+
+class NetworkWell(BaseModel):
+    well: str
+    q_m3h: float
+    annual_volume_m3: float
+    path_length_m: float
+    path_complete: bool
+    has_geometry: bool
+    p_before_choke_mpa: float | None
+    p_after_choke_mpa: float | None
+    dp_network_mpa: float | None
+    dp_friction_mpa: float
+    dp_other_mpa: float | None
+    dp_choke_mpa: float | None
+    friction_kw: float
+    other_kw: float
+    choke_kw: float
+    loss_kw: float
+    annual_kwh: float
+    consistent: bool
+    flags: list[str]
+
+
+class NetworkPipeline(BaseModel):
+    name: str
+    start: str
+    end: str
+    length_m: float
+    sizes: str
+    inner_mm: float
+    pipe_types: str
+    q_m3h: float
+    velocity_ms: float
+    dp_friction_mpa: float
+
+
+class NetworkTotals(BaseModel):
+    q_m3h: float
+    friction_kw: float
+    other_kw: float
+    choke_kw: float
+    friction_kwh: float
+    other_kwh: float
+    choke_kwh: float
+    total_kwh: float
+    money_krub: float
+    required_pressure_mpa: float | None
+    excess_pressure_mpa: float | None
+    excess_kwh: float
+
+
+class NetworkCoverage(BaseModel):
+    cards: int
+    wells: int
+    complete_paths: int
+    partial_paths: int
+    no_geometry: int
+    inconsistent: int
+
+
+class ManifoldSource(BaseModel):
+    kind: str
+    start: str | None
+    end: str | None
+
+
+class NetworkFluid(BaseModel):
+    rho: float
+    nu_cst: float
+    temperature_c: float
+
+
+class NetworkView(BaseModel):
+    object_id: str
+    month: str | None
+    p_bg_mpa: float
+    p_bg_source: ManifoldSource
+    fluid: NetworkFluid
+    eta: float
+    eta_basis: str
+    tariff: float
+    totals: NetworkTotals
+    coverage: NetworkCoverage
+    wells: list[NetworkWell]
+    pipelines: list[NetworkPipeline]

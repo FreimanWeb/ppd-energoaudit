@@ -14,6 +14,7 @@ export const navigationSections = [
       { id: "losses", label: "Карта потерь", icon: "losses" },
       { id: "working-point", label: "Рабочая точка", icon: "working-point" },
       { id: "measures", label: "Мероприятия", icon: "measures" },
+      { id: "network", label: "Водоводы и скважины", icon: "network" },
     ],
   },
   {

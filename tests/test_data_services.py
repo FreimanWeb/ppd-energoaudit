@@ -167,11 +167,15 @@ def test_source_paths_honor_optional_environment_overrides(tmp_path, monkeypatch
     monkeypatch.setenv("PPD_CRM_DIR", str(tmp_path / "custom-crm"))
     monkeypatch.setenv("PPD_DOWNTIME_DIR", str(tmp_path / "custom-downtime"))
     monkeypatch.setenv("PPD_SCADA_TAGS_PATH", str(tmp_path / "custom.yaml"))
+    monkeypatch.setenv("PPD_NETWORK_DIR", str(tmp_path / "custom-network"))
+    monkeypatch.setenv("PPD_NETWORK_CONFIG", str(tmp_path / "network.yaml"))
     paths = catalog.source_paths(tmp_path)
     assert paths == {
         "crm": tmp_path / "custom-crm",
         "downtime": tmp_path / "custom-downtime",
         "scada_tags": tmp_path / "custom.yaml",
+        "network": tmp_path / "custom-network",
+        "network_config": tmp_path / "network.yaml",
     }
 
 

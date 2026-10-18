@@ -644,7 +644,7 @@ export function CartesianPlot({
               scale={yScale}
               hideAxisLine
               hideTicks
-              numTicks={4}
+              numTicks={model.horizontal ? Math.max(4, Math.floor(innerHeight / 16)) : 4}
               tickFormat={(value) => axisTick(value, model.yAxis.type)}
               tickLabelProps={() => ({
                 fill: chartTheme.text,

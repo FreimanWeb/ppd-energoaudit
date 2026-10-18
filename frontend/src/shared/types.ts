@@ -81,6 +81,7 @@ export type Audit = {
     id: string;
     role: string;
     vfd: boolean;
+    runtime_total_h?: number | null;
     pump: {
       model: string | null;
       kind: string;
