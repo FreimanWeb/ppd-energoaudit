@@ -213,25 +213,23 @@ def _fallback_topology(ctx: Ctx) -> dict:
             "label": aggregate.id,
             "sub": aggregate.pump.model or "",
         })
-        edges.extend([{"from": "src", "to": node_id}, {"from": node_id, "to": "man"}])
+        edges.extend([{"from": "src", "to": node_id}, {"from": node_id, "to": "comb"}])
     nodes.extend([
-        {"id": "man", "type": "meter", "x": 2, "y": 0, "label": "Выход из станции"},
         {
             "id": "comb",
             "type": "manifold",
-            "x": 3,
+            "x": 2,
             "y": 0,
             "label": "Блок гребёнок",
             "sub": f"p_БГ={fmt(ctx.agg.regime.p_bg, 2)} МПа"
             if ctx.agg.regime.p_bg is not None
             else "",
         },
-        {"id": "valve", "type": "valve", "x": 4, "y": 0, "label": "ЗРА / штуцеры"},
-        {"id": "wells", "type": "wells", "x": 5, "y": 0, "label": "Нагнетательные скважины"},
-        {"id": "res", "type": "reservoir", "x": 6, "y": 0, "label": "Пласт / призабойная зона"},
+        {"id": "valve", "type": "valve", "x": 3, "y": 0, "label": "ЗРА / штуцеры"},
+        {"id": "wells", "type": "wells", "x": 4, "y": 0, "label": "Нагнетательные скважины"},
+        {"id": "res", "type": "reservoir", "x": 5, "y": 0, "label": "Пласт / призабойная зона"},
     ])
     edges.extend([
-        {"from": "man", "to": "comb"},
         {"from": "comb", "to": "valve"},
         {"from": "valve", "to": "wells", "kind": "throttle"},
         {"from": "wells", "to": "res"},

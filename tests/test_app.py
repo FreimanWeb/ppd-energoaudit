@@ -36,6 +36,20 @@ def test_sidebar_shows_only_supported_modes():
     assert at.radio[0].options == ["Анализ по телеметрии", "Выезд", "Просмотр телеметрии"]
 
 
+def test_nearest_tariff_shows_a_warning_and_preserves_calculation(request):
+    db = request.getfixturevalue("app_database")
+    with db._connection() as connection:
+        connection.execute("DELETE FROM electricity_tariffs WHERE valid_from = '2025-01-01'")
+    try:
+        at = _analysis_app()
+        assert not at.exception
+        assert any("ближайший тариф" in warning.value for warning in at.warning)
+    finally:
+        db.upsert_electricity_tariff(
+            date(2025, 1, 1), date(2025, 12, 31), 4.68, source="Указание пользователя"
+        )
+
+
 def test_field_trip_mode_audits_yaml_object_without_telemetry():
     at = AppTest.from_file(APP, default_timeout=180).run()
     at.radio[0].set_value("Выезд").run()
@@ -130,7 +144,8 @@ def test_fallback_scheme_draws_each_aggregate_as_a_parallel_branch():
         pump = next(node for node in nodes if node.get("data-node") == f"pump-{index}")
         assert aggregate in "".join(pump.itertext())
         assert ("src", f"pump-{index}") in edges
-        assert (f"pump-{index}", "man") in edges
+        assert (f"pump-{index}", "comb") in edges
+    assert "Выход из станции" not in content
     assert len([node for node in nodes if node.get("data-selected") == "true"]) == 1
 
 

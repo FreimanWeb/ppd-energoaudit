@@ -327,9 +327,15 @@ def get_verification() -> dict:
     return catalog.get_verification()
 
 
-@st.cache_data(show_spinner=False)
-def tariff() -> float:
-    return catalog.tariff()
+def tariff(at: date | None = None) -> float:
+    try:
+        selection = catalog.tariff(at, database=database())
+    except ValueError as exc:
+        st.warning(str(exc))
+        st.stop()
+    if selection["warning"]:
+        st.warning(selection["warning"])
+    return selection["rub_per_kwh"]
 
 
 @st.cache_data(show_spinner=False)

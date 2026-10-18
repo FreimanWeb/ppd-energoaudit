@@ -9,6 +9,10 @@ from ..config import project_root
 @cache
 def load_network(object_id: str) -> dict | None:
     """Пилотная сеть; идентификатор не используется как произвольный путь."""
+    if object_id == "demo-ppd":
+        from .demo import demo_network
+
+        return demo_network()
     if object_id != "kns54an":
         return None
     path = project_root() / "data" / "armits" / "kns54an.json"

@@ -77,6 +77,9 @@ def build_regime(
     if any(metric in station_values for metric in ("q_day", "runtime", "energy")):
         raise ValueError("станционный расход, наработка или энергия не распределены по агрегатам")
     plant = database.plant(plant_code)
+    density = database.plant_density_default(plant_code, start.date())
+    if density:
+        plant["default_density"] = density["density_kgm3"]
     state_rows = database.state_measurements_in_window(plant_code, aggregate_code, start, end)
     p_in, p_out, p_bg = _operating_pressures(
         state_rows,
@@ -237,6 +240,9 @@ def run_snapshot_audit(
         raise ValueError("станционный расход, наработка или энергия не распределены по агрегатам")
 
     plant = database.plant(plant_code)
+    density = database.plant_density_default(plant_code, start.date())
+    if density:
+        plant["default_density"] = density["density_kgm3"]
     q_day = _single(aggregate_values, "q_day", required=False)
     runtime = _single(aggregate_values, "runtime", required=False)
     energy = _single(aggregate_values, "energy", required=False)
@@ -282,6 +288,9 @@ def run_snapshot_audit(
         q_day_m3=q_day,
         integrated_flow_m3=integrated_flow,
     )
+    sources = _regime_sources(rows, state_rows, timestamp, uses_daily_flow, uses_daily_power)
+    if density and not aggregate_values.get("density"):
+        sources["ρ"] = f"{density['source']}; доступно с {density['available_from']}"
     return SnapshotAudit(
         audit=audit,
         snapshot=snapshot,
@@ -289,7 +298,7 @@ def run_snapshot_audit(
         uses_daily_power=uses_daily_power,
         annual_runtime_is_assumed=annual_runtime is None,
         quality=quality,
-        sources=_regime_sources(rows, state_rows, timestamp, uses_daily_flow, uses_daily_power),
+        sources=sources,
     )
 
 
@@ -602,6 +611,9 @@ def run_telemetry_audit(
 ) -> AuditResult:
     """Провести аудит по паспорту и временному окну без YAML-режима."""
     plant = database.plant(plant_code)
+    density = database.plant_density_default(plant_code, start.date())
+    if density:
+        plant["default_density"] = density["density_kgm3"]
     aggregate = database.aggregate(plant_code, aggregate_code)
     passport = database.active_passport(plant_code, aggregate_code, start)
     _annual_runtime(
@@ -686,6 +698,9 @@ def object_from_database(
 ) -> ObjectSpec:
     """Собрать UI-спеку объекта исключительно из БД."""
     plant = database.plant(plant_code)
+    density = database.plant_density_default(plant_code, at.date())
+    if density:
+        plant["default_density"] = density["density_kgm3"]
     aggregates = (
         [database.aggregate(plant_code, aggregate_code)]
         if aggregate_code is not None

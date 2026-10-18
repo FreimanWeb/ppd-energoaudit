@@ -45,6 +45,13 @@ def _require_ids(database: AuditDatabase, object_id: str, aggregate_id: str | No
         raise HTTPException(404, detail=str(exc)) from exc
 
 
+def _tariff(database: AuditDatabase, at: date | None = None) -> dict:
+    try:
+        return catalog.tariff(at, database=database)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+
+
 def _day_window(day: str) -> tuple[datetime, datetime]:
     try:
         parsed = date.fromisoformat(day)
@@ -157,10 +164,9 @@ def topology(object_id: str) -> dict:
             "agg": aggregate["code"],
             "sub": aggregate["pump_model"],
         })
-        edges.extend([{"from": "src", "to": node_id}, {"from": node_id, "to": "man"}])
+        edges.extend([{"from": "src", "to": node_id}, {"from": node_id, "to": "comb"}])
     for index, (node_id, kind, label) in enumerate(
         [
-            ("man", "meter", "Выход из станции"),
             ("comb", "manifold", "Блок гребёнок"),
             ("valve", "valve", "ЗРА / штуцеры"),
             ("wells", "wells", "Нагнетательные скважины"),
@@ -170,7 +176,6 @@ def topology(object_id: str) -> dict:
     ):
         nodes.append({"id": node_id, "type": kind, "x": index, "y": 0, "label": label})
     edges.extend([
-        {"from": "man", "to": "comb"},
         {"from": "comb", "to": "valve"},
         {"from": "valve", "to": "wells", "kind": "throttle"},
         {"from": "wells", "to": "res"},
@@ -219,7 +224,8 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
         daily_pressure_coverage_is_complete=False,
     )
     constraints = load_constraints()
-    tariff = constraints.economics.get("tariff_rub_kwh", 4.68)
+    tariff_selection = _tariff(database, start.date())
+    tariff = tariff_selection["rub_per_kwh"]
     losses = []
     if result.quality.allows_economic_conclusions:
         losses = [asdict(item) for item in build_loss_map(result.audit, tariff).items]
@@ -241,5 +247,6 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
             for key, value in annual_summary(result.audit, tariff).items()
         },
         "tariff": tariff,
+        "tariff_warning": tariff_selection["warning"],
         "target_sec": constraints.kpi.get("target_sec_2035"),
     }

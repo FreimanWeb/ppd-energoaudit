@@ -56,12 +56,17 @@ class TelemetrySeedResult:
 
 
 def bootstrap_database(
-    path: Path, plants_dir: Path, *, telemetry_dir: Path | None = None
+    path: Path, plants_dir: Path, *, telemetry_dir: Path | None = None, include_demo: bool = False
 ) -> AuditDatabase:
     database = AuditDatabase(path)
     database.migrate()
     if not database.plants(include_examples=True):
         seed_passports(database, plants_dir, valid_from=datetime(1970, 1, 1))
+    if include_demo:
+        from .services.demo import seed_demo
+
+        seed_demo(database)
+    database.seed_confirmed_density_defaults()
     if telemetry_dir is not None:
         seed_telemetry_from_excel(database, telemetry_dir)
     return database
@@ -115,6 +120,8 @@ def seed_passports(
     seeded = []
     for path in sorted(plants_dir.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if raw.get("id") == "demo-ppd":
+            continue
         ngdu = raw.get("ngdu")
         if not ngdu:
             continue

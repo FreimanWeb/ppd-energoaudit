@@ -1,7 +1,8 @@
 """Выездной замер, кривые, мероприятия и требования к подключению."""
 
 from dataclasses import asdict
-from datetime import datetime
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 
@@ -17,6 +18,7 @@ from ..services.analysis import (
 )
 from ..services.armits_data import load_network, runtime_reading
 from ..services.audit import run_energy_audit
+from ..services.catalog import with_confirmed_density
 from ..services.forecast_data import injection_profile
 from ..services.network_losses import build_network_analysis
 from ..services.result_scope import result_scope
@@ -24,7 +26,7 @@ from ..services.telemetry_audit import object_from_database, run_snapshot_audit
 from ..services.telemetry_quality import QualityIssue, TelemetryQuality
 from ..spec import load_object_spec
 from .analysis_contracts import AnalysisContext, MeasuresRequest, NetworkLossRequest
-from .dashboard import _day_window, _require_ids
+from .dashboard import _day_window, _require_ids, _tariff
 
 
 router = APIRouter()
@@ -40,7 +42,7 @@ def _context(database, object_id, aggregate_id, request):
     _require_ids(database, object_id, aggregate_id)
     if request.source == "field_trip":
         try:
-            obj = load_object_spec(object_id)
+            obj = with_confirmed_density(load_object_spec(object_id), database)
             audit = run_energy_audit(obj, aggregate_id)
         except (KeyError, ValueError, FileNotFoundError) as exc:
             raise HTTPException(400, detail=str(exc)) from exc
@@ -74,7 +76,13 @@ def _context(database, object_id, aggregate_id, request):
                 "power": "Выездной замер из YAML",
             },
         )
-        return obj, audit, scope, quality, {"YAML": obj.source or f"config/plants/{object_id}.yaml"}
+        sources = {"YAML": obj.source or f"config/plants/{object_id}.yaml"}
+        density = database.plant_density_default(
+            object_id, datetime.now(ZoneInfo("Europe/Moscow")).date()
+        )
+        if density:
+            sources["ρ"] = density["source"]
+        return obj, audit, scope, quality, sources
     if not request.day or not request.timestamp:
         raise HTTPException(400, detail="для телеметрии требуются day и timestamp")
     start, end = _day_window(request.day)
@@ -104,10 +112,12 @@ def _context(database, object_id, aggregate_id, request):
 def field_trip_audit(object_id: str, aggregate_id: str):
     from .main import _to_response
 
+    database = _database()
     obj, audit, scope, quality, sources = _context(
-        _database(), object_id, aggregate_id, AnalysisContext(source="field_trip")
+        database, object_id, aggregate_id, AnalysisContext(source="field_trip")
     )
-    tariff = load_constraints().economics.get("tariff_rub_kwh", 4.68)
+    tariff_selection = _tariff(database)
+    tariff = tariff_selection["rub_per_kwh"]
     return {
         "audit": _to_response(obj, audit),
         "pump_assessment": efficiency_assessment(audit.regime.eta_unit, audit.regime.eta_nom),
@@ -126,6 +136,7 @@ def field_trip_audit(object_id: str, aggregate_id: str):
             for key, value in annual_summary(audit, tariff).items()
         },
         "tariff": tariff,
+        "tariff_warning": tariff_selection["warning"],
         "target_sec": load_constraints().kpi.get("target_sec_2035"),
     }
 
@@ -158,16 +169,21 @@ def measures_view(object_id: str, aggregate_id: str, request: MeasuresRequest):
         if request.basis == "forecast"
         else None
     )
-    return measure_analysis(
+    tariff_selection = _tariff(
+        database, date.fromisoformat(request.day) if request.source == "telemetry" else None
+    )
+    result = measure_analysis(
         audit,
         scope,
-        load_constraints().economics.get("tariff_rub_kwh", 4.68),
+        tariff_selection["rub_per_kwh"],
         profile,
         horizon_years=request.horizon_years,
         discount_rate=request.discount_rate,
         basis=request.basis,
         quality=quality,
     )
+    result["tariff_warning"] = tariff_selection["warning"]
+    return result
 
 
 @router.get("/objects/{object_id}/aggregates/{aggregate_id}/onboarding")
@@ -232,3 +248,32 @@ def network_losses_view(object_id: str, aggregate_id: str, request: NetworkLossR
         dict.fromkeys([issue.message for issue in quality.issues] + result.get("warnings", []))
     )
     return result
+
+
+@router.get("/objects/{object_id}/wells")
+def object_wells(object_id: str):
+    database = _database()
+    _require_ids(database, object_id)
+    return {
+        "wells": database.wells(object_id),
+        "density_default": database.plant_density_default(
+            object_id, datetime.now(ZoneInfo("Europe/Moscow")).date()
+        ),
+    }
+
+
+@router.get("/objects/{object_id}/wells/{well_code}/history")
+def well_history(object_id: str, well_code: str):
+    database = _database()
+    _require_ids(database, object_id)
+    records = database.well_history(object_id, well_code)
+    if not records:
+        raise HTTPException(404, detail="История скважины не найдена")
+    return {"well_code": well_code, "records": records, "warnings": [
+        "Давления сохранены в исходных «атм». Перевод в МПа требует подтверждения единиц.",
+        "Дата текущего режима — дата выгрузки, фактическая дата измерения не подтверждена.",
+        "Нулевые значения и повторяющиеся записи сохранены с источниками; "
+        "ноль может означать отсутствие измерения.",
+        "Месяц выгрузки может быть неполным. Месячные записи не являются двухчасовой телеметрией.",
+        "Давления и плотности ГДИ относятся к скважине и исследованию, а не к насосу станции.",
+    ]}

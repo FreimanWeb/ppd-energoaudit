@@ -35,6 +35,7 @@ from .contracts import (
 from .dashboard import router as dashboard_router
 from .data_routes import router as data_router
 from .monitoring_routes import router as monitoring_router
+from .station_routes import router as station_router
 
 
 app = FastAPI(title="PPD Energoaudit API", version="0.1.0")
@@ -42,6 +43,7 @@ app.include_router(dashboard_router)
 app.include_router(data_router)
 app.include_router(monitoring_router)
 app.include_router(analysis_router)
+app.include_router(station_router)
 app.include_router(auth_router)
 app.add_middleware(AuthenticationMiddleware)
 
@@ -53,7 +55,9 @@ def health() -> dict[str, str]:
 
 def _database() -> AuditDatabase:
     path = Path(os.getenv("PPD_DATABASE_PATH", default_database_path()))
-    return bootstrap_database(path, Path(__file__).resolve().parents[3] / "config" / "plants")
+    return bootstrap_database(
+        path, Path(__file__).resolve().parents[3] / "config" / "plants", include_demo=True
+    )
 
 
 @app.get("/objects", response_model=list[PlantSummary])
@@ -70,7 +74,7 @@ def list_catalog_objects() -> list[dict]:
             "ngdu_name": item["ngdu"],
             "water_type": item["water"],
             "branch": item["branch"],
-            "is_example": False,
+            "is_example": item["id"] == "demo-ppd",
             "has_telemetry": item["has_telemetry"],
         }
         for item in catalog.object_index(_database())

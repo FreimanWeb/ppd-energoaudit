@@ -72,7 +72,7 @@ def _paths(network: dict, warnings: list[str]) -> tuple[dict, dict, set[str]]:
         if len(candidates) > 1:
             raise ValueError(f"Неоднозначное соединение трубопровода {pid}: {candidates}")
         parents[pid] = candidates[0] if candidates else None
-        if not candidates and origin != "КНС-54":
+        if not candidates and origin != _name(network.get("root_node", "КНС-54")):
             synthetic_roots.add(pid)
 
     def path(pid: str) -> list[str]:
@@ -128,7 +128,8 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
     warnings = list(network.get("warnings", []))
     result = {
         "status": "unavailable",
-        "title": "Полная цепочка КНС-54 · сценарий",
+        "title": "Демо · синтетическая цепочка"
+        if network.get("is_synthetic") else "Полная цепочка КНС-54 · сценарий",
         "input_kw": None,
         "useful_kw": None,
         "total_loss_kw": None,
@@ -161,7 +162,7 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         "options": values,
     }
     regime = audit.regime
-    if network.get("object_id") != "kns54an":
+    if network.get("object_id") not in {"kns54an", "demo-ppd"}:
         warnings.append("Сценарий поддерживает только сеть КНС-54.")
         return result
     observed = [regime.q, regime.rho, regime.p_electric, regime.p_hydraulic]

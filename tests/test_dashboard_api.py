@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -157,6 +157,49 @@ def test_snapshot_audit_unknown_aggregate_is_404(dashboard):
         json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
     )
     assert response.status_code == 404
+
+
+def test_typical_scheme_connects_pumps_directly_to_manifold(dashboard):
+    client, _ = dashboard
+    response = client.get("/objects/fixture/topology")
+    assert response.status_code == 200
+    graph = response.json()
+    assert all(node["label"] != "Выход из станции" for node in graph["nodes"])
+    edges = {(edge["from"], edge["to"]) for edge in graph["edges"]}
+    for node in graph["nodes"]:
+        if node["type"] == "pump":
+            assert (node["id"], "comb") in edges
+
+
+def test_snapshot_economics_uses_selected_year_tariff_from_database(dashboard):
+    client, db = dashboard
+    db.upsert_electricity_tariff(
+        date(2026, 1, 1), date(2026, 12, 31), 6.25, source="Test correction"
+    )
+    db.upsert_electricity_tariff(date(2027, 1, 1), date(2027, 12, 31), 9.0, source="Test next year")
+    response = client.post(
+        "/objects/fixture/aggregates/НА-02/snapshot-audit",
+        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["tariff"] == 6.25
+    for loss in data["losses"]:
+        assert loss["annual_rub"] == pytest.approx(loss["annual_kwh"] * 6.25)
+
+
+def test_missing_period_uses_nearest_tariff_with_warning(dashboard):
+    client, db = dashboard
+    with db._connection() as connection:
+        connection.execute("DELETE FROM electricity_tariffs WHERE valid_from = '2026-01-01'")
+    response = client.post(
+        "/objects/fixture/aggregates/НА-02/snapshot-audit",
+        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
+    )
+    assert response.status_code == 200
+    assert response.json()["tariff"] == 4.68
+    assert "ближайший тариф" in response.json()["tariff_warning"]
+    assert "2025-12-31" in response.json()["tariff_warning"]
 
 
 def test_aggregate_without_telemetry_or_passport_is_available(dashboard):

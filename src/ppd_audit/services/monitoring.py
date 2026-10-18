@@ -42,7 +42,8 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
             dict(row)
             for row in conn.execute("""
             SELECT p.code, p.name, p.water_type, n.name AS ngdu_name
-            FROM plants p JOIN ngdu n ON n.id = p.ngdu_id WHERE p.is_example = 0
+            FROM plants p JOIN ngdu n ON n.id = p.ngdu_id
+            WHERE (p.is_example = 0 OR p.code = 'demo-ppd')
             ORDER BY n.name, p.name
         """)
         ]
@@ -69,7 +70,7 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
             FROM telemetry_measurements tm JOIN plants p ON p.id = tm.plant_id
             JOIN technical_places tp ON tp.id = tm.technical_place_id
             JOIN latest l ON l.plant_id = tm.plant_id
-            WHERE p.is_example = 0 AND tp.code = 'main'
+            WHERE (p.is_example = 0 OR p.code = 'demo-ppd') AND tp.code = 'main'
               AND tm.metric IN ('q_day','energy','flow_rate','power','p_in','p_out')
         """
         if object_id:

@@ -1,0 +1,64 @@
+id: demo-ppd
+name: Демо · КНС
+ngdu: Демонстрационный объект
+is_example: true
+water_type: пресная
+branch: кнс
+source: Синтетический учебный сценарий; не производственные данные
+aggregates:
+  - id: НА-1
+    role: работа
+    pump:
+      model: Демо ЦНС 120-1000
+      kind: центробежный
+      q_nom: 120
+      h_nom: 1000
+      eta_nom: 0.78
+      n_rpm: 3000
+    motor:
+      model: Демо ЭД 630
+      p_nom: 630
+      eta_nom: 0.96
+      cos_phi: 0.9
+      voltage_kv: 6
+      n_rpm: 3000
+    transmission:
+      efficiency: 1
+    vfd: true
+    regime:
+      rho: 1000
+      nu: 1
+      p_in: 0.5
+      p_out: 10.5
+      p_bg: 9.5
+      q_fact: 120
+      p_electric: 624
+      t_year: 8000
+  - id: НА-2
+    role: работа
+    pump:
+      model: Демо ЦНС 100-1000
+      kind: центробежный
+      q_nom: 100
+      h_nom: 1000
+      eta_nom: 0.8
+      n_rpm: 3000
+    motor:
+      model: Демо ЭД 500
+      p_nom: 500
+      eta_nom: 0.96
+      cos_phi: 0.9
+      voltage_kv: 6
+      n_rpm: 3000
+    transmission:
+      efficiency: 1
+    vfd: true
+    regime:
+      rho: 1000
+      nu: 1
+      p_in: 0.5
+      p_out: 10.5
+      p_bg: 9.5
+      q_fact: 100
+      p_electric: 440
+      t_year: 8000

@@ -175,4 +175,5 @@ class SnapshotAuditResponse(BaseModel):
     passport: dict = Field(default_factory=dict)
     annual_summary: dict[str, float | None] = Field(default_factory=dict)
     tariff: float = 4.68
+    tariff_warning: str | None = None
     target_sec: float | None = None

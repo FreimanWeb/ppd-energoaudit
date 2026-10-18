@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, time
+from datetime import date, datetime, time
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from ..config import load_constraints
 from ..core.audit import AuditResult
 from ..db import AuditDatabase, default_database_path
 from ..db_seed import (
@@ -33,7 +33,7 @@ def bootstrap_app_data(root: Path, telemetry_dir: Path, scada_dir: Path, scada_t
     конструктора: соединение открывается на каждую операцию отдельно.
     """
     path = default_database_path()
-    db = bootstrap_database(path, root / "config" / "plants")
+    db = bootstrap_database(path, root / "config" / "plants", include_demo=True)
     scada = (
         seed_telemetry_from_scada(db, scada_dir, scada_tags)
         if os.getenv("PPD_SKIP_SCADA_TELEMETRY") != "1"
@@ -59,10 +59,26 @@ def list_object_ids(
     return ids
 
 
-def get_field_trip_audit(object_id: str, aggregate_id: str) -> tuple[ObjectSpec, AuditResult]:
-    """Рассчитать выездной замер исключительно по YAML-паспорту объекта."""
+def get_field_trip_audit(
+    object_id: str, aggregate_id: str, *, database: AuditDatabase | None = None
+) -> tuple[ObjectSpec, AuditResult]:
+    """Выездной замер по паспорту с подтверждённой плотностью объекта из БД."""
     obj = load_object_spec(object_id)
+    db = database if database is not None else AuditDatabase(default_database_path())
+    obj = with_confirmed_density(obj, db)
     return obj, run_energy_audit(obj, aggregate_id)
+
+
+def with_confirmed_density(obj: ObjectSpec, database: AuditDatabase) -> ObjectSpec:
+    at = datetime.now(ZoneInfo("Europe/Moscow")).date()
+    reading = database.plant_density_default(obj.id, at)
+    if not reading:
+        return obj
+    obj = obj.model_copy(deep=True)
+    for aggregate in obj.aggregates:
+        if aggregate.regime is not None:
+            aggregate.regime.rho = reading["density_kgm3"]
+    return obj
 
 
 def object_index(
@@ -71,7 +87,9 @@ def object_index(
     """Список объектов с метаданными для выбора/фильтра."""
     db = database
     out = []
-    for record in db.plants():
+    for record in db.plants(include_examples=True):
+        if record["is_example"] and record["code"] != "demo-ppd":
+            continue
         oid = record["code"]
         aggregates = db.aggregates(oid)
         out.append({
@@ -118,8 +136,20 @@ def get_topology(topology_dir: Path, object_id: str) -> dict | None:
         return None
 
 
-def tariff() -> float:
-    return load_constraints().economics.get("tariff_rub_kwh", 4.68)
+def tariff(at: date | None = None, *, database: AuditDatabase | None = None) -> dict:
+    at = at if at is not None else datetime.now(ZoneInfo("Europe/Moscow")).date()
+    db = database if database is not None else AuditDatabase(default_database_path())
+    reading = db.electricity_tariff(at)
+    if reading is None:
+        raise ValueError("В БД отсутствуют тарифы электроэнергии")
+    warning = None
+    if not reading["valid_from"] <= at.isoformat() <= reading["valid_to"]:
+        warning = (
+            f"Для даты {at.isoformat()} тариф не задан. Применён ближайший тариф "
+            f"{reading['rub_per_kwh']:g} ₽/кВт·ч за период "
+            f"{reading['valid_from']} — {reading['valid_to']}."
+        )
+    return {**reading, "warning": warning}
 
 
 def open_clarifications(database: AuditDatabase, object_id: str, aggregate_id: str) -> list[dict]:

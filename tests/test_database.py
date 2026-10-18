@@ -270,7 +270,7 @@ def test_v9_migration_upgrades_v8_and_preserves_source_metadata(tmp_path, existi
         metadata if existing_columns else dict.fromkeys(metadata)
     )
     with db._connection() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 9
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
 
 
 def test_v9_migration_does_not_hide_missing_telemetry_table(tmp_path):

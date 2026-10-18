@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import sqlite3
 from collections.abc import Iterator
@@ -233,7 +234,7 @@ def telemetry_units() -> dict[str, str]:
 
 
 class AuditDatabase:
-    """SQLite repository. БД хранит только canonical telemetry и паспорта."""
+    """SQLite repository: canonical telemetry, паспорта и тарифы электроэнергии."""
 
     def __init__(self, path: Path | str):
         self.path = Path(path)
@@ -312,6 +313,188 @@ class AuditDatabase:
                             f"ALTER TABLE telemetry_measurements ADD COLUMN {column} {column_type}"
                         )
                 connection.execute("PRAGMA user_version = 9")
+            if version < 10:
+                connection.execute(
+                    """CREATE TABLE IF NOT EXISTS electricity_tariffs (
+                        year INTEGER PRIMARY KEY CHECK (year BETWEEN 1 AND 9999),
+                        rub_per_kwh REAL NOT NULL CHECK (
+                            rub_per_kwh > 0 AND rub_per_kwh < 1e308
+                        ),
+                        source TEXT NOT NULL CHECK (length(trim(source)) > 0)
+                    )"""
+                )
+                columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(electricity_tariffs)")
+                }
+                if "year" in columns:
+                    connection.execute(
+                        "INSERT INTO electricity_tariffs(year, rub_per_kwh, source) "
+                        "VALUES (?, ?, ?) "
+                        "ON CONFLICT(year) DO NOTHING",
+                        (2026, 5.17, "Н. Н. Алаева (ВШН), сообщение от 16.10.2026 08:49"),
+                    )
+                connection.execute("PRAGMA user_version = 10")
+            if version < 11:
+                columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(electricity_tariffs)")
+                }
+                if "year" in columns:
+                    connection.execute(
+                        "ALTER TABLE electricity_tariffs RENAME TO electricity_tariffs_yearly"
+                    )
+                    connection.execute(
+                        """CREATE TABLE electricity_tariffs (
+                            valid_from TEXT PRIMARY KEY NOT NULL CHECK (length(valid_from) = 10),
+                            valid_to TEXT NOT NULL CHECK (
+                                length(valid_to) = 10 AND valid_to >= valid_from
+                            ),
+                            rub_per_kwh REAL NOT NULL CHECK (
+                                rub_per_kwh > 0 AND rub_per_kwh < 1e308
+                            ),
+                            source TEXT NOT NULL CHECK (length(trim(source)) > 0)
+                        )"""
+                    )
+                    connection.execute(
+                        """INSERT INTO electricity_tariffs
+                           (valid_from, valid_to, rub_per_kwh, source)
+                           SELECT printf('%04d-01-01', year), printf('%04d-12-31', year),
+                                  rub_per_kwh, source FROM electricity_tariffs_yearly"""
+                    )
+                    connection.execute("DROP TABLE electricity_tariffs_yearly")
+                connection.execute(
+                    """INSERT INTO electricity_tariffs(valid_from, valid_to, rub_per_kwh, source)
+                       VALUES ('2025-01-01', '2025-12-31', 4.68, ?)
+                       ON CONFLICT(valid_from) DO NOTHING""",
+                    ("Указание пользователя от 18.10.2026",),
+                )
+                connection.execute("PRAGMA user_version = 11")
+            if version < 12:
+                connection.execute(
+                    """CREATE TABLE IF NOT EXISTS plant_density_defaults (
+                        plant_code TEXT NOT NULL REFERENCES plants(code),
+                        available_from TEXT NOT NULL,
+                        density_kgm3 REAL NOT NULL CHECK (density_kgm3 > 0),
+                        source TEXT NOT NULL,
+                        PRIMARY KEY(plant_code, available_from)
+                    )"""
+                )
+                connection.execute(
+                    """CREATE TABLE IF NOT EXISTS well_measurements (
+                        plant_code TEXT NOT NULL REFERENCES plants(code),
+                        well_code TEXT NOT NULL,
+                        observed_at TEXT NOT NULL,
+                        grain TEXT NOT NULL CHECK (grain IN ('snapshot','month','day')),
+                        record_kind TEXT NOT NULL,
+                        metric TEXT NOT NULL,
+                        value REAL NOT NULL,
+                        unit TEXT NOT NULL,
+                        study_type TEXT NOT NULL,
+                        source_file TEXT NOT NULL,
+                        source_sheet TEXT NOT NULL,
+                        source_row INTEGER NOT NULL,
+                        exported_at TEXT NOT NULL,
+                        PRIMARY KEY(plant_code, well_code, observed_at, record_kind,
+                                    metric, source_file, source_sheet, source_row)
+                    )"""
+                )
+                connection.execute("PRAGMA user_version = 12")
+
+    def plant_density_default(self, plant_code: str, at: date) -> dict[str, Any] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                """SELECT density_kgm3, available_from, source FROM plant_density_defaults
+                   WHERE plant_code = ? AND available_from <= ?
+                   ORDER BY available_from DESC LIMIT 1""", (plant_code, at.isoformat()),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def seed_confirmed_density_defaults(self) -> None:
+        with self._connection() as connection:
+            connection.executemany(
+                """INSERT INTO plant_density_defaults
+                   (plant_code, available_from, density_kgm3, source)
+                   SELECT code, '2026-10-16', ?, ? FROM plants WHERE code = ?
+                   ON CONFLICT(plant_code, available_from) DO NOTHING""",
+                [(rho, "Н. Н. Алаева (ВШН), сообщение от 16.10.2026 08:46; "
+                       "дата начала применимости неизвестна, указана дата получения", code)
+                 for code, rho in (("knsopu", 1142), ("kns54an", 1138), ("kns97pren", 1000))],
+            )
+
+    def add_well_measurements(self, rows: list[dict]) -> None:
+        for row in rows:
+            date.fromisoformat(row["observed_at"])
+            date.fromisoformat(row["exported_at"])
+            if not math.isfinite(row["value"]) or row["value"] < 0:
+                raise ValueError("Некорректное измерение скважины")
+        with self._connection() as connection:
+            connection.executemany(
+                """INSERT INTO well_measurements VALUES
+                   (:plant_code,:well_code,:observed_at,:grain,:record_kind,:metric,:value,:unit,
+                    :study_type,:source_file,:source_sheet,:source_row,:exported_at)
+                   ON CONFLICT DO UPDATE SET value=excluded.value, unit=excluded.unit,
+                       study_type=excluded.study_type, exported_at=excluded.exported_at""", rows,
+            )
+
+    def wells(self, plant_code: str) -> list[dict]:
+        with self._connection() as connection:
+            return [dict(row) for row in connection.execute(
+                """SELECT well_code AS code, max(observed_at) AS latest_at,
+                          max(CASE WHEN record_kind='current' THEN observed_at END) AS current_at
+                   FROM well_measurements WHERE plant_code=?
+                   GROUP BY well_code ORDER BY well_code""",
+                (plant_code,),
+            )]
+
+    def well_history(self, plant_code: str, well_code: str) -> list[dict]:
+        with self._connection() as connection:
+            return [dict(row) for row in connection.execute(
+                """SELECT * FROM well_measurements WHERE plant_code=? AND well_code=?
+                   ORDER BY observed_at, record_kind, source_file,
+                            source_sheet, source_row, metric""",
+                (plant_code, well_code),
+            )]
+
+    def electricity_tariff(self, at: date) -> dict[str, Any] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                """SELECT valid_from, valid_to, rub_per_kwh, source FROM electricity_tariffs
+                   ORDER BY max(julianday(valid_from) - julianday(?),
+                                julianday(?) - julianday(valid_to), 0), valid_from DESC LIMIT 1""",
+                (at.isoformat(), at.isoformat()),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def upsert_electricity_tariff(
+        self, valid_from: date, valid_to: date, rub_per_kwh: float, *, source: str
+    ) -> None:
+        if type(valid_from) is not date or type(valid_to) is not date or valid_to < valid_from:
+            raise ValueError("Укажите корректный диапазон дат тарифа: начало не позже окончания")
+        if (
+            isinstance(rub_per_kwh, bool)
+            or not isinstance(rub_per_kwh, (int, float))
+            or not math.isfinite(rub_per_kwh)
+            or not 0 < rub_per_kwh < 1e308
+        ):
+            raise ValueError("Тариф должен быть конечным положительным числом в руб/кВт·ч")
+        if not source.strip():
+            raise ValueError("Укажите источник тарифа")
+        start, end = valid_from.isoformat(), valid_to.isoformat()
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            overlap = connection.execute(
+                """SELECT 1 FROM electricity_tariffs
+                   WHERE valid_from <= ? AND valid_to >= ? AND valid_from != ? LIMIT 1""",
+                (end, start, start),
+            ).fetchone()
+            if overlap:
+                raise ValueError("Диапазон тарифа пересекается с существующим периодом")
+            connection.execute(
+                """INSERT INTO electricity_tariffs(valid_from, valid_to, rub_per_kwh, source)
+                   VALUES (?, ?, ?, ?) ON CONFLICT(valid_from) DO UPDATE SET
+                       valid_to = excluded.valid_to,
+                       rub_per_kwh = excluded.rub_per_kwh, source = excluded.source""",
+                (start, end, rub_per_kwh, source),
+            )
 
     def upsert_ngdu(self, name: str) -> None:
         with self._connection() as connection:
