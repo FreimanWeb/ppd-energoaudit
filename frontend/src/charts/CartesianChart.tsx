@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { createPortal } from "react-dom";
 import { AxisBottom, AxisLeft, type AxisScale } from "@visx/axis";
 import { ParentSize } from "@visx/responsive";
 import { scaleBand, scaleLinear, scaleTime } from "@visx/scale";
@@ -23,6 +24,7 @@ import type {
 import {
   barIntervals,
   chartDomains,
+  valueAxisTicks,
   viewPoints,
 } from "./cartesianGeometry.mjs";
 import { chartTheme } from "./theme";
@@ -31,7 +33,7 @@ import { ChartTooltip, type ChartTooltipRow } from "./ChartTooltip";
 import "./charts.css";
 
 const chartNumberFormat = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 3 });
-const tickDateFormat = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const tickDateFormat = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
 const number = (value: unknown) => typeof value === "number" ? chartNumberFormat.format(value) : String(value ?? "—");
 function axisTick(value: unknown, type: string) {
   if (type === "time") return tickDateFormat.format(new Date(Number(value)));
@@ -167,6 +169,7 @@ export function CartesianPlot({
   model,
   width,
   height = model.height,
+  fromZero = false,
   hidden = [],
   viewport = null,
   onViewport,
@@ -176,6 +179,7 @@ export function CartesianPlot({
   model: CartesianModel;
   width: number;
   height?: number;
+  fromZero?: boolean;
   hidden?: string[];
   viewport?: [number, number] | null;
   onViewport?: (value: [number, number] | null) => void;
@@ -183,14 +187,15 @@ export function CartesianPlot({
   timeInteraction?: TimeInteraction;
 }) {
   const id = useId().replace(/:/g, "");
+  const surface = useRef<HTMLDivElement>(null);
   const brushRef = useRef<NonNullable<BrushProps["innerRef"]>["current"]>(null);
   const [tip, setTip] = useState<Tip | null>(null);
   const [activeBar, setActiveBar] = useState<string | null>(null);
-  const hasBrush = model.xAxis.type === "time" && model.data.length > 2 && timeInteraction?.showBrush !== false;
+  const hasBrush = model.xAxis.type === "time" && model.data.length > 2 && model.showBrush !== false && timeInteraction?.showBrush !== false;
   const left = model.yAxis.hidden ? 12 : model.horizontal ? 110 : 66,
     right = 20,
     top = 24,
-    bottom = model.xAxis.hidden ? 12 : 48;
+    bottom = model.xAxis.hidden ? 12 : model.categoryGroups?.length ? 84 : 48;
   const innerWidth = Math.max(10, width - left - right),
     innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 56 : 0));
   useEffect(() => {
@@ -201,7 +206,7 @@ export function CartesianPlot({
   }, [viewport === null, innerWidth]);
   const projection = useMemo(() => {
     const visible = model.series.filter((s) => !hidden.includes(s.id));
-    const domains = chartDomains(model, hidden, viewport);
+    const domains = chartDomains(model, hidden, viewport, fromZero);
     if (timeInteraction && !viewport) domains.x = timeInteraction.domain;
     const xScale = makeScale(
       model.xAxis,
@@ -209,11 +214,15 @@ export function CartesianPlot({
       [0, innerWidth],
       Boolean(viewport),
     );
+    const valueTicks = !fromZero && !model.horizontal && model.yAxis.type === "number" && !model.yAxis.domain
+      && model.variant !== "waterfall" && !model.series.some(series => series.type === "bar")
+      ? valueAxisTicks(domains.y as number[], scaleLinear({domain: domains.y as number[]}).ticks(4)) : undefined;
+    if (valueTicks?.length) domains.y = [valueTicks[0], valueTicks[valueTicks.length - 1]];
     const yScale = makeScale(
       model.yAxis,
       domains.y,
       model.yAxis.type === "category" ? [0, innerHeight] : [innerHeight, 0],
-      false,
+      Boolean(valueTicks),
     );
     const series = visible.map((s) => ({
       series: s,
@@ -228,13 +237,14 @@ export function CartesianPlot({
     return {
       xScale,
       yScale,
+      valueTicks,
       series,
       xs,
       pointMaps,
       bars: barIntervals(model, hidden, viewport) as BarInterval[],
       domains,
     };
-  }, [model, hidden, viewport, innerWidth, innerHeight, timeInteraction?.domain]);
+  }, [model, hidden, viewport, innerWidth, innerHeight, timeInteraction?.domain, fromZero]);
   const { xScale, yScale, series, xs, pointMaps, bars } = projection;
   const x = (value: number | string) => coordinate(xScale, model.xAxis, value),
     y = (value: number | string) => coordinate(yScale, model.yAxis, value);
@@ -335,8 +345,10 @@ export function CartesianPlot({
   const periodLabel = (value: number) => innerWidth < 360
     ? new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
     : axisTick(value, "time");
-  const gridScale = model.horizontal ? xScale : yScale;
-  const ticks = "ticks" in gridScale ? gridScale.ticks(4) : [];
+  const xTickCount = Math.max(2,Math.floor(innerWidth / 110));
+  const rawXTicks = "ticks" in xScale ? xScale.ticks(xTickCount) : xScale.domain();
+  const xTicks = model.xAxis.type === "time" ? rawXTicks.filter((value,index,values)=>index === 0 || axisTick(value,"time") !== axisTick(values[index-1],"time")) : rawXTicks;
+  const yTicks = projection.valueTicks ?? ("ticks" in yScale ? yScale.ticks(4) : yScale.domain());
   const categoryScale = model.horizontal ? yScale : xScale;
   const barSpan =
     ("bandwidth" in categoryScale
@@ -346,6 +358,7 @@ export function CartesianPlot({
   return (
     <div
       className="native-chart-surface"
+      ref={surface}
       style={{ position: "relative", width, height }}
     >
       <svg
@@ -355,11 +368,14 @@ export function CartesianPlot({
         role="img"
         aria-label={model.title}
         data-time-domain={projection.domains.x.join(",")}
+        data-value-domain={yScale.domain().join(",")}
         onClick={(event) => {
           const bounds = event.currentTarget.getBoundingClientRect();
           const px = event.clientX - bounds.left - left, py = event.clientY - bounds.top - top;
-          if (!(event.target as Element).closest(".visx-brush") && px >= 0 && px <= innerWidth && py >= 0 && py <= innerHeight && timeInteraction?.cursor != null)
-            timeInteraction.onSelectX?.(timeInteraction.cursor);
+          if (!(event.target as Element).closest(".visx-brush") && px >= 0 && px <= innerWidth && py >= 0 && py <= innerHeight && xs.length && timeInteraction?.onSelectX) {
+            const value = xs.reduce((nearest, sample) => Math.abs(x(sample) - px) < Math.abs(x(nearest) - px) ? sample : nearest);
+            timeInteraction.onSelectX(Number(value));
+          }
         }}
         tabIndex={barOnly ? -1 : 0}
         onPointerMove={pointer}
@@ -408,30 +424,11 @@ export function CartesianPlot({
           </clipPath>
         </defs>
         <g transform={`translate(${left},${top})`}>
-          <g aria-hidden="true">
-            {ticks.map((value, i) =>
-              model.horizontal ? (
-                <line
-                  key={i}
-                  x1={x(Number(value))}
-                  x2={x(Number(value))}
-                  y1={0}
-                  y2={innerHeight}
-                  stroke={chartTheme.grid}
-                  strokeDasharray="4 4"
-                />
-              ) : (
-                <line
-                  key={i}
-                  x1={0}
-                  x2={innerWidth}
-                  y1={y(Number(value))}
-                  y2={y(Number(value))}
-                  stroke={chartTheme.grid}
-                  strokeDasharray="4 4"
-                />
-              ),
-            )}
+          <g className="visx-grid-y" aria-hidden="true">
+            {yTicks.map((value,i)=><line key={i} x1={0} x2={innerWidth} y1={y(value as number|string)} y2={y(value as number|string)} stroke={chartTheme.grid} strokeDasharray="4 4" />)}
+          </g>
+          <g className="visx-grid-x" aria-hidden="true">
+            {xTicks.map((value,i)=><line key={i} x1={x(value instanceof Date ? value.getTime() : value)} x2={x(value instanceof Date ? value.getTime() : value)} y1={0} y2={innerHeight} stroke={chartTheme.grid} strokeDasharray="4 4" />)}
           </g>
           <g clipPath={`url(#clip-${id})`}>
             {timeInteraction?.cursor != null && <line className="visx-crosshair" data-timestamp={timeInteraction.cursor} x1={x(timeInteraction.cursor)} x2={x(timeInteraction.cursor)} y1={0} y2={innerHeight} stroke={chartTheme.text} strokeDasharray="3 3" pointerEvents="none" />}
@@ -681,7 +678,8 @@ export function CartesianPlot({
               scale={xScale}
               hideAxisLine
               hideTicks
-              numTicks={Math.max(2, Math.floor(innerWidth / 110))}
+              numTicks={xTickCount}
+              tickValues={xTicks}
               tickFormat={(value) => axisTick(value, model.xAxis.type)}
               tickLabelProps={() => ({
                 fill: chartTheme.text,
@@ -692,10 +690,20 @@ export function CartesianPlot({
               labelProps={{ fill: chartTheme.text, fontSize: 11 }}
             />
           )}
+          {model.categoryGroups?.map(group=>{
+            if (!model.data.some(row=>row.x === group.from) || !model.data.some(row=>row.x === group.to)) return null;
+            const span=Math.min(48,Math.max(1,barSpan-3));
+            const start=x(group.from)-span/2,end=x(group.to)+span/2,y=innerHeight+38;
+            return <g className="chart-category-group" key={group.label} data-from={group.from} data-to={group.to} role="group" aria-label={group.label}>
+              <path d={`M${start},${y-6}V${y}H${end}V${y-6}`} fill="none" stroke={chartTheme.text} strokeWidth={1}/>
+              <text x={(start+end)/2} y={y+18} textAnchor="middle" fill={chartTheme.text} fontSize={11}>{group.label}</text>
+            </g>;
+          })}
           {!model.yAxis.hidden && (
             <AxisLeft
               axisClassName="visx-axis-y"
               scale={yScale}
+              tickValues={yTicks}
               hideAxisLine
               hideTicks
               numTicks={4}
@@ -773,10 +781,10 @@ export function CartesianPlot({
           )}
         </g>
       </svg>
-      {tip && <ChartTooltip title={tip.title} rows={tip.rows} style={{
+      {tip && surface.current && createPortal(<ChartTooltip title={tip.title} rows={tip.rows} style={{
         left: Math.max(8, Math.min(width - 250, tip.x + 12)),
         top: Math.max(4, Math.min(height - 100, tip.y - 30)),
-      }} />}
+      }} />, surface.current.closest(".native-chart-stage") ?? surface.current)}
     </div>
   );
 }
@@ -791,6 +799,9 @@ export function CartesianChart({
   timeInteraction?: TimeInteraction;
 }) {
   const [choices, setChoices] = useState<Record<string, boolean>>({});
+  const [fromZero, setFromZero] = useState(false);
+  const adjustableScale = !model.horizontal && model.yAxis.type === "number" && !model.yAxis.domain && model.variant !== "waterfall" && !model.series.some(series => series.type === "bar");
+  const hasBrush = model.xAxis.type === "time" && model.data.length > 2 && model.showBrush !== false && timeInteraction?.showBrush !== false;
   const [localViewport, setLocalViewport] = useState<[number, number] | null>(null);
   const viewport = timeInteraction?.viewport ?? localViewport;
   const setViewport = timeInteraction?.onViewport ?? setLocalViewport;
@@ -804,6 +815,14 @@ export function CartesianChart({
   );
   return (
     <div className="native-chart">
+      {(adjustableScale || hasBrush) && <div className="chart-toolbar">
+        {adjustableScale && <div className="chart-scale-controls" role="group" aria-label="Масштаб вертикальной оси">
+          <button type="button" aria-pressed={fromZero} onClick={()=>setFromZero(true)}>От нуля</button>
+          <button type="button" aria-pressed={!fromZero} onClick={()=>setFromZero(false)}>По данным</button>
+        </div>}
+        {hasBrush && <ExplanationTooltip label="Масштаб графика" content="Потяните границы полосы снизу, чтобы приблизить временной диапазон." />}
+        {hasBrush && <button type="button" disabled={!viewport} onClick={()=>setViewport(null)}>Весь период</button>}
+      </div>}
       <div className="native-chart-stage" style={{ height: model.height }}>
         <ParentSize debounceTime={30}>
           {({ width }) =>
@@ -812,6 +831,7 @@ export function CartesianChart({
                 model={model}
                 width={width}
                 hidden={hidden}
+                fromZero={fromZero}
                 viewport={viewport}
                 onViewport={setViewport}
                 onSelect={onSelect}
@@ -843,19 +863,7 @@ export function CartesianChart({
             ))}
         </div>
       )}
-      {model.xAxis.type === "time" && model.data.length > 2 && timeInteraction?.showBrush !== false && (
-        <div className="native-chart-note">
-          <ExplanationTooltip
-            label="Масштаб графика"
-            content="Потяните границы полосы снизу, чтобы приблизить временной диапазон."
-          />
-          {viewport && (
-            <button type="button" onClick={() => setViewport(null)}>
-              Весь период
-            </button>
-          )}
-        </div>
-      )}
+
     </div>
   );
 }

@@ -11,7 +11,7 @@ const axis = (input,type) => ({type,label:input?.title?.text??'',hidden:input?.v
 
 /** @param {import('./types').Trace[]} traces @param {import('./types').Layout} layout @param {string} title @returns {import('./types').ChartModel} */
 export function buildChartModel(traces,layout={},title='') {
- const base={title,height:layout.height??360,margin:{top:layout.margin?.t??20,right:layout.margin?.r??24,bottom:layout.margin?.b??40,left:layout.margin?.l??55}};
+ const base={...(layout.showBrush === false ? {showBrush:false}:{}),title,height:layout.height??360,margin:{top:layout.margin?.t??20,right:layout.margin?.r??24,bottom:layout.margin?.b??40,left:layout.margin?.l??55}};
  if(!traces.length) return {...base,kind:'empty',message:'Нет данных для графика.'};
  const first=traces[0];
  if(first.type==='sankey') return {...base,kind:'sankey',nodes:(first.node?.label??[]).map((name,i)=>({name:text(name),tooltip:first.node?.tooltip?.[i],color:color(at(first.node?.color,i,chartColors[i%chartColors.length]))})),links:(first.link?.value??[]).map((value,i)=>({source:first.link.source[i],target:first.link.target[i],value,tooltip:first.link.tooltip?.[i],color:color(at(first.link.color,i,'var(--chart-secondary)'))}))};
@@ -36,7 +36,7 @@ export function buildChartModel(traces,layout={},title='') {
  const categoryType=axisType(horizontal?layout.yaxis:layout.xaxis,coordinates);
  const categoryAxis=axis(horizontal?layout.yaxis:layout.xaxis,categoryType);
  const numericAxis=axis(horizontal?layout.xaxis:layout.yaxis,'number');
- const model={...base,kind:'cartesian',variant:first.type==='waterfall'?'waterfall':'series',horizontal,stacked:['stack','relative'].includes(layout.barmode??''),xAxis:horizontal?numericAxis:categoryAxis,yAxis:horizontal?categoryAxis:numericAxis,references:[],annotations:[],series:[],data:[]};
+ const model={...base,...(layout.categoryGroups?.length ? {categoryGroups:layout.categoryGroups} : {}),kind:'cartesian',variant:first.type==='waterfall'?'waterfall':'series',horizontal,stacked:['stack','relative'].includes(layout.barmode??''),xAxis:horizontal?numericAxis:categoryAxis,yAxis:horizontal?categoryAxis:numericAxis,references:[],annotations:[],series:[],data:[]};
  const categoryValue=value=>coordinate(value,categoryType);
  for(const shape of layout.shapes??[]){
   const axisName=shape.xref!=='paper'&&shape.x0===shape.x1?'x':shape.yref!=='paper'&&shape.y0===shape.y1?'y':null;
@@ -62,7 +62,7 @@ export function buildChartModel(traces,layout={},title='') {
   const values=(horizontal?trace.x:trace.y)??[];
   const lower=band?traces[i-1]:null;
   const points=coords.map((x,j)=>{
-   const label=trace.mode?.includes('markers')&&!trace.mode.includes('lines')?at(trace.text,j,at(trace.hovertext,j,x)):x;
+   const label=trace.mode?.includes('markers')&&!trace.mode.includes('lines')?at(trace.text,j,at(trace.hovertext,j,x)):at(trace.hovertext,j,x);
    const point={x:categoryValue(x),y:numeric(values[j]),label:text(label),...(trace.tooltip?.[j]?{tooltip:trace.tooltip[j]}:{}),...(typeof trace.customdata?.[j]==='string'?{customdata:trace.customdata[j]}:{})};
    if(band){const index=lower.x?.findIndex(v=>v===x)??-1;point.low=numeric(lower.y?.[index]);point.high=point.y;}
    else{if(trace.type==='bar'&&Array.isArray(trace.marker?.color))point.color=color(trace.marker.color[j]);if(trace.mode?.includes('markers')){point.color=color(at(trace.marker?.color,j,trace.line?.color??chartColors[i%chartColors.length]));point.size=at(trace.marker?.size,j,7);point.shape=at(trace.marker?.symbol,j,'circle');}}

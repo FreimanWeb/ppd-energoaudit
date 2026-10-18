@@ -93,7 +93,7 @@ test("waterfall honours server-supplied before/after ranges and annual CAPEX ref
   );
   assert.deepEqual(geometry.chartDomains(w).y, [0, 100]);
   const m = model({ references: [{ axis: "y", value: 200, label: "CAPEX" }] });
-  assert.equal(geometry.chartDomains(m).y[1], 200);
+  assert.ok(geometry.chartDomains(m).y[1] > 200);
 });
 test("confidence intervals supply actual low/high extents and time viewport leaves category labels intact", () => {
   assert.equal(typeof geometry.chartDomains, "function");
@@ -109,7 +109,8 @@ test("confidence intervals supply actual low/high extents and time viewport leav
     ],
     xAxis: { type: "time", label: "Дата" },
   });
-  assert.deepEqual(geometry.chartDomains(m).y, [7, 18]);
+  assert.ok(geometry.chartDomains(m).y[0] < 7);
+  assert.ok(geometry.chartDomains(m).y[1] > 18);
   assert.deepEqual(geometry.chartDomains(m, [], [12, 16]).x, [12, 16]);
   const bars = model({
     series: [
@@ -124,4 +125,28 @@ test("confidence intervals supply actual low/high extents and time viewport leav
     xAxis: { type: "category", label: "" },
   });
   assert.deepEqual(geometry.chartDomains(bars).x, ["2026-10-10", "Выход"]);
+});
+test('data scale leaves space around constant and varying values; zero scale includes zero without clipping negatives',()=>{
+  const m=model({series:[series({points:[{x:0,y:4.5},{x:1,y:5.2}]})]});
+  const compact=geometry.chartDomains(m).y;
+  assert.ok(compact[0]<4.5 && compact[0]>0);assert.ok(compact[1]>5.2);
+  const zero=geometry.chartDomains(m,[],null,true).y;
+  assert.equal(zero[0],0);assert.ok(zero[1]>5.2);
+  const constant=geometry.chartDomains(model({series:[series({points:[{x:0,y:5}]})]})).y;
+  assert.ok(constant[0]<5 && constant[1]>5);
+  const negative=geometry.chartDomains(model({series:[series({points:[{x:0,y:-5},{x:1,y:-2}]})]}),[],null,true).y;
+  assert.ok(negative[0]<-5);assert.equal(negative[1],0);
+  const mixed=geometry.chartDomains(model({series:[series({points:[{x:0,y:-2},{x:1,y:3}]})]}),[],null,true).y;
+  assert.ok(mixed[0]<-2 && mixed[1]>3);
+});
+test('fixed ranges and bar zero baselines retain their declared geometry',()=>{
+  const m=model({yAxis:{type:'number',label:'%',domain:[0,100]}});
+  assert.deepEqual(geometry.chartDomains(m).y,[0,100]);
+  assert.deepEqual(geometry.chartDomains(model({series:[series({type:'bar',points:[{x:0,y:5}]})]})).y,[0,5]);
+});
+test('compressed value ticks extend to labelled divisions outside the padded range',()=>{
+  assert.deepEqual(geometry.valueAxisTicks([3.2,5.4],[3.5,4,4.5,5]),[3,3.5,4,4.5,5,5.5]);
+  assert.deepEqual(geometry.valueAxisTicks([0,1.08],[0,.2,.4,.6,.8,1]),[0,.2,.4,.6,.8,1,1.2]);
+  const negative=geometry.valueAxisTicks([-5.3,-1.7],[-5,-4,-3,-2]);
+  assert.equal(negative[0],-6);assert.equal(negative.at(-1),-1);
 });

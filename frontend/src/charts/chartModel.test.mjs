@@ -61,3 +61,8 @@ test('loss tooltip values and selection survive renderer geometry without changi
  const percent=buildChartModel([{type:'bar',orientation:'h',name:'Полезная',x:[60],y:[''],tooltip:[{value:60,unit:'кВт',share:.6,selection:'Полезная'}]}]);
  assert.equal(barIntervals(percent)[0].point.tooltip.share,.6);
 });
+test('line profiles retain supplied hover dates on a relative numeric axis',()=>{
+ const model=buildChartModel([{type:'scatter',mode:'lines',x:[0,1],y:[3,4],hovertext:['А: 01.10 · Б: 08.10','А: 02.10 · Б: 09.10']}],{xaxis:{type:'linear'}});
+ assert.equal(model.kind,'cartesian');assert.equal(model.xAxis.type,'number');
+ assert.equal(model.series[0].points[0].label,'А: 01.10 · Б: 08.10');
+});

@@ -16,11 +16,13 @@ export function TelemetryChart({
   series,
   timestamp,
   timeInteraction,
+  compact = false,
 }: {
   title: string;
   series: TelemetrySignal[];
   timestamp?: string;
   timeInteraction?: TimeInteraction;
+  compact?: boolean;
 }) {
   const data = useMemo(() => series.map((signal, index) => ({
     type: "scatter",
@@ -29,9 +31,11 @@ export function TelemetryChart({
     x: signal.points.map(point => point.timestamp),
     y: signal.points.map(point => point.value),
     connectgaps: false,
+    showlegend: !compact || series.length > 1,
     line: { color: colors[index % colors.length], shape: signalShape(signal.metric, signal.unit) },
-  } as Trace)), [series]);
+  } as Trace)), [series, compact]);
   const layout = useMemo(() => ({
+    ...(compact ? {height: 168} : {}),
     yaxis: { title: { text: series[0].unit }, gridcolor: "var(--chart-grid)" },
     xaxis: { type: "date", gridcolor: "var(--chart-grid)" },
     ...(timestamp ? {
@@ -41,7 +45,7 @@ export function TelemetryChart({
         line: { color: "var(--chart-status-warning)", dash: "dot" },
       }],
     } : {}),
-  }), [series[0].unit, timestamp]);
+  }), [series[0].unit, timestamp, compact]);
   return (
     <div>
       <h3>{title}</h3>

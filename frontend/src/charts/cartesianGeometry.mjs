@@ -84,7 +84,7 @@ export function viewPoints(points, viewport = null) {
   );
 }
 /** @param {any} model @param {string[]} hidden @param {[number,number]|null} viewport */
-export function chartDomains(model, hidden = [], viewport = null) {
+export function chartDomains(model, hidden = [], viewport = null, fromZero = false) {
   const visible = model.series.filter((series) => !hidden.includes(series.id));
   const allPoints = visible.flatMap((series) => series.points);
   const shown = visible.flatMap((series) =>
@@ -126,6 +126,12 @@ export function chartDomains(model, hidden = [], viewport = null) {
       min = Math.min(0, min);
       max = Math.max(0, max);
     }
+    if (isValueAxis && !hasBars) {
+      if (fromZero) { min = Math.min(0, min); max = Math.max(0, max); }
+      const padding = (max - min || Math.abs(max) || 1) * 0.08;
+      return [min >= 0 ? Math.max(0, min - padding) : min - padding,
+        max <= 0 && min < 0 ? Math.min(0, max + padding) : max + padding];
+    }
     if (min === max) {
       const padding = Math.max(Math.abs(min) * 0.1, 1);
       min -= padding;
@@ -137,4 +143,14 @@ export function chartDomains(model, hidden = [], viewport = null) {
     x: domain(model.xAxis, xValues, model.horizontal),
     y: domain(model.yAxis, yValues, !model.horizontal),
   };
+}
+
+/** Expand to full labelled divisions rather than leave an unlabelled margin. */
+/** @param {number[]} domain @param {number[]} ticks */
+export function valueAxisTicks(domain, ticks) {
+  if (ticks.length < 2) return ticks;
+  const step = ticks[1] - ticks[0];
+  const first = Math.floor(domain[0] / step);
+  const last = Math.ceil(domain[1] / step);
+  return Array.from({length: last - first + 1}, (_, i) => Number(((first + i) * step).toPrecision(12)));
 }
