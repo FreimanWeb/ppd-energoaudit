@@ -8,16 +8,6 @@ export function latestMetricPoint(points, key) {
   return points.findLast(point => typeof point[key] === 'number' && Number.isFinite(point[key]));
 }
 
-/** @template {{timestamp:string,sec_kwh_m3?:number|null,basis?:string}} T @param {T[]} points @param {string} [timestamp] */
-export function timelineComparison(points, timestamp) {
-  const samples = points.filter(point => (!timestamp || point.timestamp <= timestamp) &&
-    typeof point.sec_kwh_m3 === 'number' && Number.isFinite(point.sec_kwh_m3) && point.sec_kwh_m3 > 0);
-  const after = samples.at(-1);
-  if (!after) return null;
-  const before = samples.findLast(point => point.timestamp < after.timestamp && point.basis === after.basis);
-  return before ? {before, after, change_pct: (after.sec_kwh_m3 / before.sec_kwh_m3 - 1) * 100} : null;
-}
-
 /** @param {string} latest @param {number} days */
 export function recentPeriod(latest, days) {
   const end = latest.slice(0, 10);

@@ -1,3 +1,4 @@
+import { goToSection } from "./helpers";
 import { test, expect } from "@playwright/test";
 
 test("overview has compact KPI cards, explicit comparisons and keyboard help", async ({ page }) => {
@@ -11,7 +12,7 @@ test("overview has compact KPI cards, explicit comparisons and keyboard help", a
     audit.passport.pump.eta_nom = .8;
     await route.fulfill({response, json: audit});
   });
-  await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#overview");
+  await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#machine-block");
   const ure = page.locator('.overview-metric-values-ure .metric-segment').filter({ has: page.getByText("Факт", { exact: true }) });
   await expect(ure).toHaveAttribute("data-tone", "bad");
   await expect(ure.locator(".metric-caption")).toHaveCount(0);
@@ -19,21 +20,21 @@ test("overview has compact KPI cards, explicit comparisons and keyboard help", a
   await expect(page.getByRole("tooltip")).toContainText("Превышение требует внимания");
   await page.keyboard.press("Escape");
   const box = await ure.boundingBox();
-  expect(box!.width).toBeLessThanOrEqual(200);
+  expect(box!.width).toBeLessThanOrEqual(400);
   await ure.getByRole("button", {name: "Пояснение: Факт"}).focus();
   await expect(page.getByRole("tooltip")).toContainText("W / Q_сут");
+  const ureColor = await ure.locator('strong').evaluate(element => getComputedStyle(element).color);
+  await goToSection(page, "machine-block");
   await expect(page.locator('.metric-segment').filter({has: page.getByText("КПД агрегата", {exact: true})})).toHaveAttribute("data-tone", "bad");
   const badEfficiency = page.locator('.metric-segment').filter({ has: page.getByText('КПД агрегата', { exact: true }) }).locator('strong');
-  expect(await ure.locator('strong').evaluate(element => getComputedStyle(element).color)).toBe(await badEfficiency.evaluate(element => getComputedStyle(element).color));
-  await expect(page.getByRole("group", {name: "Режим выбранного агрегата", exact: true}).getByText("Подача", {exact: true})).toBeVisible();
-  await page.getByText("Диагностика агрегата", { exact: true }).click();
+  expect(ureColor).toBe(await badEfficiency.evaluate(element => getComputedStyle(element).color));
+  await expect(page.getByRole("heading", {name: "Режим машинного блока", exact: true})).toBeVisible();
   for (const label of ["КПД ЭД расчётный", "КПД насоса расчётный", "Коэф. загрузки ЭД"])
     await expect(page.locator(".metric-card").filter({has: page.getByText(label, {exact: true})})).toHaveAttribute("data-tone", "bad");
   await expect(page.getByRole("button", {name: "Сравнение", exact: true})).toHaveCount(0);
-  await expect(ure).toBeVisible();
-  await expect(page.getByRole("group", {name: "Структура подведённой мощности", exact: true})).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:"КПД",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading", {name: /^Агрегат и обвязка до блока гребёнок/})).toBeVisible();
   await expect(page.getByRole("link", {name: "Карта потерь мощности →", exact: true})).toHaveCount(0);
-  await expect(page.getByRole("columnheader", {name: /Затраты CAPEX/})).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
@@ -46,9 +47,10 @@ test("unfit overview never marks a measured KPI as good", async ({page}) => {
     Object.assign(audit.audit.metrics, {sec_fact_kwh_m3: 2, sec_calc_kwh_m3: 3, eta_unit: 1.2});
     await route.fulfill({response, json: audit});
   });
-  await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#overview");
+  await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#machine-block");
   await expect(page.locator("main")).toContainText("Данные непригодны");
   await expect(page.locator('.metric-card[data-tone="good"]')).toHaveCount(0);
+  await goToSection(page, "machine-block");
   const eta = page.locator(".metric-segment").filter({has: page.getByText("КПД агрегата", {exact: true})});
   await eta.locator("strong").hover();
   await expect(page.getByRole("tooltip")).toContainText("Физическая ошибка");

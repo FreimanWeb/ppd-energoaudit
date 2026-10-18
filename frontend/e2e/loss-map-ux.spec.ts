@@ -1,3 +1,4 @@
+import { goToSection } from "./helpers";
 import { test, expect } from '@playwright/test';
 
 async function fixture(page: import('@playwright/test').Page) {
@@ -11,7 +12,7 @@ async function fixture(page: import('@playwright/test').Page) {
     ];
     await route.fulfill({response,json:audit});
   });
-  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12:00:00#losses');
+  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12:00:00#machine-block');
   await expect(page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Декомпозиция мощности',exact:true})).toBeVisible();
 }
 
@@ -60,7 +61,8 @@ test('clicking a loss shows concrete proposed actions with calculated effect',as
 
 test('single-series measure bars omit a repeated graph name and do not invent a percentage',async({page})=>{
   await fixture(page);
-  await page.locator('nav a[href="#measures"]').click();
+  await goToSection(page, "measures");
+  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
   await expect(page.getByText('Годовой реестр мероприятий',{exact:true})).toBeVisible();
   await page.getByText('Сравнить годовую экономию',{exact:true}).click();
   const plot=page.getByRole('group',{name:'Годовой эффект мероприятий',exact:true});

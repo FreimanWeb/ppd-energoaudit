@@ -1,4 +1,4 @@
-import { followInternalLink } from "./navigation";
+import { LinkButton } from "./Button";
 import { Fragment, type ReactNode } from "react";
 import { formatMetric } from "../format/number.mjs";
 import { Tooltip } from "./Tooltip";
@@ -7,7 +7,7 @@ type Link = { label: string; href: string };
 function MetricActions({ links, label }: { links?: Link[]; label: string }) {
   return links?.length ? <details className="metric-actions" onKeyDown={event => {
     if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); }
-  }}><summary aria-label={`Разобрать: ${label}`}>⋯</summary><nav aria-label={`Действия: ${label}`}>{links.map(link => <a onClick={followInternalLink} href={link.href} key={link.label}>{link.label}</a>)}</nav></details> : null;
+  }}><summary aria-label={`Разобрать: ${label}`}>⋯</summary><nav aria-label={`Действия: ${label}`}>{links.map(link => <LinkButton href={link.href} key={link.label}>{link.label}</LinkButton>)}</nav></details> : null;
 }
 
 export type MetricSegment = {
@@ -77,7 +77,7 @@ export function MetricCard({
         </div>
       ) : (
         <>
-          <Tooltip label={helpOnValue ? label : `Оценка ${label}`} content={explanation(helpOnValue ? help : undefined, caption, reason)}>
+          <Tooltip label={helpOnValue ? label : `Оценка ${label}`} content={explanation(helpOnValue || !(caption || reason) ? help : undefined, caption, reason)}>
             <strong className={value == null ? "metric-empty" : undefined}>{value == null ? "Нет данных" : formatMetric(value, unit, digits)}</strong>
           </Tooltip>
           <small className="metric-unit">{unit || "о.е."}</small>

@@ -1,93 +1,40 @@
 import type { ReactNode } from "react";
-import { formatEfficiency } from "../../shared/format/number.mjs";
-import type { Audit, Equipment, Topology } from "../../shared/types";
+import type { Audit, Topology } from "../../shared/types";
 import { fmt } from "../../shared/ui/format";
 import { Scheme } from "./Scheme";
+import { segment, useResource } from "../../shared/api";
+import { networkStages, stageDefinitions } from "../losses/networkStages.mjs";
+import "./schemeLosses.css";
 
-export function SchemePanel({
-  topology,
-  audit,
-  aggregate,
-  pressures,
-  selected,
-  onSelect,
-  onClear,
-  status,
-}: {
-  topology?: Topology;
-  audit: Audit;
-  aggregate: string;
-  pressures?: Record<string, { p_in_mpa: number; p_out_mpa: number }>;
-  selected: string;
-  onSelect: (node: Equipment) => void;
-  onClear: () => void;
-  status?: ReactNode;
+export function SchemePanel({topology,audit,aggregate="",pressures,status,station=false,stationNetwork}: {
+  topology?: Topology; audit?: Audit; aggregate?: string;
+  station?:boolean;stationNetwork?:Parameters<typeof networkStages>[0] & {warnings?:string[];network?:{well_count?:number}};
+  pressures?: Record<string,{p_in_mpa:number;p_out_mpa:number}>; status?: ReactNode;
 }) {
-  const node =
-    topology?.nodes.find((item) => item.id === selected) ??
-    topology?.nodes.find((item) => item.agg === aggregate);
-  const selectedNode = selected
-    ? topology?.nodes.find((item) => item.id === selected)
-    : undefined;
-  const metrics = audit.audit.metrics;
-
-  return (
-    <section className="scheme-panel" aria-label="Технологическая схема ППД">
-      <div className="section-heading"><h2>Технологическая схема ППД</h2></div>
-      {status}
-      {topology && <>
-        <div className="scheme-layout">
-          <div className="scheme-canvas">
-            <Scheme
-              key={audit.audit.object_id}
-              topology={topology}
-              aggregate={aggregate}
-              audit={audit}
-              pressures={pressures}
-              selected={node?.id ?? ""}
-              onSelect={onSelect}
-            />
-            {selectedNode && <aside className="scheme-node-popover" aria-label="Выбранное оборудование">
-              <button type="button" className="scheme-node-popover-close" aria-label="Закрыть сведения об узле" onClick={onClear}>×</button>
-              <div className="eyebrow">ОБОРУДОВАНИЕ</div>
-              <h3>{selectedNode.label || selectedNode.id}</h3>
-              {selectedNode.sub && <p>{selectedNode.sub}</p>}
-              {selectedNode.hint && <p className="muted">{selectedNode.hint}</p>}
-              {!selectedNode.hint && <p className="muted">{({
-                valve: "дросселирование: срезается ΔP·Q; кандидат на частотное регулирование",
-                wells: "Приёмистость P–Q; ограничение по лимиту закачки",
-                reservoir: "Отклик пласта (CRM): полезная и циркулирующая закачка",
-              } as Record<string, string>)[selectedNode.type]}</p>}
-              {selectedNode.type === "source" && <dl>
-                <dt>Давление на приёме</dt><dd>{fmt(audit.regime.p_in)} МПа</dd>
-                <dt>Подача за сутки</dt><dd>{fmt(audit.regime.q_day, 0)} м³/сут</dd>
-              </dl>}
-              {selectedNode.type === "manifold" && <dl>
-                <dt>Давление БГ</dt><dd>{fmt(audit.regime.p_bg)} МПа</dd>
-                <dt>Давление на выкиде</dt><dd>{fmt(audit.regime.p_out)} МПа</dd>
-              </dl>}
-              {selectedNode.agg === aggregate && <>
-                <dl>
-                  <dt>Фактический КПД</dt><dd>{formatEfficiency(metrics.eta_unit)}</dd>
-                  <dt>Номинальный КПД</dt><dd>{formatEfficiency(metrics.eta_nom)}</dd>
-                </dl>
-                <details><summary>Диагностика и потери</summary>
-                  <dl>
-                    <dt>Оценка КПД</dt><dd>{audit.quality.status === "unfit" ? "Данные непригодны для оценки" : audit.pump_assessment.name}</dd>
-                    <dt>Коэффициент загрузки двигателя</dt><dd>{fmt(metrics.load_factor, 3)}</dd>
-                    <dt>УРЭ фактический / расчётный</dt><dd>{fmt(metrics.sec_fact_kwh_m3, 3)} / {fmt(metrics.sec_calc_kwh_m3, 3)} кВт·ч/м³</dd>
-                    {audit.quality.status !== "unfit" && <>
-                      <dt>Потери по КПД</dt><dd>{fmt(audit.annual_summary.efficiency_energy_kwh, 0)} кВт·ч/год</dd>
-                    </>}
-                  </dl>
-                </details>
-              </>}
-              <p className="muted sidebar-note">Измерения относятся только к выбранному агрегату и снимку.</p>
-            </aside>}
-          </div>
-        </div>
-        <p className="scheme-source">Источник схемы: {topology.source}</p>
-      </>}
-    </section>
+  const timestamp = audit?.snapshot?.timestamp;
+  const supported = ["kns54an","demo-ppd"].includes(audit?.audit.object_id ?? "");
+  const network = useResource<Parameters<typeof networkStages>[0] & {network?:{well_count?:number}}>(
+    !station && supported && audit && audit.quality.status !== "unfit" && (audit?.source === "field_trip" || timestamp)
+      ? `/objects/${segment(audit?.audit.object_id)}/aggregates/${segment(aggregate)}/network-losses` : null,
+    JSON.stringify({source:audit?.source,...(audit?.source === "telemetry" && timestamp ? {day:timestamp.slice(0,10),timestamp} : {})}),
   );
+  const map = station ? stationNetwork : network.data;
+  const stages = networkStages(map);
+  const areas = stageDefinitions.map(definition => stages.find(stage => stage.id === definition.id)
+    ?? {id:definition.id,label:definition.label,power_kw:null,share_pct:null});
+  const wellCount = map?.network?.well_count;
+  return <section className="scheme-panel" aria-label="Условная технологическая схема ППД">
+    <div className="section-heading"><h2>Условная технологическая схема ППД</h2></div>
+    <p className="scheme-source">Скважины и водоводы показаны условно группами. Наведите на участок или карточку, нажмите для подробностей.</p>
+    {status}
+    {topology && <>
+      <div className="scheme-layout"><div className="scheme-canvas">
+        <Scheme topology={topology} aggregate={aggregate} audit={station?undefined:audit} pressures={pressures} lossStages={areas} wellCount={typeof wellCount === "number" && wellCount > 0 ? wellCount : undefined} />
+      </div></div>
+      {stages.length > 0
+        ? <p className="scheme-source">100 % — сумма потерь всей цепочки ({fmt(map?.total_loss_kw,1)} кВт), без полезной мощности. Сценарная оценка: параметры внешней сети частично синтетические. {station ? "Учтены совместно работающие НА станции." : "Сценарий выбранного НА; остальные насосы в сценарии выключены."} Арматура сети включена в группу скважин. Нормы потерь по участкам для цветовой оценки пока не заданы.</p>
+        : <p className="scheme-source" role="status">{network.loading ? "Рассчитываем доли потерь…" : network.error ? `Распределение потерь недоступно: ${network.error}` : "Доли потерь недоступны для выбранного режима. Откройте участок для просмотра имеющихся данных."}</p>}
+      <p className="scheme-source">Источник схемы: {topology.source}</p>
+    </>}
+  </section>;
 }

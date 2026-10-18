@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const fixture='/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12%3A00%3A00#overview';
+const fixture='/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12%3A00%3A00#machine-block';
 test('metric evidence retains the measurement and opens related sources and formulas', async ({page})=>{
  await page.goto(fixture);
  const fact=page.locator('.overview-metric-values-ure .metric-segment').filter({has:page.getByText('Факт',{exact:true})});

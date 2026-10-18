@@ -1,6 +1,6 @@
 .overview-page { display: grid; gap: var(--space-5); }
 .overview-page .page-panel { margin: 0; min-width: 0; }
-.overview-primary { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: var(--space-5); align-items: stretch; width: 100%; }
+.overview-primary { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); align-items: stretch; width: 100%; }
 .overview-primary > .page-panel { min-height: 100%; padding: var(--space-4); }
 .overview-page .metric-group { margin: var(--space-3) 0 0; }
 .overview-page .annual-group .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -11,7 +11,6 @@
 .passport-chevron { flex-shrink: 0; transition: transform 160ms var(--motion-ease); }
 .passport-panel[open] .passport-chevron { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .passport-chevron { transition: none; } }
-.overview-section-link { display: inline-block; margin-top: var(--space-4); font-size: var(--text-label); color: var(--accent-strong); }
 .overview-page .notice p { margin: var(--space-2) 0; }
 .overview-page .notice a { color: inherit; text-underline-offset: 3px; }
 @media (max-width: 1100px) { .overview-primary { grid-template-columns: 1fr; } }
@@ -67,3 +66,30 @@
 .efficiency-difference-arrow { font-weight: 700; }
 .efficiency-difference-value { display: inline-block; margin-left: 1px; transform: translateY(2px); }
 .metric-reading-annotated { position: relative; }
+
+.machine-efficiency { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: center; gap: var(--space-5); margin-top: var(--space-4); }
+.overview-primary .machine-efficiency > .metric-values { grid-column: auto; }
+.overview-primary .machine-efficiency .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.machine-efficiency > .metric-group { border-left: 1px solid var(--border-subtle); padding-left: var(--space-5); }
+.overview-primary .machine-efficiency .metric-label { min-height: 40px; }
+.overview-primary .machine-efficiency .kpi { text-align: center; }
+.overview-primary .machine-efficiency .metric-segment-label { overflow: visible; white-space: normal; }
+@media (max-width: 1200px) {
+  .machine-efficiency { grid-template-columns: minmax(0, 1fr); }
+  .machine-efficiency > .metric-group { border-left: 0; border-top: 1px solid var(--border-subtle); padding: var(--space-4) 0 0; }
+}
+@media (max-width: 500px) {
+  .overview-primary .machine-efficiency .kpis { grid-template-columns: minmax(0, 1fr); }
+}
+
+.machine-summary { margin-block: var(--space-5); }
+.machine-summary > .page-panel { margin: 0; min-height: 0; }
+
+.station-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: var(--space-3); }
+.station-annual { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); }
+.station-annual .metric-card.metric-values { max-width: none; grid-column: auto; }
+.station-context { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2) var(--space-4); font-size: var(--text-caption); color: var(--content-muted); }
+@media (max-width:1100px) { .station-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { .station-kpis,.station-annual { grid-template-columns: minmax(0,1fr); } }
+
+@media (max-width:600px) { .station-annual .metric-values-row { flex-direction: column; gap: var(--space-3); } .station-annual .metric-segment-divider { width: 100%; height: 1px; } }

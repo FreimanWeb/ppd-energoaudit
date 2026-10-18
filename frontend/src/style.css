@@ -727,7 +727,7 @@ tbody tr:last-child td {
   text-transform: uppercase;
 }
 
-/* Параметры остаются над независимой прокруткой рабочих разделов. */
+/* Сначала рабочие разделы, затем параметры с отдельной прокруткой. */
 .sidebar-content {
   display: flex;
   flex-direction: column;
@@ -736,13 +736,15 @@ tbody tr:last-child td {
   padding-bottom: 12px;
 }
 .analysis-panel {
-  flex-shrink: 0;
-  max-height: 65%;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   scrollbar-width: thin;
 }
 .sidebar-nav {
-  flex: 1;
+  flex: 0 0 auto;
+  max-height: 48%;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -755,12 +757,12 @@ tbody tr:last-child td {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
-.selector-time { align-items: end; }
+.selector-time { grid-template-columns: minmax(0, 1fr); align-items: end; }
 .selector-time label { min-width: 0; }
 @media (max-width: 900px) {
   .sidebar-content { display: block; overflow: visible; }
   .analysis-panel { max-height: none; overflow: visible; }
-  .sidebar-nav { overflow: visible; }
+  .sidebar-nav { max-height: none; overflow: visible; }
 }
 
 .app-sidebar .selector-time select {
@@ -780,3 +782,13 @@ tbody tr:last-child td {
   .sidebar-toggle { margin: 12px 20px; }
   .sidebar-session { display: flex; }
 }
+
+.page-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--border); }
+.page-tabs a { padding: var(--space-3) var(--space-4); color: var(--content-muted); text-decoration: none; border-bottom: 3px solid transparent; }
+.page-tabs a:hover { color: var(--accent-strong); background: var(--surface-hover); }
+.page-tabs a[aria-current="page"] { color: var(--accent-strong); border-bottom-color: var(--accent-strong); font-weight: var(--weight-semibold); }
+.page-tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 600px) { .page-tabs a { padding: var(--space-2); font-size: var(--text-caption); } }
+
+.analysis-panel:not([open]) { flex: 0 0 auto; }
+.analysis-panel > summary { cursor: pointer; }

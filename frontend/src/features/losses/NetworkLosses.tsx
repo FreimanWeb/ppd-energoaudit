@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from "react";
 import type { Audit } from "../../shared/types";
 import { segment, useResource } from "../../shared/api";
-import { Button } from "../../shared/ui/Button";
+import { Button, LinkButton } from "../../shared/ui/Button";
 import { Panel } from "../../shared/ui/Panel";
 import { Status } from "../../shared/ui/Status";
 import { Table } from "../../shared/ui/Table";
 import { fmt } from "../../shared/ui/format";
 import { LossCharts, type Loss } from "./LossCharts";
-import { followInternalLink } from "../../shared/ui/navigation";
 import { networkMeasures } from "./networkScenario.mjs";
+import { networkStages,stageDefinitions } from "./networkStages.mjs";
 import "./networkLosses.css";
 
 type Provenance = "calculated" | "synthetic" | "measured";
@@ -56,16 +56,18 @@ type NetworkResponse = {
   comparison?: { measure_id: Intervention; name: string; saving_kw: number; saving_pct: number; before: NetworkPower; after: NetworkPower & { balance_error_kw: number; items: Loss[] }; assumptions: string[] } | null;
 } | { status: "unavailable"; warnings: string[]; measures?: NetworkMeasure[]; runtime_reading?: { hours: number; as_of: string; basis: string } | null };
 
-export function NetworkLosses({ audit }: { audit: Audit }) {
+export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "map" | "scenario" }) {
+  const editable = view === "scenario";
   const [scenario, setScenario] = useState<Scenario>(() => Object.fromEntries(parameters.map(p => [p.key, p.value])) as Scenario);
   const [mode, setMode] = useState<"decomposition" | "flow" | "percentage">("decomposition");
   const [selectedName, setSelectedName] = useState("");
   const [intervention, setIntervention] = useState<Intervention | null>(null);
+  const demo = audit.audit.object_id === "demo-ppd";
   const timestamp = audit.snapshot?.timestamp;
   const resource = useResource<NetworkResponse>(
     audit.source === "field_trip" || timestamp
       ? `/objects/${segment(audit.audit.object_id)}/aggregates/${segment(audit.audit.aggregate_id)}/network-losses` : null,
-    JSON.stringify({ source: audit.source, ...(audit.source === "telemetry" && timestamp ? { day: timestamp.slice(0, 10), timestamp } : {}), scenario, intervention }),
+    JSON.stringify({ source: audit.source, ...(audit.source === "telemetry" && timestamp ? { day: timestamp.slice(0, 10), timestamp } : {}), ...(editable ? {scenario, intervention} : {}) }),
   );
   const data = resource.data;
   const selected = data && data.status !== "unavailable" ? data.items.find(item => item.name === selectedName) : undefined;
@@ -78,11 +80,10 @@ export function NetworkLosses({ audit }: { audit: Audit }) {
     setIntervention(null);
     setSelectedName("");
   };
-  return <Panel title="Вся цепочка: агрегат → трубопроводы → скважины → пласт" caption="Пилот КНС-54 · сценарный баланс мощности выбранного агрегата">
+  return <Panel title={editable ? "Гидравлический сценарий" : "Карта потерь по цепочке"} action={!editable ? <LinkButton href="#network-scenario">Гидравлический сценарий</LinkButton> : undefined}>
     <div className="network-losses">
-      <a href="#timeline" onClick={followInternalLink}>← Вернуться к истории объекта</a>
-      <p className="notice">Геометрия — из АРМИТС; единицы выгрузки ещё требуют подтверждения. Недостающие параметры и распределение потока заменены синтетикой. Это сценарная оценка, а не измеренные потери или достигнутая экономия.</p>
-      <details className="network-scenario">
+      {editable && <p className="notice">{demo ? "Демонстрационный объект: геометрия, режимы и потери синтетические. Не производственные данные." : "Геометрия — из АРМИТС; единицы выгрузки ещё требуют подтверждения. Недостающие параметры и распределение потока заменены синтетикой. Это сценарная оценка, а не измеренные потери или достигнутая экономия."}</p>}
+      {editable && <details className="network-scenario">
         <summary>Параметры сценария</summary>
         <form onSubmit={submit}>
           <div className="network-scenario-fields">{parameters.map(p => <label key={p.key}>
@@ -93,13 +94,13 @@ export function NetworkLosses({ audit }: { audit: Audit }) {
           <p className="muted">Полезное давление задано в поверхностном эквиваленте без перепада высот; высоты учитываются отдельно. Положительный перепад — подъём от станции. Длина ствола используется только для расчёта трения.</p>
           <Button type="submit" loading={resource.loading}>Пересчитать сценарий</Button>
         </form>
-      </details>
+      </details>}
       <Status {...resource} empty="Для расчёта выберите режим агрегата." />
       {intervention && !data && <Button variant="secondary" onClick={() => setIntervention(null)}>Вернуться к исходному сценарию</Button>}
       {data && <>
         {data.status !== "unavailable" && <>
           <p className="muted">{data.title}</p>
-          <p className="network-metadata">{data.network.well_count} скважин · {fmt((data.network.total_length_m ?? [...new Map(data.segments.map(item => [item.id, item])).values()].reduce((sum, item) => sum + item.length_m, 0)) / 1000, 1)} км учтённых участков · перепад высот {fmt(scenario.elevation_change_m, 0)} м (синтетика). Геометрия по реестру, единицы не подтверждены.</p>
+          <p className="network-metadata">{data.network.well_count} скважин · {fmt((data.network.total_length_m ?? [...new Map(data.segments.map(item => [item.id, item])).values()].reduce((sum, item) => sum + item.length_m, 0)) / 1000, 1)} км учтённых участков · перепад высот {fmt(scenario.elevation_change_m, 0)} м (синтетика). {demo ? "Геометрия синтетическая, длины в метрах и диаметры в миллиметрах." : "Геометрия по реестру, единицы не подтверждены."}</p>
         </>}
         {data.warnings.length > 0 && (data.status === "unavailable"
           ? <div className="notice" role="status"><ul>{data.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>
@@ -112,6 +113,9 @@ export function NetworkLosses({ audit }: { audit: Audit }) {
             <div><dt>Полезная мощность</dt><dd>{fmt(data.useful_kw)} кВт</dd></div>
             <div><dt>Невязка баланса</dt><dd>{fmt(data.balance_error_kw !== null && Math.abs(data.balance_error_kw) < 1e-9 ? 0 : data.balance_error_kw, 3)} кВт</dd></div>
           </dl>
+          <dl className="network-balance-totals" aria-label="Потери по участкам цепочки">
+            {networkStages(data).map(stage => <div key={stage.id}><dt>{stage.label}</dt><dd>{fmt(stage.power_kw)} кВт · {fmt(stage.share_pct,1)} % потерь</dd></div>)}
+          </dl>
           <div className="metric-toolbar"><div className="metric-segments" role="group" aria-label="Представление всей цепочки">
             <button type="button" aria-pressed={mode === "decomposition"} onClick={() => setMode("decomposition")}>Разложение</button>
             <button type="button" aria-pressed={mode === "flow"} onClick={() => setMode("flow")}>Поток мощности</button>
@@ -119,11 +123,11 @@ export function NetworkLosses({ audit }: { audit: Audit }) {
           </div></div>
           {mode === "decomposition" ? <>
             <div className="network-waterfall-scroll" tabIndex={0} role="region" aria-label="Разложение всей цепочки, горизонтальная прокрутка">
-              <div className="network-waterfall-wide"><LossCharts power={data.input_kw} losses={data.items} mode={mode} showSummary={false} axisLabels={axisLabels} onSelect={setSelectedName} /></div>
+              <div className="network-waterfall-wide"><LossCharts power={data.input_kw} losses={data.items} mode={mode} showSummary={false} axisLabels={axisLabels} groups={stageDefinitions.map(stage=>({...stage,label:stage.id === "hall" ? "Машинный блок" : stage.label}))} onSelect={setSelectedName} /></div>
             </div>
             <p className="muted network-waterfall-hint">На узком экране прокрутите график вправо; доступны стрелки клавиатуры.</p>
           </> : <LossCharts power={data.input_kw} losses={data.items} mode={mode} showSummary={false} onSelect={setSelectedName} />}
-          <section className="network-actions" aria-label="Мероприятия всей цепочки">
+          {editable ? <><section className="network-actions" aria-label="Мероприятия всей цепочки">
             <div className="network-section-heading">
               <h3>{selected ? "Мероприятия по выбранной составляющей" : "Приоритетные мероприятия"}</h3>
               {selectedName && <Button variant="secondary" onClick={() => setSelectedName("")}>Все мероприятия</Button>}
@@ -155,7 +159,9 @@ export function NetworkLosses({ audit }: { audit: Audit }) {
             <ul>{comparison.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
           </section>}
           {intervention && !comparison && <p className="notice">Сравнение для выбранного мероприятия недоступно. <Button variant="secondary" onClick={() => setIntervention(null)}>Вернуться к исходному сценарию</Button></p>}
-        </> : <p className="notice error" role="alert">{data.status === "infeasible" ? "Сценарий физически невыполним: доступного давления недостаточно. Сбалансированная карта не построена; дефицит по скважинам указан ниже." : "Карта всей цепочки недоступна для выбранного режима."}</p>}
+          </> : selected && <p><strong>{selected.name}: {fmt(selected.power_kw)} кВт.</strong> {selected.basis} Происхождение: {origins[selected.provenance]}.</p>}
+        </> : <p className="notice error" role="alert">{data.status === "infeasible" ? "Сценарий физически невыполним: доступного давления недостаточно. Сбалансированная карта не построена." : "Карта всей цепочки недоступна для выбранного режима."}</p>}
+        {editable && <>
         {data.items.length > 0 && <details><summary>Составляющие и основания расчёта</summary><Table rows={data.items.map(item => ({ ...item, origin: origins[item.provenance], percent: item.share * 100 }))} columns={[
           { key: "name", label: "Составляющая" }, { key: "power_kw", label: "Мощность, кВт" }, { key: "percent", label: "Доля, %" }, { key: "origin", label: "Происхождение" }, { key: "basis", label: "Основание" },
         ]} /></details>}
@@ -176,7 +182,8 @@ export function NetworkLosses({ audit }: { audit: Audit }) {
         ]} /></details>
         <p className="muted">Источник сети: {data.network.source_file} · выгрузка {data.network.exported_at}.</p>
         </>}
-        {data.runtime_reading && <p className="notice">Накопленная наработка {audit.audit.aggregate_id}: {fmt(data.runtime_reading.hours, 0)} ч, на {data.runtime_reading.as_of}. {data.runtime_reading.basis}</p>}
+        </>}
+        {editable && data.runtime_reading && <p className="notice">Накопленная наработка {audit.audit.aggregate_id}: {fmt(data.runtime_reading.hours, 0)} ч, на {data.runtime_reading.as_of}. {data.runtime_reading.basis}</p>}
       </>}
     </div>
   </Panel>;

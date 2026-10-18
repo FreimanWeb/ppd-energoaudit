@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('pointer focus has no chart frame, while Tab outlines chart elements in black', async ({page})=>{
-  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#losses');
+  await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#machine-block');
   const plot=page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Декомпозиция мощности',exact:true});
   const svg=plot.locator('svg.visx-chart');
   await expect(svg).toBeVisible();

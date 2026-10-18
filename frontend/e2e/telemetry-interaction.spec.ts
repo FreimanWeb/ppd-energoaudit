@@ -77,7 +77,7 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   await begin.press('ArrowRight');
   expect(Number(await begin.getAttribute('aria-valuenow'))).toBeGreaterThan(new Date(times[0]).getTime());
   await begin.press('Home');
-  await expect(page.getByRole('button', { name: 'Весь период', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Весь период', exact: true })).toBeDisabled();
   await first.click({ position: { x: 100, y: 10 } });
   expect(await first.evaluate(node => getComputedStyle(node).outlineWidth)).toBe('0px');
   await first.focus();

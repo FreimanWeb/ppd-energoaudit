@@ -1,3 +1,4 @@
+import { LinkButton } from "../../shared/ui/Button";
 import { segment, useResource } from "../../shared/api";
 import type { PageProps } from "../../shared/ui/context";
 import { contextBody } from "../../shared/ui/context";
@@ -11,9 +12,9 @@ export function TopMeasures({ context }: { context: PageProps }) {
     contextBody(context, { basis: "annual" }),
   );
   return (
-    <Panel title="Топ мероприятий" action={<a className="panel-link" href="#measures">Все →</a>} help="Эвристическая оценка. Сценарные мероприятия требуют диагностики и оценки CAPEX. Отсутствие применимого мероприятия не означает, что потери в норме.">
+    <Panel title="Топ мероприятий" action={<LinkButton href="#measures">Все →</LinkButton>} help="Эвристическая оценка. Сценарные мероприятия требуют диагностики и оценки CAPEX. Отсутствие применимого мероприятия не означает, что потери в норме.">
       <Status {...result} empty="Мероприятия ещё не рассчитаны. Проверьте выбранный объект, агрегат и период." />
-      {result.error && <a href="#sources">Проверить исходные данные</a>}
+      {result.error && <LinkButton href="#sources">Проверить исходные данные</LinkButton>}
       {result.data && result.data.annual.length === 0 && <p className="notice">Для выбранного режима нет применимых мероприятий. Проверьте исходные данные или выберите другой период.</p>}
       {result.data && result.data.annual.length > 0 && (
         <Table

@@ -59,10 +59,10 @@ test("calendar uses local ISO day strings, Monday weeks and leap years", async (
 test("sidebar sections preserve every route with a distinct icon", async () => {
   const { navigationSections, pages } = await import("./app/navigation.mjs");
   assert.ok(navigationSections, "sectioned navigation is missing");
-  assert.deepEqual(navigationSections.map(s => s.label), ["Состояние системы", "Энергоэффективность", "Прогнозирование", "Данные и методика"]);
-  assert.equal(pages.length, 14);
-  assert.equal(new Set(pages.map(p => p.id)).size, 14);
-  assert.equal(new Set(pages.map(p => p.icon)).size, 14);
+  assert.deepEqual(navigationSections.map(s => s.label), ["Все объекты","Обзор","Машинный блок","Трубопроводы","Скважины","Мероприятия","Данные и методика"]);
+  assert.equal(pages.length, 19);
+  assert.equal(new Set(pages.map(p => p.id)).size, 19);
+  assert.equal(new Set(pages.map(p => p.icon)).size, 19);
   assert.equal(pages.some(p => p.id === "scheme"), false);
   assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
 });
@@ -89,4 +89,19 @@ test("source modes omit irrelevant measurement parameters and unknown modes fall
   assert.equal(viewer.searchParams.get("day"), original.day);
   assert.equal(viewer.searchParams.has("timestamp"), false);
   assert.equal(nav.readAnalysisContext("http://localhost/?mode=unknown").mode, "analysis");
+});
+
+
+test("operator list keeps three real objects and one explicit demo", async () => {
+  const {operatorObjects,pageForMode} = await import("./app/navigation.mjs");
+  assert.deepEqual(operatorObjects(["knsopu","kns54an","kns97pren","demo-ppd","kns10bn","dns7"].map(code => ({code}))).map(o => o.code),["knsopu","kns54an","kns97pren","demo-ppd"]);
+  for (const page of ["machine-block","pipelines","wells"]) assert.equal(pageForMode("field_trip",page),page);
+});
+
+test('overview stays station-wide and injection forecasting belongs to wells',async()=>{
+ const {navigationSections,pageForMode}=await import('./app/navigation.mjs');
+ assert.deepEqual(navigationSections.find(section=>section.root==='timeline').pages.map(page=>page.id),['timeline','overview','losses']);
+ assert.deepEqual(navigationSections.find(section=>section.root==='pipelines').pages.map(page=>page.id),['pipelines','network-scenario']);
+ assert.equal(pageForMode('field_trip','network-scenario'),'network-scenario');
+ assert.ok(navigationSections.find(section=>section.root==='wells').pages.some(page=>page.id==='forecast'));
 });

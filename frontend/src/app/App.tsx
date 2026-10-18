@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { segment, useResource } from "../shared/api";
 import { Calendar } from "../features/analysis-context/Calendar";
-import { SchemePanel } from "../features/scheme/SchemePanel";
-import { OverviewView } from "../features/overview/OverviewView";
+import { NetworkLosses } from "../features/losses/NetworkLosses";
+import { StationOverview } from "../features/overview/StationOverview";
 import { SnapshotView } from "../features/overview/SnapshotView";
 import { SourcesView } from "../features/overview/SourcesView";
-import { LossesView } from "../features/losses/LossesView";
+import { WellHistory } from "../features/losses/WellHistory";
+import { StageLosses } from "../features/losses/StageLosses";
 import { PortfolioView } from "../features/monitoring/PortfolioView";
 import { TimelineView } from "../features/monitoring/TimelineView";
 import {
+  operatorObjects,
   navigationSections,
   pageForMode,
   filterObjects,
@@ -50,7 +52,6 @@ export function App({ logout }: { logout?: () => void }) {
     timestamp: timestampChoice,
     mode,
   } = selection;
-  const [nodeChoice, setNode] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false),
     [rawPage, setPage] = useState(() => initialPage(location.href));
   const [waters, setWaters] = useState<string[]>([]),
@@ -59,7 +60,7 @@ export function App({ logout }: { logout?: () => void }) {
     const update = () => {
       setPage(initialPage(location.href));
       setSelection(readAnalysisContext(location.href));
-      setNode("");
+
       window.scrollTo({ top: 0, behavior: "instant" });
     };
     window.addEventListener("hashchange", update);
@@ -71,19 +72,25 @@ export function App({ logout }: { logout?: () => void }) {
   }, []);
   const page = pageForMode(mode, rawPage),
     source = mode === "field_trip" ? "field_trip" : "telemetry";
-  const monitoringPage = page === "portfolio" || page === "timeline";
+  const monitoringPage = page === "portfolio" || page === "timeline" || page === "overview";
   const objects = useResource<Plant[]>("/catalog/objects");
-  const filtered = filterObjects(objects.data ?? [], waters, ngdus);
-  const selectableObjects = monitoringPage ? objects.data ?? [] : filtered;
+  const visibleObjects = operatorObjects(objects.data ?? []);
+  const filtered = filterObjects(visibleObjects, waters, ngdus);
+  const selectableObjects = page === "portfolio" ? visibleObjects : filtered;
   const object =
     selectableObjects.find((o) => o.code === objectChoice) ??
     selectableObjects.find((o) => o.code === "kns54an") ??
     selectableObjects[0];
+  useEffect(() => {
+    if (objects.data && object && ((objectChoice && !visibleObjects.some(item => item.code === objectChoice)) || (page === "timeline" && objectChoice !== object.code))) {
+      changeSelection({object:object.code,aggregate:"",day:"",timestamp:""});
+    }
+  }, [objects.data,objectChoice,object?.code,page]);
   const objectPath = object ? `/objects/${segment(object.code)}` : null;
   const aggregates = useResource<Aggregate[]>(
-    objectPath && !monitoringPage ? `${objectPath}/aggregates` : null,
+    objectPath && page !== "portfolio" ? `${objectPath}/aggregates` : null,
   );
-  const aggregate =
+  const aggregate = page === "overview" || page === "timeline" && !aggregateChoice ? undefined :
     aggregates.data?.find((a) => a.code === aggregateChoice) ??
     aggregates.data?.find((a) => a.has_telemetry) ??
     aggregates.data?.[0];
@@ -92,18 +99,25 @@ export function App({ logout }: { logout?: () => void }) {
       ? `${objectPath}/aggregates/${segment(aggregate.code)}`
       : null;
   const dates = useResource<Dates>(
-    aggregatePath && !monitoringPage && mode !== "field_trip" ? `${aggregatePath}/dates` : null,
+    aggregatePath && (!monitoringPage || page === "timeline") && mode !== "field_trip" ? `${aggregatePath}/dates` : null,
   );
-  const day = dayChoice || dates.data?.default_date || dates.data?.dates.at(-1) || "";
+  const stationTimes = useResource<{latest_at: string | null; points: {timestamp: string; quality: string}[]}>(
+    objectPath && page === "timeline" && !aggregateChoice
+      ? `${objectPath}/timeline${dayChoice ? `?start=${dayChoice}&end=${dayChoice}` : ""}` : null,
+  );
+  const day = dayChoice || dates.data?.default_date || dates.data?.dates.at(-1) || stationTimes.data?.latest_at?.slice(0,10) || "";
   const snapshots = useResource<Snapshot[]>(
-    aggregatePath && day && !monitoringPage && mode === "analysis"
+    aggregatePath && day && (!monitoringPage || page === "timeline") && mode === "analysis"
       ? `${aggregatePath}/snapshots?day=${day}`
       : null,
   );
   const snapshot = timestampChoice
     ? snapshots.data?.find((s) => s.timestamp === timestampChoice)
     : snapshots.data?.at(-1);
-  const timestamp = timestampChoice || snapshot?.timestamp || "";
+  const moments = page === "timeline" && !aggregateChoice
+    ? stationTimes.data?.points.filter(point => point.timestamp.startsWith(day) && point.quality !== "missing")
+    : snapshots.data;
+  const timestamp = timestampChoice || moments?.at(-1)?.timestamp || "";
   const topology = useResource<Topology>(
     objectPath && page === "overview" ? `${objectPath}/topology` : null,
   );
@@ -125,11 +139,6 @@ export function App({ logout }: { logout?: () => void }) {
   >(
     objectPath && aggregate && !monitoringPage && mode === "analysis"
       ? `${objectPath}/clarifications?aggregate_id=${segment(aggregate.code)}`
-      : null,
-  );
-  const branchPressures = useResource<Record<string, {p_in_mpa: number; p_out_mpa: number}>>(
-    objectPath && page === "overview" && mode === "analysis" && day && timestamp
-      ? `${objectPath}/scheme-pressures?day=${day}&timestamp=${segment(timestamp)}`
       : null,
   );
   const context: PageProps = {
@@ -189,18 +198,18 @@ export function App({ logout }: { logout?: () => void }) {
     setSelection(next);
   }
   function chooseAggregate(code: string) {
-    changeSelection({aggregate: code});
-    setNode("");
+    changeSelection(page === "timeline" ? {aggregate:code,day:"",timestamp:""} : {aggregate: code});
+
   }
   function openObject(code: string) {
     const next = {object: code, aggregate: "", day: "", timestamp: "", mode: "analysis"};
     const url = new URL(analysisContextURL(location.href, next));
-    for (const key of ["start", "end", "inspect"]) url.searchParams.delete(key);
+    for (const key of ["start", "end", "base_start", "base_end", "inspect"]) url.searchParams.delete(key);
     url.hash = "timeline";
     history.pushState(null, "", url);
     setSelection(next);
     setPage("timeline");
-    setNode("");
+
     setWaters([]);
     setNgdus([]);
     setSidebarOpen(false);
@@ -235,11 +244,24 @@ export function App({ logout }: { logout?: () => void }) {
       setSelection(next);
     }
   }, [monitoringPage, object?.code, aggregate?.code, mode, day, timestamp, dates.data, snapshots.data, selection]);
+  const section = navigationSections.find(group => group.pages.some(item => item.id === page));
+  function navigationHref(target: string) {
+    if ((target === "timeline" && mode !== "analysis") || pageForMode(mode,target) !== target) {
+      const url = new URL(location.href);
+      url.searchParams.set("mode","analysis");
+      url.hash = target;
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+    return `#${target}`;
+  }
   const blockedPage = page !== rawPage && rawPage !== "overview";
   const needAudit = [
-    "overview",
     "snapshot",
     "losses",
+    "network-scenario",
+    "machine-block",
+    "pipelines",
+    "wells",
     "sources",
     "formulas",
   ].includes(page);
@@ -272,15 +294,18 @@ export function App({ logout }: { logout?: () => void }) {
           </div>
         </a>
         <div className="sidebar-content">
-          {monitoringPage && <div className="monitoring-sidebar-intro">
-            <div className="eyebrow sidebar-section-title">МОНИТОРИНГ</div>
-            <p>Состояние объектов и история изменений</p>
-            {page === "timeline" && <label>Объект<select aria-label="Объект" value={object?.code ?? ""} onChange={event => openObject(event.target.value)}>
-              {objects.data?.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
-            </select></label>}
-          </div>}
-          {!monitoringPage && <div className="analysis-panel">
-            <div className="eyebrow sidebar-section-title">ПАРАМЕТРЫ АНАЛИЗА</div>
+          <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
+            {navigationSections.map(section => {
+              const root = section.pages.find(item => item.id === section.root)!;
+              const active = section.pages.some(item => item.id === page);
+              return <a key={section.root} href={navigationHref(section.root)} className={active ? "active" : ""} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)}>
+                <Icon name={root.icon} /><span>{section.label}</span>
+              </a>;
+            })}
+          </nav>
+          <div className="sidebar-divider" />
+          {page !== "portfolio" && <details className="analysis-panel" open>
+            <summary className="eyebrow sidebar-section-title">ПАРАМЕТРЫ АНАЛИЗА</summary>
             <section className="selectors" aria-label="Выбор режима">
               <label>
                 Режим
@@ -295,8 +320,8 @@ export function App({ logout }: { logout?: () => void }) {
                 </select>
               </label>
               <div className="selector-filters">
-                <Filters title="Тип воды" options={[...new Set(objects.data?.map(o => o.water_type))]} chosen={waters} onChange={setWaters} />
-                <Filters title="НГДУ" options={[...new Set(objects.data?.map(o => o.ngdu_name))]} chosen={ngdus} onChange={setNgdus} />
+                <Filters title="Тип воды" options={[...new Set(visibleObjects.map(o => o.water_type))]} chosen={waters} onChange={setWaters} />
+                <Filters title="НГДУ" options={[...new Set(visibleObjects.map(o => o.ngdu_name))]} chosen={ngdus} onChange={setNgdus} />
               </div>
               <label>
                 Объект
@@ -306,7 +331,7 @@ export function App({ logout }: { logout?: () => void }) {
                   disabled={!filtered.length}
                   onChange={(e) => {
                     changeSelection({object: e.target.value, aggregate: "", day: "", timestamp: ""});
-                    setNode("");
+
                   }}
                 >
                   <option value="" disabled>
@@ -320,17 +345,17 @@ export function App({ logout }: { logout?: () => void }) {
                   ))}
                 </select>
               </label>
-              <label>
+              {page !== "overview" && <label>
                 Агрегат
                 <select
                   aria-label="Агрегат"
-                  value={aggregate?.code ?? ""}
+                  value={page === "timeline" ? aggregateChoice : aggregate?.code ?? ""}
                   disabled={!aggregates.data?.length}
                   onChange={(e) => chooseAggregate(e.target.value)}
                 >
-                  <option value="" disabled>
-                    Нет агрегатов
-                  </option>
+                  {(page === "timeline" || !aggregates.data?.length) && <option value="" disabled={page !== "timeline"}>
+                    {page === "timeline" ? "Вся станция" : aggregates.loading ? "Загрузка…" : "Нет агрегатов"}
+                  </option>}
                   {aggregates.data?.map((a) => (
                     <option key={a.code} value={a.code}>
                       {a.code}
@@ -338,52 +363,28 @@ export function App({ logout }: { logout?: () => void }) {
                     </option>
                   ))}
                 </select>
-              </label>
-              {mode !== "field_trip" && (
+              </label>}
+              {mode !== "field_trip" && (!monitoringPage || page === "timeline") && (
                 <div className="selector-time">
                   <Calendar key={`${object?.code}/${aggregate?.code}`}
-                    path={aggregatePath ?? ""} day={day} dates={dates.data?.dates ?? []}
+                    path={aggregatePath ?? ""} day={day}
+                    dates={page === "timeline" && !aggregateChoice ? undefined : dates.data?.dates ?? []}
+                    max={new Date().toLocaleDateString("sv-SE")}
                     onChange={chooseDay} />
                   {mode === "analysis" && <label>
                     Момент измерения
-                    <select aria-label="Момент измерения" value={timestamp} disabled={!snapshots.data?.length}
+                    <select aria-label="Момент измерения" value={timestamp} disabled={!moments?.length}
                       onChange={(e) => changeSelection({timestamp: e.target.value})}>
                       <option value="" disabled>Нет измерений</option>
-                      {timestamp && !snapshot && <option value={timestamp} disabled>{time(timestamp)}</option>}
-                      {snapshots.data?.map(s => <option key={s.timestamp} value={s.timestamp}>{time(s.timestamp)}</option>)}
+                      {timestamp && !moments?.some(item => item.timestamp === timestamp) && <option value={timestamp} disabled>{time(timestamp)}</option>}
+                      {moments?.map(s => <option key={s.timestamp} value={s.timestamp}>{time(s.timestamp)}</option>)}
                     </select>
                   </label>}
                 </div>
               )}
             </section>
-          </div>}
-          <div className="sidebar-divider" />
-          <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
-            {navigationSections.filter(section => page !== "portfolio" || section.pages.some(item => item.id === "portfolio")).map(section => (
-              <section key={section.label} className="nav-section" aria-label={section.label}>
-                <h2 className="eyebrow nav-section-title">{section.label}</h2>
-                {section.pages.filter(item => page !== "portfolio" || item.id === "portfolio").map((item) => {
-                  const available = pageForMode(mode, item.id) === item.id;
-                  return (
-                    <a
-                      key={item.id}
-                      href={`#${item.id}`}
-                      className={page === item.id ? "active" : ""}
-                      aria-current={page === item.id ? "page" : undefined}
-                      aria-disabled={!available}
-                      title={
-                        !available ? "Недоступно в выбранном режиме" : undefined
-                      }
-                      onClick={() => setSidebarOpen(false)}
-                    >
-                      <Icon name={item.icon} />
-                      <span>{item.label}</span>
-                    </a>
-                  );
-                })}
-              </section>
-            ))}
-          </nav>
+          </details>}
+
         </div>
         {logout && <div className="sidebar-footer sidebar-session"><button onClick={logout}>Выйти</button></div>}
       </aside>}
@@ -412,8 +413,12 @@ export function App({ logout }: { logout?: () => void }) {
               : "Выберите объект для анализа оборудования и режима работы"}
           </p>
         </div>}
-        {page === "portfolio" && <PortfolioView onOpenObject={openObject} />}
-        {page === "timeline" && object && <TimelineView key={object.code} objectId={object.code} objectName={object.name} aggregateId={aggregateChoice} onAggregateChange={code => changeSelection({aggregate: code, day: "", timestamp: ""})} onInspect={selectTelemetryTimestamp} />}
+        {page !== "portfolio" && section && section.pages.length > 1 && <nav className="page-tabs" aria-label={`Вкладки: ${section.label}`}>
+          {section.pages.filter(item=>!item.hidden).map(item => <a key={item.id} href={navigationHref(item.id)} aria-current={page === item.id ? "page" : undefined}>{item.label}</a>)}
+        </nav>}
+        {page === "portfolio" && (objects.data ? <PortfolioView onOpenObject={openObject} /> : <Notice {...objects} />)}
+        {page === "timeline" && object && <TimelineView key={object.code} objectId={object.code} aggregateId={aggregateChoice} timestamp={timestampChoice || (dayChoice ? timestamp : "")}
+          onSelectTimestamp={value => changeSelection({day:value.slice(0,10),timestamp:value})} />}
         {page === "timeline" && telemetryMessage && <p className="notice" role="status">{telemetryMessage}</p>}
         <Notice {...objects} />
         {page !== "portfolio" && objects.data && !filtered.length && <div className="notice" role="status">
@@ -445,25 +450,25 @@ export function App({ logout }: { logout?: () => void }) {
           На выбранное время нет пригодного снимка этого агрегата. Дата и время сохранены;
           выберите другое время или другой агрегат для расчёта.
         </p>}
-        {audit && page !== "overview" && page !== "snapshot" && (
+        {audit?.tariff_warning && <p className="notice" role="status">{audit.tariff_warning}</p>}
+        {audit && audit.quality.status !== "ready" && page !== "overview" && page !== "snapshot" && page !== "machine-block" && (
           <div className={`quality ${audit.quality.status}`}>
             <strong>
               {audit.quality.status === "unfit"
                 ? "Данные непригодны для достоверных выводов"
-                : audit.quality.status === "assumptions"
-                  ? "Расчёт с допущениями"
-                  : "Данные пригодны для расчёта"}
+                : "Расчёт с допущениями"}
             </strong>
             <span>
               {source === "field_trip" ? "Выездной замер" : "Выбранный режим"}
             </span>
           </div>
         )}
-        {page === "overview" && audit && (
-          <OverviewView audit={audit} context={context} clarifications={clarifications.data ?? []} scheme={<SchemePanel topology={topology.data} audit={audit} aggregate={aggregate?.code ?? ""} pressures={branchPressures.data} selected={nodeChoice} onClear={() => setNode("")} status={<Notice {...topology} />} onSelect={n => { if (n.agg && aggregates.data?.some(a => a.code === n.agg) && n.agg !== aggregate?.code) chooseAggregate(n.agg); setNode(n.id); }} />} />
-        )}
+        {page === "overview" && object && <StationOverview key={`${object.code}:${source}`} objectId={object.code} source={source} topology={topology.data} />}
         {page === "snapshot" && audit && <SnapshotView audit={audit} />}
-        {page === "losses" && audit && <LossesView audit={audit} inspectionKey={context.inspectionKey} />}
+        {audit && ["machine-block","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${page}`} stage={page === "machine-block" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} inspectionKey={context.inspectionKey} />}
+        {page === "well-history" && object && <WellHistory objectId={object.code} />}
+        {(page === "losses" || page === "network-scenario") && audit && <NetworkLosses key={`${contextKey}:${timestamp}:${page}`} audit={audit} view={page === "losses" ? "map" : "scenario"} />}
+        {(page === "losses" || page === "network-scenario") && !audit && <p className="notice">Для расчёта выберите агрегат и доступный режим.</p>}
         {page === "sources" && audit && <SourcesView audit={audit} inspectionKey={context.inspectionKey} />}
         {page === "formulas" && audit && <FormulasPage {...context} />}
         {page === "telemetry" && telemetryMessage && <p className="notice" role="status">{telemetryMessage}</p>}

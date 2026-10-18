@@ -1,43 +1,47 @@
 export const navigationSections = [
-  {
-    label: "Состояние системы",
-    pages: [
-      { id: "portfolio", label: "Все объекты", icon: "portfolio" },
-      { id: "timeline", label: "Обзор и история", icon: "timeline" },
-      { id: "overview", label: "Разбор режима", icon: "overview" },
-      { id: "snapshot", label: "Режимный расчёт", icon: "snapshot" },
-      { id: "telemetry", label: "Телеметрия", icon: "telemetry" },
-    ],
-  },
-  {
-    label: "Энергоэффективность",
-    pages: [
-      { id: "losses", label: "Карта потерь", icon: "losses" },
-      { id: "working-point", label: "Рабочая точка", icon: "working-point" },
-      { id: "measures", label: "Мероприятия", icon: "measures" },
-    ],
-  },
-  {
-    label: "Прогнозирование",
-    pages: [
-      { id: "forecast", label: "Прогноз закачки", icon: "forecast" },
-      { id: "crm", label: "Прогноз CRM", icon: "crm" },
-      { id: "crm-wells", label: "Прогноз по скважинам", icon: "crm-wells" },
-    ],
-  },
-  {
-    label: "Данные и методика",
-    pages: [
-      { id: "sources", label: "Источники данных", icon: "sources" },
-      { id: "formulas", label: "Формулы", icon: "formulas" },
-      { id: "onboarding", label: "Готовность данных", icon: "onboarding" },
-    ],
-  },
+  {label:"Все объекты",root:"portfolio",pages:[
+    {id:"portfolio",label:"Все объекты",icon:"portfolio"},
+  ]},
+  {label:"Обзор",root:"timeline",pages:[
+    {id:"timeline",label:"История показателей",icon:"timeline"},
+    {id:"overview",label:"Схема и участки",icon:"overview"},
+    {id:"losses",label:"Карта потерь",icon:"losses"},
+  ]},
+  {label:"Машинный блок",root:"machine-block",pages:[
+    {id:"machine-block",label:"Потери и КПД",icon:"machine-block"},
+    {id:"working-point",label:"Рабочая точка",icon:"working-point"},
+  ]},
+  {label:"Трубопроводы",root:"pipelines",pages:[
+    {id:"pipelines",label:"Потери",icon:"pipelines"},
+    {id:"network-scenario",label:"Гидравлический сценарий",icon:"scheme"},
+  ]},
+  {label:"Скважины",root:"wells",pages:[
+    {id:"wells",label:"Потери",icon:"wells"},
+    {id:"forecast",label:"Прогноз закачки",icon:"forecast"},
+    {id:"well-history",label:"История и ГДИ",icon:"telemetry"},
+    {id:"crm",label:"Прогноз по агрегатам",icon:"crm",hidden:true},
+    {id:"crm-wells",label:"Прогноз по скважинам",icon:"crm-wells"},
+  ]},
+  {label:"Мероприятия",root:"measures",pages:[
+    {id:"measures",label:"Мероприятия",icon:"measures"},
+  ]},
+  {label:"Данные и методика",root:"sources",pages:[
+    {id:"sources",label:"Источники",icon:"sources"},
+    {id:"telemetry",label:"Телеметрия",icon:"telemetry-data"},
+    {id:"snapshot",label:"Режимный расчёт",icon:"snapshot"},
+    {id:"formulas",label:"Формулы",icon:"formulas"},
+    {id:"onboarding",label:"Готовность данных",icon:"onboarding"},
+  ]},
 ];
 export const pages = navigationSections.flatMap(section => section.pages);
 const fieldPages = new Set([
   "overview",
+  "machine-block",
+  "pipelines",
+  "wells",
+  "well-history",
   "losses",
+  "network-scenario",
   "working-point",
   "measures",
   "formulas",
@@ -105,4 +109,9 @@ export function analysisContextURL(href, context) {
     else url.searchParams.delete(key);
   }
   return url.href;
+}
+
+/** @template {{code:string}} T @param {T[]} objects */
+export function operatorObjects(objects) {
+  return objects.filter(object => ["knsopu","kns54an","kns97pren","demo-ppd"].includes(object.code));
 }

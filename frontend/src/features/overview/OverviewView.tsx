@@ -1,3 +1,4 @@
+import { LinkButton } from "../../shared/ui/Button";
 import { metricLinks } from "../inspection/inspection.mjs";
 import { type ReactNode } from "react";
 import type { Audit } from "../../shared/types";
@@ -6,7 +7,6 @@ import { metricAssessment } from "../../shared/metrics/metricAssessment.mjs";
 import { MetricCard } from "../../shared/ui/MetricCard";
 import type { PageProps } from "../../shared/ui/context";
 import { AnnualSummary } from "./AnnualSummary";
-import { EfficiencyKpiPanel } from "./EfficiencyKpiPanel";
 import { OverviewMetricPanel } from "./OverviewMetricPanel";
 import { metricHelp } from "./Kpis";
 import { Passport } from "./Passport";
@@ -19,6 +19,7 @@ export function OverviewView({ audit, context, scheme, clarifications }: { audit
   return (
     <div className="overview-page">
       <Quality audit={audit} clarifications={clarifications} />
+      <p className="muted">УРЭ выбранного агрегата {audit.audit.aggregate_id}: электрическая энергия на объём его закачки. Суммарный УРЭ станции доступен в истории при выборе «Вся станция».</p>
       <div className="overview-primary">
         <OverviewMetricPanel title="Удельный расход энергии" actionLabel="Ориентиры УРЭ" layout="ure" details={<MetricCard label="" value={null} unit="" help="" segments={[
           { label: "Цель ППД-2035", value: audit.target_sec, unit: "кВт·ч/м³", help: metricHelp["Цель ППД-2035"], ...metricAssessment(audit.target_sec, null, "higher", v.usable) },
@@ -29,7 +30,6 @@ export function OverviewView({ audit, context, scheme, clarifications }: { audit
             { label: "Оптимальный", links: metricLinks("sec_optimal"), value: v.usable ? m.sec_optimal_kwh_m3 : null, unit: "кВт·ч/м³", help: metricHelp["УРЭ оптимальный"], ...metricAssessment(v.usable ? m.sec_optimal_kwh_m3 : null, null, "higher", v.usable) },
           ]} />
         </OverviewMetricPanel>
-      <EfficiencyKpiPanel audit={audit} />
       </div>
       {scheme}
       {v.usable ? (
@@ -41,7 +41,7 @@ export function OverviewView({ audit, context, scheme, clarifications }: { audit
         <div className="notice error" role="status">
           <strong>Недостаточно достоверных данных для оценки потерь</strong>
           <p>Проверьте замечания выше и исходные измерения. Можно выбрать другую дату или момент измерения.</p>
-          <a href="#sources">Проверить источники данных</a>
+          <LinkButton href="#sources">Проверить источники данных</LinkButton>
         </div>
       )}
       <Passport audit={audit} />

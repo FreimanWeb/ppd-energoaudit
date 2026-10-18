@@ -1,15 +1,16 @@
+import { goToSection } from "./helpers";
 import { selectDate } from "./helpers";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 async function selectFixture(page: Page) {
-  await page.goto("/#overview");
+  await page.goto("/#machine-block");
   await page.getByLabel("Объект", { exact: true }).selectOption("kns54an");
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
   await selectDate(page, "2026-09-29");
-  await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удельный расход энергии",exact:true})).toBeVisible();
 }
 async function section(page: Page, hash: string) {
-  await page.locator(`nav a[href="#${hash === "scheme" ? "overview" : hash}"]`).click();
+  await goToSection(page, hash);
   await expect(page.locator("main")).toBeVisible();
 }
 const chart = (page: Page) => page.locator(".plot-wrap").filter({has: page.locator("svg.visx-chart")}).first();
@@ -70,7 +71,7 @@ test("loss graphs, working point, measures and connection templates", async ({
   page,
 }) => {
   await selectFixture(page);
-  await section(page, "losses");
+  await section(page, "machine-block");
   const waterfall = page.locator(".page-panel:not(:has(.network-losses))").getByRole("group", {name: "Декомпозиция мощности", exact: true});
   await expect(waterfall.locator("svg.visx-chart")).toBeVisible();
   await expect(waterfall.locator(".visx-bar")).toHaveCount(6);
@@ -88,6 +89,7 @@ test("loss graphs, working point, measures and connection templates", async ({
   await expect(page.locator(".visx-axis-x").first()).toBeVisible();
   await expect(page.locator(".visx-axis-y").first()).toBeVisible();
   await section(page, "measures");
+  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
   await expect(page.locator("main")).toContainText("Оптимизация уставок");
   await page.getByLabel("Основание расчёта").selectOption("forecast");
   await expect(page.getByLabel("Горизонт экономики")).toBeEnabled();
@@ -115,21 +117,21 @@ test("unfit measurements never produce economic conclusions; missing snapshot is
 test("all source modes preserve their restrictions", async ({ page }) => {
   await selectFixture(page);
   await page.getByLabel("Режим", { exact: true }).selectOption("field_trip");
-  await section(page, "overview");
+  await section(page, "machine-block");
   await expect(page.locator("main")).toContainText(
     /Выезд|выезд|паспорт|Паспорт/,
   );
   await page
     .getByLabel("Режим", { exact: true })
     .selectOption("telemetry_view");
-  await expect(page.locator('nav a[href="#working-point"]')).toHaveAttribute("aria-disabled", "true");
+  await expect(page.locator('.sidebar-nav a[href$="#machine-block"]')).toHaveAttribute("href", /mode=analysis/);
   await page.evaluate(() => { location.hash = "working-point"; });
   await expect(page.locator("main")).toContainText(/анализ|недоступ|режим/);
 });
 
 test("mobile sidebar restores focus on Escape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/#overview");
+  await page.goto("/#machine-block");
   const toggle = page.getByRole("button", { name: "Открыть боковую панель" });
   await toggle.click();
   await expect(
@@ -162,10 +164,10 @@ test("switching aggregate while snapshot loads discards the stale response", asy
   await pending;
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
   await selectDate(page, "2026-09-29");
-  await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удельный расход энергии",exact:true})).toBeVisible();
   release();
   await expect(page.getByLabel("Агрегат", { exact: true })).toHaveValue("НА-1");
-  await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удельный расход энергии",exact:true})).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
@@ -181,17 +183,16 @@ test("failed backend requests are visible and do not leave old calculations", as
   await expect(page.getByText("600", { exact: true })).toHaveCount(0);
 });
 
-test("overview scheme exposes real equipment and selecting a pump changes the shared aggregate", async ({
+test("overview scheme exposes equipment without individual equipment actions", async ({
   page,
 }) => {
-  await selectFixture(page);
+  await page.goto("/?object=demo-ppd#timeline");
   await section(page, "scheme");
   await expect(page.locator(".equipment-scheme")).toBeVisible();
   await expect.poll(() => page.locator(".pressure-label").count()).toBeGreaterThan(0);
-  const pump = page.getByRole("button", { name: /НА-2/ }).first();
-  await pump.click();
-  await expect(page.getByLabel("Агрегат", { exact: true })).toHaveValue("НА-2");
-  await expect(page.getByLabel("Выбранное оборудование")).toContainText("НА-2");
+  await expect(page.locator(".equipment-scheme").getByRole("button")).toHaveCount(0);
+  await expect(page.getByLabel("Агрегат", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".equipment-node[data-node=\"pump-1\"]")).toBeVisible();
 });
 
 test("CRM unit and well graph controls affect actual plotted series", async ({

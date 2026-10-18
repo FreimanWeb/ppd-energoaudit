@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ParentSize } from "@visx/responsive";
 import { ChartTooltip } from "../../charts/ChartTooltip";
 import "../../charts/charts.css";
+import { operatorObjects } from "../../app/navigation.mjs";
 import { Filters } from "../../app/components/Filters";
 import { Notice } from "../../app/components/Notice";
 import { Calendar } from "../analysis-context/Calendar";
@@ -93,7 +94,7 @@ export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) =
   const [water, setWater] = useState<string[]>([]);
   const [status, setStatus] = useState("all");
   const [historyDays, setHistoryDays] = useState(30);
-  const objects = resource.data?.objects ?? [];
+  const objects = operatorObjects(resource.data?.objects ?? []);
   const visible = visibleObjects(objects, query, ngdu, water, status);
   return <div className="portfolio-page">
     <header className="portfolio-heading">
@@ -124,6 +125,7 @@ export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) =
           const period = portfolioHistory(object.history, endDate, historyDays);
           return <article className={`portfolio-card portfolio-card-${object.status}`} key={object.code}>
           <div className="portfolio-card-heading"><div><p>{object.ngdu_name || "НГДУ не указано"}</p><h2>{object.name}</h2></div><span className={`portfolio-badge portfolio-badge-${object.status}`}>{statusLabel[object.status]}</span></div>
+          {object.code === "demo-ppd" && <p className="notice">Демо · синтетические данные</p>}
           <p className="portfolio-object-meta">{object.code} · {object.water_type || "Тип воды не указан"}</p>
           <div className="portfolio-reading"><div><span>Удельный расход энергии</span><strong>{formatNumber(object.sec_kwh_m3, 3)} <small>кВт·ч/м³</small></strong>{object.kpi_at && <span>УРЭ за <time dateTime={object.kpi_at}>{timestamp(object.kpi_at)}</time></span>}</div><div className={`portfolio-change ${object.change_pct != null && object.change_pct > 0 ? "portfolio-change-up" : ""}`}>
             {object.change_pct == null ? <span>Нет сравнения</span> : <><strong>{object.change_pct > 0 ? "+" : ""}{formatNumber(object.change_pct, 1)} %</strong><span>к предыдущей точке той же базы</span></>}

@@ -11,6 +11,8 @@
 .metric-card .metric-label { display: flex; align-items: start; justify-content: space-between; gap: var(--space-1); min-height: 34px; font-size: var(--text-caption); line-height: 1.4; }
 .metric-group .metric-card strong { display: block; font-size: var(--text-value); line-height: 1.2; margin-top: var(--space-1); overflow-wrap: anywhere; }
 .metric-card .metric-unit { display: block; font-size: var(--text-caption); color: var(--content-muted); margin-top: var(--space-1); }
+.metric-card:not(.metric-values) { display: flex; flex-direction: column; }
+.metric-card:not(.metric-values) > .metric-unit { margin-top: auto; padding-top: var(--space-1); }
 .metric-card.metric-bad strong { color: var(--metric-danger); }
 .metric-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
 .metric-toolbar h2 { margin: 0; }
@@ -30,5 +32,5 @@
 .metric-actions summary::-webkit-details-marker { display: none; }
 .metric-actions summary:hover { color: var(--accent-strong); }
 .metric-actions nav { position: absolute; top: 100%; right: 0; z-index: 10; display: grid; gap: var(--space-2); min-width: 140px; padding: var(--space-3); background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
-.metric-actions a { color: var(--accent-strong); text-underline-offset: 3px; white-space: nowrap; }
+.metric-actions a.ds-button { min-height: 32px; padding: 6px 10px; justify-content: flex-start; white-space: nowrap; }
 .metric-segment-heading .metric-actions, .metric-label .metric-actions { margin: 0; }

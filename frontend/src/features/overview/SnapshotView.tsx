@@ -32,7 +32,6 @@ export function SnapshotView({ audit }: { audit: Audit }) {
           : "Нет W и Q_сут: суточный фактический УРЭ не вычисляется."}</p>
         <Dictionary values={{ "W, кВт·ч": audit.regime.w, "Q_сут, м³": audit.regime.q_day, "T, ч": audit.regime.t, "Мощность для расчёта, кВт": m.p_electric_kw }} />
       </Panel>
-      <p className="overview-section-link"><a href="#sources">Источники данных</a> · <a href="#formulas">Формулы расчёта</a> · <a href="#overview">Годовая оценка</a></p>
     </>
   );
 }

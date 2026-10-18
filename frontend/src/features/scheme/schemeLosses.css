@@ -1,0 +1,12 @@
+.scheme-loss-marker, .scheme-area-link { cursor: pointer; }
+.scheme-area-link[data-active] rect, .scheme-loss-marker[data-active] rect { fill: var(--accent-soft); stroke: var(--accent-strong); stroke-width: 2; }
+.equipment-scheme .equipment-node { pointer-events: none; cursor: default; }
+.equipment-scheme g[data-from] { pointer-events: none; }
+.scheme-loss-marker rect { fill: var(--surface); stroke: var(--border); }
+.scheme-loss-leader { stroke: var(--content-muted); stroke-width: 1; stroke-dasharray: 3 4; pointer-events: none; }
+.scheme-loss-marker text { text-anchor: middle; fill: var(--content-primary); }
+.scheme-loss-label { font-size: 15px; }
+.scheme-loss-value { font-size: 22px; font-weight: 700; }
+
+.scheme-loss-marker .scheme-loss-power { font-size: 13px; fill: var(--content-muted); }
+.scheme-area-link:focus-visible,.scheme-loss-marker:focus-visible { outline: none; }

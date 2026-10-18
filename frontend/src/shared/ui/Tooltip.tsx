@@ -75,6 +75,7 @@ export function Tooltip({ label, content, children }: {
       document.removeEventListener("pointerdown", outside);
     };
   }, [open]);
+  if (content == null || content === false || content === "" || (Array.isArray(content) && content.length === 0)) return <>{children}</>;
   return <>
     <button
       ref={button}

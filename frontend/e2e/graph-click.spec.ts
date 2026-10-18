@@ -1,17 +1,18 @@
+import { goToSection } from "./helpers";
 import { test, expect, type Page } from '@playwright/test';
 import { selectDate } from './helpers';
 
 async function fixture(page: Page) {
-  await page.goto('/#overview');
+  await page.goto('/#machine-block');
   await page.getByLabel('Объект', { exact: true }).selectOption('kns54an');
   await page.getByLabel('Агрегат', { exact: true }).selectOption('НА-1');
   await selectDate(page, '2026-09-29');
-  await expect(page.getByText('600', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удельный расход энергии",exact:true})).toBeVisible();
 }
 
 test('CRM graph accepts a real well click and keyboard activation', async ({ page }) => {
   await fixture(page);
-  await page.locator('nav a[href="#crm-wells"]').click();
+  await goToSection(page, "crm-wells");
   await page.getByRole('button', { name: 'Связи', exact: true }).click();
   const graph = page.getByRole('group', { name: 'Граф взаимовлияния', exact: true });
   const nodes = graph.getByRole('button', { name: /^Скважина / });
@@ -33,7 +34,7 @@ test('CRM graph accepts a real well click and keyboard activation', async ({ pag
 
 test('charts and full flow labels fit their container after mobile resize', async ({ page }) => {
   await fixture(page);
-  await page.locator('nav a[href="#losses"]').click();
+  await goToSection(page, "machine-block");
   await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button', { name: 'Поток мощности', exact: true }).click();
   const plots = page.locator('svg.visx-chart');
   await expect(plots.first()).toBeVisible();

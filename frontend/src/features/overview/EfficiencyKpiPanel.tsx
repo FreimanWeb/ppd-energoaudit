@@ -6,7 +6,7 @@ import { metricAssessment } from "../../shared/metrics/metricAssessment.mjs";
 import { MetricCard } from "../../shared/ui/MetricCard";
 import { fmt } from "../../shared/ui/format";
 import { Kpis, metricHelp } from "./Kpis";
-import { OverviewMetricPanel } from "./OverviewMetricPanel";
+import { Panel } from "../../shared/ui/Panel";
 
 export function EfficiencyKpiPanel({ audit }: { audit: Audit }) {
   const { eta_unit: actual, eta_nom: nominal } = audit.audit.metrics;
@@ -21,18 +21,21 @@ export function EfficiencyKpiPanel({ audit }: { audit: Audit }) {
     : actualAssessment.caption;
 
   return (
-    <OverviewMetricPanel title="КПД" actionLabel="Диагностика агрегата" layout="efficiency" details={<Kpis audit={audit} label="Диагностика агрегата" heading={false} rows={[
-      ["Коэффициент загрузки ЭД", audit.audit.metrics.load_factor, "о.е."],
-      ["КПД ЭД расчётный", audit.audit.metrics.eta_motor_real, "о.е."],
-      ["КПД насоса расчётный", audit.audit.metrics.eta_pump, "о.е."],
-    ]} />}>
-          <MetricCard label="" value={null} unit="" help="" segments={[
+    <Panel title="КПД">
+      <div className="machine-efficiency">
+        <MetricCard label="" value={null} unit="" help="" segments={[
             { label: "КПД агрегата", links: metricLinks("eta_unit"), value: efficiencyPercent(actual), unit: "%", help: metricHelp["КПД агрегата"],
               ...actualAssessment,
               valueSuffix: difference != null && difference !== 0 ? <sup className="efficiency-difference" aria-label="Разница КПД"><b className="efficiency-difference-arrow">{difference < 0 ? "↓" : "↑"}</b><span className="efficiency-difference-value">{fmt(Math.abs(difference), 1)}</span></sup> : null,
               reason: [actualCaption, actualAssessment.reason, difference != null && difference !== 0 ? `Отклонение от номинального: ${difference > 0 ? "+" : ""}${fmt(difference, 1)} п.п.` : null].filter(Boolean).join(". ") },
             { label: "КПД номинальный", links: metricLinks("eta_nom"), value: efficiencyPercent(nominal), unit: "%", help: metricHelp["КПД номинальный"], ...nominalAssessment },
-          ]} />
-    </OverviewMetricPanel>
+        ]} />
+        <Kpis audit={audit} label="Показатели агрегата" heading={false} rows={[
+          ["Коэффициент загрузки ЭД", audit.audit.metrics.load_factor, "о.е."],
+          ["КПД ЭД расчётный", audit.audit.metrics.eta_motor_real, "о.е."],
+          ["КПД насоса расчётный", audit.audit.metrics.eta_pump, "о.е."],
+        ]} />
+      </div>
+    </Panel>
   );
 }

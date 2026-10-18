@@ -1,0 +1,7 @@
+.well-history { display: grid; gap: 1rem; min-width: 0; }
+.well-history > *, .well-history section { min-width: 0; }
+.well-history p { margin: 0; }
+.well-history-select { display: grid; gap: .4rem; max-width: 22rem; }
+.well-history-select select { width: 100%; min-width: 0; }
+.well-history summary { cursor: pointer; }
+.well-history details[open] > summary { margin-bottom: 1rem; }

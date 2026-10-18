@@ -1,15 +1,16 @@
+import { goToSection } from "./helpers";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { selectDate } from "./helpers";
 
 async function fixture(page: Page) {
-  await page.goto("/#overview");
+  await page.goto("/#machine-block");
   await page.getByLabel("Объект", { exact: true }).selectOption("kns54an");
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
   await selectDate(page, "2026-09-29");
-  await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удельный расход энергии",exact:true})).toBeVisible();
 }
 async function section(page: Page, hash: string) {
-  await page.locator(`nav a[href="#${hash === "scheme" ? "overview" : hash}"]`).click();
+  await goToSection(page, hash);
 }
 
 test("water and NGDU filters actually constrain selectable objects and reset safely", async ({
@@ -191,7 +192,7 @@ test("onboarding exposes readiness and both read-only templates for the actual s
   await expect(page.locator("main input, main textarea")).toHaveCount(0);
 });
 
-test("a chosen measurement remains shared across sources, formulas and the overview scheme", async ({
+test("a chosen measurement survives visiting the station scheme without changing individual calculations", async ({
   page,
 }) => {
   await fixture(page);
@@ -211,9 +212,11 @@ test("a chosen measurement remains shared across sources, formulas and the overv
     "2026-09-29T12:00:00",
   );
   await section(page, "scheme");
-  await expect(page.locator(".pump-regime-card")).toContainText("600");
+  await expect(page.locator(".equipment-scheme")).toBeVisible();
   await expect(page.locator(".scheme-tools")).toHaveCount(0);
   await expect(page.locator(".equipment-scheme > g[transform]")).toHaveCount(0);
+  await expect(page.getByLabel("Момент измерения")).toHaveCount(0);
+  await section(page, "machine-block");
   await expect(page.getByLabel("Момент измерения")).toHaveValue(
     "2026-09-29T12:00:00",
   );
@@ -268,35 +271,20 @@ test("CRM graph preserves downtime square markers from the legacy wells view", a
   await expect(downtime.locator("circle.network-marker")).toHaveCount(0);
 });
 
-test("selected pump exposes the legacy engineering assessment alongside pressures", async ({
-  page,
-}) => {
+test("machine block keeps efficiency diagnostics separate from the overview", async ({page}) => {
   await fixture(page);
-  await section(page, "scheme");
-  await page.getByRole("button", { name: /НА-1/ }).first().click();
-  const equipment = page.getByLabel("Выбранное оборудование");
-  await expect(equipment).toContainText(/КПД.*факт|Фактический КПД/i);
-  await expect(equipment).toContainText(/КПД.*ном|Номинальный КПД/i);
-  await expect(equipment).toContainText(/загрузк|K_з|Kз/i);
-  await expect(equipment).toContainText(/УРЭ|Удельный расход/i);
-  await expect(equipment).toContainText(/потери.*КПД|Потери по КПД/i);
+  await goToSection(page, "machine-block");
+  await expect(page.getByRole('heading',{name:'КПД',exact:true})).toBeVisible();
+  await expect(page.getByText('Коэф. загрузки ЭД',{exact:true})).toBeVisible();
+  await expect(page.getByText('КПД насоса расчётный',{exact:true})).toBeVisible();
 });
 
-test("scheme stage details retain the physical meaning of source and throttling", async ({
-  page,
-}) => {
+test("scheme area opens wells and its throttling breakdown", async ({page}) => {
   await fixture(page);
-  await section(page, "scheme");
-  await page.getByRole("button", { name: "Приём воды", exact: true }).click();
-  await expect(page.getByLabel("Выбранное оборудование")).toContainText(
-    "Подача за сутки",
-  );
-  await page
-    .getByRole("button", { name: "ЗРА / штуцеры", exact: true })
-    .click();
-  await expect(page.getByLabel("Выбранное оборудование")).toContainText(
-    "дросселирование",
-  );
+  await section(page,'scheme');
+  await page.getByRole('link',{name:'Открыть участок: Скважины и арматура',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Скважины и арматура',exact:true}).first()).toBeVisible();
+  await expect(page.locator('main')).toContainText('Штуцирование скважин');
 });
 
 async function hoverLineEnd(

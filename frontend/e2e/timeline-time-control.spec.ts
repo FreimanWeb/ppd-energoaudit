@@ -1,0 +1,55 @@
+import {test,expect} from '@playwright/test';
+
+test('timeline has one independent time control with a stable reset and synchronized charts',async({page})=>{
+  await page.goto('/?object=demo-ppd&aggregate=НА-1#timeline');
+  const control=page.getByRole('region',{name:'Управление временем',exact:true});
+  await expect(control).toBeVisible();
+  const reset=control.getByRole('button',{name:'Весь период',exact:true});
+  await expect(reset).toBeDisabled();
+  const original=await reset.boundingBox();
+  const first=page.locator('.timeline-charts > div').first();
+  const box=await first.boundingBox(), bar=await control.boundingBox();
+  expect(bar!.y+bar!.height).toBeLessThanOrEqual(box!.y);
+  await expect(page.locator('.timeline-charts .visx-brush')).toHaveCount(0);
+  const end=control.getByRole('slider',{name:'Конец видимого периода',exact:true});
+  await end.focus();await end.press('ArrowLeft');
+  await expect(reset).toBeEnabled();
+  const zoomed=await reset.boundingBox();
+  expect(zoomed!.x).toBeCloseTo(original!.x,0);expect(zoomed!.width).toBeCloseTo(original!.width,0);
+  const domains=await page.locator('.timeline-charts svg.visx-chart').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-time-domain')));
+  expect(new Set(domains).size).toBe(1);
+  await reset.click();await expect(reset).toBeDisabled();
+  await expect(first).toContainText('УРЭ оптим. по БГ');
+  const icon=control.locator('.tooltip-trigger svg');
+  expect((await icon.boundingBox())!.width).toBeGreaterThanOrEqual(14);
+  await page.setViewportSize({width:320,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+test('dragging the selected band pans every chart without changing duration and clamps to bounds',async({page})=>{
+  await page.goto('/?object=demo-ppd&aggregate=НА-1#timeline');
+  const control=page.getByRole('region',{name:'Управление временем',exact:true});
+  await control.scrollIntoViewIfNeeded();
+  const end=control.getByRole('slider',{name:'Конец видимого периода',exact:true});
+  const handle=await end.boundingBox();
+  await page.mouse.move(handle!.x+handle!.width-6,handle!.y+12);await page.mouse.down();
+  await page.mouse.move(handle!.x+handle!.width*.6,handle!.y+12,{steps:10});await page.mouse.up();
+  const charts=page.locator('.timeline-charts svg.visx-chart');
+  const domain=async()=> (await charts.first().getAttribute('data-time-domain'))!.split(',').map(Number);
+  const before=await domain(), duration=before[1]-before[0];
+  const band=control.locator('.time-control-selection');
+  const box=await band.boundingBox(), track=await control.locator('.time-control-track').boundingBox();
+  await page.mouse.move(box!.x+box!.width/2,box!.y+12);await page.mouse.down();
+  await page.mouse.move(box!.x+box!.width/2+track!.width*.15,box!.y+12,{steps:10});await page.mouse.up();
+  const after=await domain();
+  expect(after[0]).toBeGreaterThan(before[0]);expect(Math.abs(after[1]-after[0]-duration)).toBeLessThan(1);
+  const windows=await charts.evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-time-domain')));
+  expect(new Set(windows).size).toBe(1);
+  const moved=await band.boundingBox();
+  await page.mouse.move(moved!.x+moved!.width/2,moved!.y+12);await page.mouse.down();
+  await page.mouse.move(track!.x+track!.width+200,moved!.y+12,{steps:10});await page.mouse.up();
+  expect((await domain())[1]).toBe(Number(await end.getAttribute('max')));
+  expect(Math.abs((await domain())[1]-(await domain())[0]-duration)).toBeLessThan(1);
+  await band.focus();await band.press('Home');
+  expect((await domain())[0]).toBe(Number(await end.getAttribute('min')));
+});

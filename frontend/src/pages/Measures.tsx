@@ -1,4 +1,4 @@
-import { followInternalLink } from "../shared/ui/navigation";
+import { Button, LinkButton } from "../shared/ui/Button";
 import { Tooltip } from "../shared/ui/Tooltip";
 import { useState } from "react";
 import { economicDisplay } from "./fidelity.mjs";
@@ -10,6 +10,7 @@ import { inspectionFor, relatedMeasures, inspectionHref } from "../features/insp
 import { InspectionLinks } from "../features/inspection/InspectionLinks";
 import { Table } from "../shared/ui/Table";
 import { contextBody, type PageProps } from "../shared/ui/context";
+import { ChainMeasures } from "../features/losses/ChainMeasures";
 import { fmt } from "../shared/ui/format";
 type Annual = {
   measure_id: string;
@@ -156,10 +157,12 @@ export function MeasuresPage(p: PageProps) {
         fillcolor: "color-mix(in srgb, var(--chart-primary) 12%, transparent)",
       },
     );
-  return (
+  return (<>
+    <ChainMeasures key={`${p.objectId}:${p.aggregateId}:${p.source}:${p.day}:${p.timestamp}`} context={p} annual={focus ? related : data?.annual ?? []} eligible={eligible} loading={resource.loading} error={resource.error} />
+    <details className="metric-disclosure" open={focus ? true : undefined}><summary>Расширенный расчёт экономики машинного блока</summary>
     <Panel
       title="Мероприятия и экономика"
-      caption="Сценарная оценка · CAPEX требует уточнения · экономия не подтверждена"
+      caption="Расчёт агрегата и обвязки до БГ · CAPEX требует уточнения · экономия не подтверждена"
       help="Типовые затраты и расчётный эффект требуют диагностики. Это не проектное ТЭО и не достигнутая экономия."
     >
       <div className="page-controls">
@@ -244,8 +247,8 @@ export function MeasuresPage(p: PageProps) {
             <h3>Мероприятия по выбранной причине потерь</h3>
             {related.length ? <Table rows={related.map(economicDisplay)} columns={annualColumns} />
               : <p className="notice">Для выбранной составляющей нет применимых мероприятий в реестре. Проверьте данные и технологические ограничения.</p>}
-            <a onClick={followInternalLink} href={inspectionHref("losses", p.inspectionKey)}>Вернуться к составляющей потерь</a>
-            <button type="button" onClick={() => { const url = new URL(location.href); url.searchParams.delete("inspect"); history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); }}>Показать все мероприятия</button>
+            <div className="content-actions"><LinkButton href={inspectionHref("losses", p.inspectionKey)}>Вернуться к составляющей потерь</LinkButton>
+            <Button variant="secondary" onClick={() => { const url = new URL(location.href); url.searchParams.delete("inspect"); history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); }}>Показать все мероприятия</Button></div>
           </section>}
           {!focus && <>
           <h3>Годовой реестр мероприятий</h3>
@@ -520,6 +523,6 @@ export function MeasuresPage(p: PageProps) {
           )}
         </>
       )}
-    </Panel>
-  );
+    </Panel></details>
+  </>);
 }

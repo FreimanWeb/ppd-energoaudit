@@ -1,4 +1,4 @@
-import { followInternalLink } from "../../shared/ui/navigation";
+import { LinkButton } from "../../shared/ui/Button";
 import { inspectionFor, inspectionHref } from './inspection.mjs';
 import './inspection.css';
 
@@ -11,7 +11,7 @@ export function InspectionLinks({ metric }: { metric?: string }) {
     <nav aria-label="Основание показателя">
       {[["sources", "Источники показателя"], ["formulas", "Формулы показателя"]].map(([target, label]) => page === target
         ? <span key={target} aria-current="page">{label}</span>
-        : <a key={target} onClick={followInternalLink} href={inspectionHref(target, metric)}>{label}</a>)}
+        : <LinkButton key={target} href={inspectionHref(target, metric)}>{label}</LinkButton>)}
     </nav>
   </div>;
 }

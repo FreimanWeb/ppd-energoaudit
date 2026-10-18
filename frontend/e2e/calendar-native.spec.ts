@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const context = '/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12%3A00%3A00&mode=analysis#overview';
+const context = '/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12%3A00%3A00&mode=analysis#machine-block';
 
 test('one date trigger opens colored calendar and keeps selection while browsing months', async ({ page }) => {
   await page.goto(context);
@@ -58,7 +58,7 @@ test('filters precede object, viewer has one calendar, and mobile dialog fits vi
 });
 
 test('missing telemetry disables date picker and field trip hides it', async ({ page }) => {
-  await page.goto('/?object=kns97pren&aggregate=НА-2%20ПР&mode=analysis#overview');
+  await page.goto('/?object=kns97pren&aggregate=НА-2%20ПР&mode=analysis#machine-block');
   await expect(page.getByRole('button', { name: 'Дата', exact: true })).toBeDisabled();
   await expect(page.getByText('Энергоаудит системы ППД', { exact: true })).toHaveCount(0);
   await page.getByLabel('Режим', { exact: true }).selectOption('field_trip');

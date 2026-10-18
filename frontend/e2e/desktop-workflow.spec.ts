@@ -1,3 +1,4 @@
+import { goToSection } from "./helpers";
 import { test, expect } from '@playwright/test';
 
 test('desktop keeps one brand and task details without a global header or footer', async ({ page }) => {
@@ -9,22 +10,21 @@ test('desktop keeps one brand and task details without a global header or footer
   await expect(page.locator('.sidebar-brand')).toHaveCount(1);
   await expect(page.locator('nav a[href="#scheme"]')).toHaveCount(0);
   await expect(page.locator('.equipment-scheme')).toBeVisible();
-  const diagnostics = page.getByRole('button', { name: 'Диагностика агрегата', exact: true });
-  await expect(diagnostics).toHaveAttribute('aria-expanded', 'false');
-  await diagnostics.click();
+  await expect(page.getByLabel('Агрегат', {exact:true})).toHaveCount(0);
+  await goToSection(page, "machine-block");
   await expect(page.getByText('КПД ЭД расчётный', { exact: true })).toBeVisible();
-  await page.locator('nav a[href="#snapshot"]').click();
+  await goToSection(page, "snapshot");
   await expect(page.getByRole('heading', { name: 'Режимный расчёт', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^Годовая оценка/ })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Источники расчётных входов', exact: true })).toHaveCount(0);
-  await page.locator('nav a[href="#formulas"]').click();
+  await goToSection(page, "formulas");
   await expect(page.locator('.formula-card').first()).toBeVisible();
   await expect(page.locator('.formula-card .katex-display').first()).not.toBeVisible();
   await page.getByRole('button', { name: 'Раскрыть все', exact: true }).click();
   await expect(page.locator('.formula-card .katex-display').first()).toBeVisible();
   await page.getByRole('button', { name: 'Свернуть все', exact: true }).click();
   await expect(page.locator('.formula-card .katex-display').first()).not.toBeVisible();
-  await page.locator('nav a[href="#crm-wells"]').click();
+  await goToSection(page, "crm-wells");
   await expect(page.getByLabel('Скважина', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Связи', exact: true }).click();
   await expect(page.getByLabel('Скважина графа')).toBeVisible();

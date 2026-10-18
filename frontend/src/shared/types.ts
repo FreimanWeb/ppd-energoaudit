@@ -108,6 +108,7 @@ export type Audit = {
   };
   annual_summary: Record<string, number | null>;
   tariff: number;
+  tariff_warning?: string | null;
   target_sec: number | null;
   losses: {
     name: string;

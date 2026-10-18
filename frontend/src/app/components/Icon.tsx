@@ -1,8 +1,12 @@
 const iconPaths = {
+  "machine-block": "M3 6h18v15H3z M7 6V3h10v3 M6 11h4v6H6z M14 11h4v6h-4z",
+  pipelines: "M2 8h8v8h12 M2 12h4v8h16 M10 6v8 M18 14v8",
+  wells: "M8 3h8 M12 3v18 M7 7h10 M5 21h14 M9 7l-3 14 M15 7l3 14",
   portfolio: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z M6 6h1 M17 6h1",
   timeline: "M3 3v18h18 M6 15l4-5 4 3 6-7 M6 19h14",
   overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   snapshot: "M4 17a9 9 0 1 1 16 0 M12 12l4-4 M6 12h1 M12 6v1 M17 12h1 M8 20h8",
+  "telemetry-data": "M3 4h18v16H3z M6 8h12 M6 12h3m3 0h6 M6 16h12",
   telemetry: "M3 12h4l3-7 4 14 3-7h4",
   scheme: "M3 9h5v6H3z M16 3h5v6h-5z M16 15h5v6h-5z M8 12h4V6h4 M12 12v6h4",
   forecast: "M3 3v18h18 M6 16l5-6 4 3 6-8 M16 5h5v5",

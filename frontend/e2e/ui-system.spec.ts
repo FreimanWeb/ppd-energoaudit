@@ -60,7 +60,7 @@ test('all application sections keep page-level reflow at desktop and narrow widt
   const sections = ['overview', 'snapshot', 'telemetry', 'forecast', 'crm', 'crm-wells', 'losses', 'working-point', 'measures', 'sources', 'formulas', 'onboarding'];
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/?object=kns54an&aggregate=' + encodeURIComponent('НА-1') + '&day=2026-09-29#overview');
+  await page.goto('/?object=kns54an&aggregate=' + encodeURIComponent('НА-1') + '&day=2026-09-29#machine-block');
   await expect(page.getByRole('heading', { name: /^Годовая оценка/ })).toBeVisible();
   for (const section of sections) {
     await page.evaluate(hash => { location.hash = hash; }, section);

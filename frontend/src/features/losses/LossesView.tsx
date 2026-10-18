@@ -1,4 +1,4 @@
-import { followInternalLink } from "../../shared/ui/navigation";
+import { LinkButton } from "../../shared/ui/Button";
 import { segment, useResource } from "../../shared/api";
 import { Status } from "../../shared/ui/Status";
 import { inspections, inspectionFor, inspectionHref, relatedMeasures } from "../inspection/inspection.mjs";
@@ -10,7 +10,6 @@ import { LossCharts } from "./LossCharts";
 import { Panel } from "../../shared/ui/Panel";
 import { Table } from "../../shared/ui/Table";
 import { fmt } from "../../shared/ui/format";
-import { NetworkLosses } from "./NetworkLosses";
 
 export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionKey?: string }) {
   const [mode, setMode] = useState<"decomposition" | "flow" | "percentage">("decomposition");
@@ -30,8 +29,7 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
   const measures = relatedMeasures(proposals.data?.annual ?? [], metric);
   return (
     <>
-    {audit.audit.object_id === "kns54an" && <NetworkLosses key={`${audit.source}:${audit.audit.object_id}:${audit.audit.aggregate_id}:${timestamp ?? ""}`} audit={audit} />}
-    <Panel title={audit.audit.object_id === "kns54an" ? "Агрегат и обвязка до блока гребёнок" : "Цифровая карта потерь мощности"} caption={audit.audit.object_id === "kns54an" ? "Полезная мощность здесь — на выходе блока гребёнок, до внешних трубопроводов и скважин. Конечная полезная мощность для закачки показана в карте всей цепочки выше." : undefined} help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
+    <Panel title="Агрегат и обвязка до блока гребёнок" caption="Разложение мощности выбранного НА. Полезная мощность — на выходе блока гребёнок, до внешних трубопроводов и скважин." help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
       {view.usable ? (
         <>
           {view.losses.length > 0 && <div className="metric-toolbar">
@@ -45,14 +43,14 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
           {selectedName && <section className="inspection-result" aria-label="Разбор составляющей">
             <header className="loss-selection-heading"><h3>{selectedName}</h3>
               {metric && <nav aria-label="Основание составляющей">
-                <a onClick={followInternalLink} href={inspectionHref("sources", metric)}>Источники</a>
-                <a onClick={followInternalLink} href={inspectionHref("formulas", metric)}>Формулы</a>
+                <LinkButton href={inspectionHref("sources", metric)}>Источники</LinkButton>
+                <LinkButton href={inspectionHref("formulas", metric)}>Формулы</LinkButton>
               </nav>}
             </header>
             {selected ? <p>{fmt(selected.power_kw)} кВт · {fmt(selected.share * 100, 2)}% подведённой мощности.</p>
               : <p className="notice">Эта составляющая разложения недоступна в выбранном режиме. Годовая оценка и возможные мероприятия имеют отдельное расчётное основание.</p>}
             {(selected?.category === "потеря" || addresses.length > 0) && <section className="loss-measures" aria-label="Предлагаемые мероприятия">
-              <header><h4>Что можно изменить</h4>{measures.length > 0 && <a onClick={followInternalLink} href={inspectionHref("measures", metric)}>Оценить мероприятия</a>}</header>
+              <header><h4>Что можно изменить</h4>{measures.length > 0 && <LinkButton href={inspectionHref("measures", metric)}>Оценить мероприятия</LinkButton>}</header>
               {addresses.length > 0 && <Status {...proposals} empty="Нет данных для оценки мероприятий." />}
               {measures.length > 0 ? <ul>{measures.map(measure => <li key={measure.measure_id}>
                 <div><span>{measure.name}</span><small>{measure.cls === "сценарная оценка" ? "Сценарий · CAPEX требует оценки" : measure.cls}</small></div>

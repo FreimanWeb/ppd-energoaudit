@@ -1,11 +1,12 @@
+import { goToSection } from "./helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { selectDate } from "./helpers";
 async function fixture(page: Page) {
-  await page.goto("/#overview");
+  await page.goto("/#machine-block");
   await page.getByLabel("Объект", { exact: true }).selectOption("kns54an");
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-1");
   await selectDate(page, "2026-09-29");
-  await expect(page.getByText("600", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удельный расход энергии",exact:true})).toBeVisible();
 }
 test("power telemetry is a held state, and formula fractions have full accessible math layout", async ({
   page,
@@ -26,7 +27,7 @@ test("power telemetry is a held state, and formula fractions have full accessibl
     );
     await route.fulfill({ response, json: data });
   });
-  await page.locator('nav a[href="#telemetry"]').click();
+  await goToSection(page, "telemetry");
   const power = page.getByRole("group", { name: "P_эл", exact: true });
   await expect(power.locator("svg.visx-chart").first()).toBeVisible();
   await expect(power.locator(".visx-line")).toHaveAttribute(
@@ -57,7 +58,7 @@ test("power telemetry is a held state, and formula fractions have full accessibl
     });
   expect(runs.horizontal).toBeTruthy();
   expect(runs.vertical).toBeTruthy();
-  await page.locator('nav a[href="#formulas"]').click();
+  await goToSection(page, "formulas");
   await page.getByRole("button", { name: "Раскрыть все", exact: true }).click();
   await expect(
     page.locator(".formula-card .katex-display").first(),
@@ -73,7 +74,8 @@ test("scenario measures retain energy benefit but never claim known capital or p
   page,
 }) => {
   await fixture(page);
-  await page.locator('nav a[href="#measures"]').click();
+  await goToSection(page, "measures");
+  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
   const annual = page
     .getByRole("row")
     .filter({ hasText: "сценарная оценка" })

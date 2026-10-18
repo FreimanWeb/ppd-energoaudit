@@ -1,10 +1,11 @@
+import { goToSection } from "./helpers";
 import { test, expect } from '@playwright/test';
 
 const context = '/?object=kns54an&aggregate=НА-1&day=2026-09-29';
 
 test('overview keeps fact and calculation primary and preserves secondary references', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(context + '#overview');
+  await page.goto(context + '#machine-block');
   const ure = page.locator('.page-panel').filter({ has: page.getByRole('heading', { name: 'Удельный расход энергии', exact: true }) });
   await expect(ure.getByText('Факт', { exact: true })).toBeVisible();
   await expect(ure.getByText('Расчётный', { exact: true })).toBeVisible();
@@ -13,8 +14,7 @@ test('overview keeps fact and calculation primary and preserves secondary refere
   await ure.getByText('Ориентиры УРЭ', { exact: true }).click();
   await expect(ure.getByText('Цель ППД-2035', { exact: true })).toBeVisible();
   await expect(ure.getByText('Оптимальный', { exact: true })).toBeVisible();
-  const diagnostic = page.getByText('Диагностика агрегата', { exact: true });
-  await diagnostic.click();
+  await goToSection(page, "machine-block");
   await expect(page.getByText('КПД насоса расчётный', { exact: true })).toBeVisible();
 });
 

@@ -25,3 +25,18 @@
 .network-measure-saving { color: var(--accent-strong); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 .network-losses li { overflow-wrap: anywhere; }
 @media (max-width: 1000px) { .network-waterfall-hint { display: block; } }
+
+.stage-basis { color: var(--content-muted); font-size: var(--text-caption); }
+.stage-losses { overflow-wrap: normal; }
+.stage-losses table { min-width: 760px; }
+.stage-losses :is(th, td) { vertical-align: top; }
+.stage-losses :is(th, td):first-child { white-space: normal; }
+.stage-losses .network-section-heading { margin-block: var(--space-5) var(--space-4); }
+.stage-losses .ds-button { text-decoration: none; }
+.stage-assumptions table { table-layout: fixed; }
+.stage-assumptions th:nth-child(1) { width: 26%; }
+.stage-assumptions th:nth-child(2) { width: 12%; }
+.stage-assumptions th:nth-child(3) { width: 10%; }
+.stage-assumptions th:nth-child(4) { width: 17%; }
+.stage-assumptions th:nth-child(5) { width: 35%; }
+.stage-assumptions :is(th, td) { padding-inline: 12px; white-space: normal; overflow-wrap: normal; }

@@ -1,4 +1,4 @@
-.ds-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: var(--space-2) var(--space-4); border: 1px solid transparent; border-radius: var(--radius-control); font: var(--weight-medium) var(--text-body)/var(--leading-compact) var(--font-ui); cursor: pointer; transition: background var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+.ds-button { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: var(--space-2) var(--space-4); border: 1px solid transparent; border-radius: var(--radius-control); font: var(--weight-medium) var(--text-body)/var(--leading-compact) var(--font-ui); cursor: pointer; transition: background var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
 .ds-button-primary { background: var(--accent-strong); color: var(--content-inverse); }
 .ds-button-primary:hover { background: var(--accent-hover); }
 .ds-button-secondary { border-color: var(--border-control); background: var(--surface); color: var(--content-primary); }

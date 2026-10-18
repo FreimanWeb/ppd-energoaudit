@@ -9,12 +9,12 @@ test("home shows every object and opens history without selecting a measurement"
   expect(await page.locator("main").evaluate(element => element.getBoundingClientRect().x)).toBe(0);
   expect(new URL(page.url()).searchParams.has("timestamp")).toBe(false);
   const cards = page.locator(".portfolio-card");
-  await expect(cards).toHaveCount(12);
+  await expect(cards).toHaveCount(4);
   await page.getByRole("button", { name: /КНС-54/ }).click();
   await expect.poll(() => new URL(page.url()).hash).toBe("#timeline");
   await expect(page.locator(".app-sidebar")).toBeVisible();
   await expect(page.locator("main")).toContainText("История");
-  await expect(page.getByLabel("Момент измерения")).toHaveCount(0);
+  await expect(page.getByLabel("Момент измерения")).toBeVisible();
   expect(new URL(page.url()).searchParams.has("timestamp")).toBe(false);
   await page.reload();
   await expect(page.locator("main")).toContainText("История");
@@ -73,10 +73,10 @@ test("portfolio filter fields show clear labels and selected values", async ({ p
   await page.getByLabel("Тип воды: пресная", {exact:true}).check();
   await expect(trigger.locator(".object-filter-value")).toHaveText("пресная");
   await expect(filter).toHaveAttribute("data-active", "true");
-  await page.getByLabel("Тип воды: пластовая", {exact:true}).check();
+  await page.getByLabel("Тип воды: агрессивная", {exact:true}).check();
   await expect(trigger.locator(".object-filter-value")).toHaveText("Выбрано: 2");
   await page.getByLabel("Тип воды: пресная", {exact:true}).uncheck();
-  await page.getByLabel("Тип воды: пластовая", {exact:true}).uncheck();
+  await page.getByLabel("Тип воды: агрессивная", {exact:true}).uncheck();
   await expect(trigger.locator(".object-filter-value")).toHaveText("Все");
   await expect(filter).toHaveAttribute("data-active", "false");
 });
@@ -176,33 +176,31 @@ test("legacy filters cannot replace the object opened from a monitoring card", a
   await page.getByRole("button", { name: /Открыть историю: КНС-54/ }).click();
   await expect(page.getByLabel("Объект", { exact: true })).toHaveValue("kns54an");
   await expect(page.locator(".page-heading h1")).toContainText("КНС-54");
-  await page.getByRole("link", { name: "Разбор режима", exact: true }).click();
+  await page.getByRole("link", { name: "Схема и участки", exact: true }).click();
   await expect(page.getByLabel("Объект", { exact: true })).toHaveValue("kns54an");
 });
 
-test("changing equipment cancels a pending detailed-regime lookup", async ({ page }) => {
-  await page.goto("/?object=kns54an&aggregate=НА-1#timeline");
-  const inspect = page.getByRole("button", { name: "Разобрать режим", exact: true });
-  await expect(inspect).toBeEnabled();
-  let release!: () => void;
-  let started!: () => void;
+test("changing equipment cancels a pending analysis time lookup", async ({ page }) => {
+  await page.goto("/?object=kns54an&aggregate=НА-1&day=2026-09-29#timeline");
+  await expect(page.getByLabel("Момент измерения",{exact:true})).toBeEnabled();
+  let release!: () => void, started!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   const pending = new Promise<void>(resolve => { started = resolve; });
-  await page.route("**/aggregates/**/snapshots?*", async route => {
+  await page.route("**/aggregates/**/snapshots?day=2026-09-28", async route => {
     const response = await route.fetch();
     started();
     await gate;
     await route.fulfill({ response });
   });
   try {
-    await inspect.click();
+    await selectDate(page,"2026-09-28");
     await pending;
-    await page.getByLabel("Оборудование в истории").selectOption("НА-2");
+    await page.getByLabel("Агрегат",{exact:true}).selectOption("НА-2");
   } finally {
     release();
   }
   await page.waitForLoadState("networkidle");
-  await expect(page.getByLabel("Оборудование в истории")).toHaveValue("НА-2");
+  await expect(page.getByLabel("Агрегат",{exact:true})).toHaveValue("НА-2");
   expect(new URL(page.url()).hash).toBe("#timeline");
 });
 
@@ -231,7 +229,7 @@ test("two-hour history keeps gaps and a pinned period across reload", async ({ p
   await expect(chart.locator(".visx-line")).toBeAttached();
   const path = await chart.locator(".visx-line").getAttribute("d");
   expect((path?.match(/M/g) ?? []).length).toBeGreaterThan(1);
-  await expect(page.getByRole("button", { name: "Разобрать режим", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Разобрать режим", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "7 дней", exact: true }).click();
   await expect(page.getByLabel("Начало периода")).toHaveValue("2026-10-08");
   await page.reload();
@@ -242,8 +240,8 @@ test("two-hour history keeps gaps and a pinned period across reload", async ({ p
 test("an empty historical period cannot open a regime from outside that period", async ({ page }) => {
   await page.goto("/?object=kns54an&aggregate=НА-1&start=2026-01-01&end=2026-01-07#timeline");
   await expect(page.getByText("За выбранный период измерений нет.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Разобрать режим", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Разобрать режим", exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Начало периода")).toHaveValue("2026-01-01");
   await page.getByRole("button", { name: "Последние данные", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Разобрать режим", exact: true })).toBeEnabled();
+  await expect(page.locator(".timeline-charts svg.visx-chart").first()).toBeVisible();
 });

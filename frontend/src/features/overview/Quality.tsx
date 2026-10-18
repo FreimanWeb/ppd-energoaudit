@@ -14,11 +14,9 @@ export function Quality({ audit, clarifications = [] }: { audit: Audit; clarific
   };
   return (
     <>
-      <div className={`quality ${audit.quality.status}`}>
+      {audit.quality.status !== "ready" && <div className={`quality ${audit.quality.status}`}>
         <strong>
-          {audit.quality.status === "ready"
-            ? "Данные пригодны для расчёта"
-            : audit.quality.status === "assumptions"
+          {audit.quality.status === "assumptions"
               ? "Расчёт с допущениями"
               : "Данные непригодны для достоверных выводов"}
         </strong>
@@ -31,7 +29,7 @@ export function Quality({ audit, clarifications = [] }: { audit: Audit; clarific
             ? <p>Фактический УРЭ рассчитан по суточной энергии и объёму закачки: W / Q_сут.</p>
             : <><p>Нет подтверждённых суточных энергии и объёма закачки. Показатели относятся к выбранному режиму.</p><p>Проверьте источники или выберите другие сутки.</p></>} />
         </span>
-      </div>
+      </div>}
       {(audit.quality.issues.length > 0 || clarifications.length > 0) && (
         <ul className="warnings">
           {audit.quality.issues.map((issue, i) => (

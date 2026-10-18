@@ -1,76 +1,63 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import symbols from "../../../../shared/ppd-symbols.svg?raw";
 import { layoutTopology, pressureForEdge } from "./scheme.mjs";
-import type { Audit, Equipment, Topology } from "../../shared/types";
+import type { Audit, Topology } from "../../shared/types";
 import { fmt } from "../../shared/ui/format";
+type ProcessStage = {id:string;label:string;power_kw:number|null;share_pct:number|null};
 
 export function Scheme({
   topology,
   aggregate,
   audit,
   pressures,
-  selected,
-  onSelect,
+  lossStages = [],
+  wellCount,
 }: {
   topology: Topology;
   aggregate: string;
   audit?: Audit;
   pressures?: Record<string, {p_in_mpa: number; p_out_mpa: number}>;
-  selected: string;
-  onSelect: (node: Equipment) => void;
+  lossStages?: ProcessStage[];
+  wellCount?: number;
 }) {
-  const stage = useRef<HTMLDivElement>(null);
-  const svg = useRef<SVGSVGElement>(null);
-  const card = useRef<HTMLDivElement>(null);
-  const [callout, setCallout] = useState<{ left: number; top: number; x: number; y: number; connectorY: number; below: boolean } | null>(null);
+  const [hovered,setHovered] = useState<string|null>(null);
+  const [focused,setFocused] = useState<string|null>(null);
+  const active = hovered ?? focused;
+  const interaction = (id:string) => ({
+    "data-stage":id,"data-active":active===id?true:undefined,
+    onPointerEnter:()=>setHovered(id),onPointerLeave:()=>setHovered(null),
+    onFocus:()=>setFocused(id),onBlur:()=>setFocused(null),
+  });
   const graph = layoutTopology(topology);
-  const activePump = graph.nodes.find(node => node.type === "pump" && node.agg === aggregate);
-  useLayoutEffect(() => {
-    if (!activePump || !audit || !stage.current || !svg.current || !card.current) return;
-    const place = () => {
-      const matrix = svg.current?.getScreenCTM();
-      const bounds = stage.current?.getBoundingClientRect();
-      if (!matrix || !bounds || !card.current) return;
-      const outlet = graph.edges.find(edge => edge.source.id === activePump.id)?.target;
-      const lowerBranch = outlet != null && activePump.py > outlet.py;
-      const point = new DOMPoint(activePump.px + 72, activePump.py + (lowerBranch ? 20 : -20)).matrixTransform(matrix);
-      const x = point.x - bounds.left, y = point.y - bounds.top;
-      const bendX = Math.max(activePump.px + 72, ...graph.edges.filter(edge => edge.source.id === activePump.id).map(edge => edge.middle));
-      const bend = new DOMPoint(bendX, activePump.py).matrixTransform(matrix);
-      const left = Math.max(12, Math.min(Math.max(x + 36, bend.x - bounds.left + 12), bounds.width - card.current.offsetWidth - 12));
-      const height = card.current.offsetHeight;
-      const preferredTop = lowerBranch ? y + 12 : y - height + 12;
-      const top = Math.max(12, Math.min(preferredTop, svg.current!.getBoundingClientRect().height - height - 12));
-      const connectorY = Math.max(top + 12, Math.min(y, top + height - 12));
-      const below = bounds.width < 700 || [...svg.current!.querySelectorAll(".equipment-node use")].some(node => {
-        const box = node.getBoundingClientRect();
-        return bounds.left + left < box.right && bounds.left + left + card.current!.offsetWidth > box.left
-          && bounds.top + top < box.bottom && bounds.top + top + height > box.top;
-      });
-      setCallout({ left, top, x, y, connectorY, below });
-    };
-    const observer = new ResizeObserver(place);
-    observer.observe(svg.current);
-    observer.observe(card.current);
-    place();
-    return () => observer.disconnect();
-  }, [topology, aggregate, audit]);
+  const activePump = graph.nodes.find(node => node.type === "pump" && node.agg === aggregate) ?? graph.nodes.find(node=>node.type === "pump");
+  const pipeEdge = graph.edges.find(edge => edge.source.type === "manifold" && edge.target.type === "valve");
+  const wells = graph.nodes.find(node => node.type === "wells");
   const pumps = graph.nodes.filter((n) => n.type === "pump");
+  const anchors = {
+    hall:activePump && {x:activePump.px,y:aggregate ? activePump.py : pumps.reduce((sum,pump)=>sum+pump.py,0)/pumps.length},
+    pipes:pipeEdge && {x:pipeEdge.middle,y:pipeEdge.source.py},
+    wells:wells && {x:wells.px,y:wells.py},
+  };
   const x0 = Math.min(...pumps.map((n) => n.px)) - 100;
   const y0 = Math.min(...pumps.map((n) => n.py)) - 70;
   return (
-    <div className="scheme-stage" ref={stage}>
+    <div className="scheme-stage">
       <svg
-        ref={svg}
         className="equipment-scheme"
-        viewBox={`0 0 ${graph.width} ${graph.height}`}
-        aria-label="Технологическая схема ППД"
+        viewBox={`0 ${lossStages.length ? -100 : 0} ${graph.width} ${graph.height + (lossStages.length ? 100 : 0)}`}
+        aria-label="Условная технологическая схема ППД"
       >
         <title>Оборудование, водоводы, скважины и пласт</title>
         <g dangerouslySetInnerHTML={{ __html: symbols }} />
         <g>
+          {pipeEdge && <a href="#pipelines" aria-label="Открыть трубопроводы" className="scheme-area-link" {...interaction("pipes")}>
+            <rect x={pipeEdge.source.px + 40} y={pipeEdge.source.py - 50} width={Math.max(40,pipeEdge.target.px - pipeEdge.source.px - 80)} height="100" rx="10" fill="var(--surface-subtle)" stroke="var(--border)" />
+          </a>}
+          {wells && <a href="#wells" aria-label="Открыть скважины" className="scheme-area-link" {...interaction("wells")}>
+            <rect x={wells.px - 90} y={wells.py - 60} width="180" height="250" rx="10" fill="var(--surface-subtle)" stroke="var(--border)" />
+          </a>}
           {pumps.length > 0 && (
-            <g>
+            <a href="#machine-block" aria-label="Открыть машинный блок" className="scheme-area-link" {...interaction("hall")}>
               <rect
                 x={x0}
                 y={y0}
@@ -83,7 +70,7 @@ export function Scheme({
               <text x={x0 + 12} y={y0 + 18} className="hall-label">
                 МАШИННЫЙ ЗАЛ
               </text>
-            </g>
+            </a>
           )}
           {graph.edges.map((edge, i) => {
             const pressure = pressureForEdge(
@@ -102,7 +89,7 @@ export function Scheme({
                   d={edge.path}
                   fill="none"
                   stroke={edge.kind === "throttle" ? "var(--chart-status-warning)" : "var(--chart-ink)"}
-                  strokeWidth="3"
+                  strokeWidth={3}
                   strokeDasharray={edge.kind === "throttle" ? "7 4" : undefined}
                   markerEnd="url(#ppd-flow)"
                 />
@@ -164,10 +151,8 @@ export function Scheme({
               return (
                 <g
                   key={node.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={node.label || node.id}
-                  aria-pressed={selected === node.id}
+                  role="img"
+                  aria-label={node.type === "wells" ? `Группа нагнетательных скважин${wellCount ? `: ${wellCount}` : ""}` : node.label || node.id}
                   data-node={node.id}
                   className="equipment-node"
                   transform={`translate(${node.px} ${node.py})`}
@@ -177,14 +162,6 @@ export function Scheme({
                       "--pump-fill": fill,
                     } as CSSProperties
                   }
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => onSelect(node)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onSelect(node);
-                    }
-                  }}
                 >
                   <title>
                     {[node.label, node.sub, node.hint]
@@ -200,13 +177,14 @@ export function Scheme({
                     height="72"
                     rx="8"
                     fill="transparent"
-                    stroke={selected === node.id ? "var(--chart-status-warning)" : "transparent"}
+                    stroke={chosenPump ? "var(--chart-status-warning)" : "transparent"}
                     strokeWidth="2"
                   />
                   <text y={labelY} className="node-label">
-                    {node.label?.replaceAll("\n", " ") || node.id}
+                    {node.type === "wells" ? "Группа скважин" : node.label?.replaceAll("\n", " ") || node.id}
                   </text>
-                  {node.sub && (
+                  {node.type === "wells" && wellCount && <text y={labelY + 17} className="node-sub well-group-count">В расчёте: {wellCount} скважин</text>}
+                  {node.sub && node.type !== "wells" && (
                     <text y={labelY + 17} className="node-sub">
                       {node.sub.replaceAll("\n", " ")}
                     </text>
@@ -214,28 +192,22 @@ export function Scheme({
                 </g>
               );
             })}
+          {lossStages.map(stage => {
+            const anchor = anchors[stage.id as keyof typeof anchors];
+            if (!anchor) return null;
+            const route = ({hall:"machine-block",pipes:"pipelines",wells:"wells"} as Record<string,string>)[stage.id];
+            return <g key={stage.id}>
+              <path className="scheme-loss-leader" d={`M${anchor.x} -14 V${anchor.y - 45}`} />
+              <a href={`#${route}`} className="scheme-loss-marker" {...interaction(stage.id)} data-loss-stage={stage.id} aria-label={`Открыть участок: ${stage.id === "hall" ? "Машинный блок" : stage.label}`}>
+              <rect x={anchor.x - 125} y="-96" width="250" height="82" rx="10" />
+              <text x={anchor.x} y="-74" className="scheme-loss-label">{stage.label}</text>
+              <text x={anchor.x} y="-49" className="scheme-loss-value">{stage.share_pct == null ? "Нет оценки" : `${fmt(stage.share_pct,1)} % потерь`}</text>
+              {stage.power_kw != null && <text x={anchor.x} y="-29" className="scheme-loss-power">{fmt(stage.power_kw,1)} кВт</text>}
+              </a>
+            </g>;
+          })}
         </g>
       </svg>
-      {activePump && audit && <>
-        {callout && !callout.below && <svg className="pump-regime-leader" aria-hidden="true">
-          <path d={`M ${callout.left} ${callout.connectorY} L ${callout.x} ${callout.y}`} />
-          <circle cx={callout.x} cy={callout.y} r="3" />
-        </svg>}
-        <div className={`pump-regime-card${callout?.below ? " is-below" : ""}`} ref={card} role="group" aria-label="Режим выбранного агрегата" style={{ left: callout?.left ?? 12, top: callout?.top ?? 12 }}>
-          <h3>{aggregate} · параметры режима</h3>
-          <dl>
-            {[
-              { label: "Напор", value: audit.audit.metrics.h_fact_m, unit: "м" },
-              { label: "Подача", value: audit.audit.metrics.flow_m3h, unit: "м³/ч" },
-              { label: "Электрическая мощность", value: audit.audit.metrics.p_electric_kw, unit: "кВт" },
-              { label: "Гидравлическая мощность", value: audit.audit.metrics.p_hydraulic_kw, unit: "кВт" },
-            ].map(item => <div key={item.label}>
-              <dt>{item.label}</dt>
-              <dd><strong>{fmt(item.value, 1)}</strong><span>{item.unit}</span></dd>
-            </div>)}
-          </dl>
-        </div>
-      </>}
     </div>
   );
 }

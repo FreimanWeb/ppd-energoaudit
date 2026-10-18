@@ -1,17 +1,16 @@
 .inspection-context nav { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.metric-actions a, .inspection-context a, .inspection-result a { color: var(--accent-strong); text-underline-offset: 3px; }
 .inspection-context { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding-block: var(--space-3); margin-bottom: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
 .inspection-result { margin-block: var(--space-4); padding-block: var(--space-3); border-top: 1px solid var(--border-subtle); }
 [data-highlighted="true"] { background: var(--accent-soft); }
 
 .loss-measures { margin-top: var(--space-3); }
-.loss-measures header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.loss-measures header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .loss-measures h4 { margin: 0; font-size: var(--text-label); }
 .loss-measures ul { list-style: none; padding: 0; margin: var(--space-3) 0 0; }
 .loss-measures li { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); padding-block: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
 .loss-measures small { display: block; margin-top: var(--space-1); color: var(--content-muted); font-size: var(--text-caption); }
 .loss-measure-effect { text-align: right; flex-shrink: 0; }
 .loss-measure-effect strong { font-variant-numeric: tabular-nums; font-size: var(--text-label); font-weight: var(--weight-semibold); }
-.loss-selection-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.loss-selection-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .loss-selection-heading h3 { margin: 0; }
-.loss-selection-heading nav { display: flex; gap: var(--space-3); font-size: var(--text-caption); }
+.loss-selection-heading nav { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-caption); }

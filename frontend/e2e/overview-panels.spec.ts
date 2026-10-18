@@ -3,14 +3,12 @@ import { test, expect } from '@playwright/test';
 for (const width of [1800, 1280]) {
   test(`overview panels keep height and animate the requested proportions at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto('/?object=kns54an&aggregate=НА-1&mode=field_trip#overview');
-    const panels = page.locator('.overview-primary > .page-panel');
-    await expect(panels).toHaveCount(2);
+    await page.goto('/?object=kns54an&aggregate=НА-1&mode=field_trip#machine-block');
+    const panels = page.locator('.overview-page .overview-primary > .page-panel');
+    await expect(panels).toHaveCount(1);
     const before = await panels.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect()));
-    expect(before[0].height).toBeCloseTo(before[1].height, 1);
-    expect(before[0].width / before[1].width).toBeCloseTo(4 / 5, 2);
 
-    for (const [index, name, share] of [[0, 'Ориентиры УРЭ', .75], [1, 'Диагностика агрегата', .4]] as const) {
+    for (const [index, name, share] of [[0, 'Ориентиры УРЭ', .75]] as const) {
       const panel = panels.nth(index);
       const button = page.getByRole('button', { name, exact: true });
       for (const open of [true, false]) {
@@ -46,8 +44,7 @@ for (const width of [1800, 1280]) {
 
 test('diagnostic values retain explanations and actions after opening, including on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 1800, height: 1000 });
-  await page.goto('/?object=kns54an&aggregate=НА-1&mode=field_trip#overview');
-  await page.getByRole('button', { name: 'Диагностика агрегата', exact: true }).click();
+  await page.goto('/?object=kns54an&aggregate=НА-1&mode=field_trip#machine-block');
   const load = page.getByRole('button', { name: 'Пояснение: Коэф. загрузки ЭД', exact: true });
   await load.hover();
   const tooltip = page.locator('[role="tooltip"][data-state="open"]');
@@ -64,7 +61,7 @@ test('diagnostic values retain explanations and actions after opening, including
 });
 
 test('passport opens from the whole heading row and supports the keyboard', async ({ page }) => {
-  await page.goto('/?object=kns54an&aggregate=НА-1&mode=field_trip#overview');
+  await page.goto('/?object=kns54an&aggregate=НА-1&mode=field_trip#machine-block');
   const passport = page.locator('.passport-panel');
   const heading = passport.locator('summary');
   const pump = passport.getByRole('heading', { name: 'Насос', exact: true });
