@@ -49,6 +49,37 @@ def test_station_balance_uses_total_flow_once_without_mutating_audits(audits):
     assert "одного агрегата" not in str(result).lower()
 
 
+def test_operator_graph_follows_report_groups_and_closes_at_the_wellheads(audits):
+    result = build_station_network(audits, demo_network())
+    graph = result["operator_balance"]
+    assert graph["boundary"] == "wellhead_after_choke"
+    assert graph["input_kw"] == result["input_kw"]
+    hall, pipes, wells = graph["groups"]
+    assert [group["id"] for group in graph["groups"]] == ["hall", "pipes", "wells"]
+    assert [item["id"] for item in hall["children"]] == ["nominal", "efficiency", "pump_bg"]
+    assert hall["children"][0]["power_kw"] == pytest.approx(
+        sum(audit.decomposition.dp_nominal for audit in audits)
+    )
+    assert hall["children"][1]["power_kw"] == pytest.approx(
+        sum(audit.decomposition.dp_efficiency for audit in audits)
+    )
+    assert hall["children"][2]["power_kw"] == pytest.approx(
+        sum(audit.decomposition.dp_throttle for audit in audits)
+    )
+    assert [item["id"] for item in pipes["children"]] == ["friction", "local"]
+    assert [item["id"] for item in wells["children"]] == ["choke"]
+    for group in graph["groups"]:
+        assert group["power_kw"] == pytest.approx(
+            sum(item["power_kw"] for item in group["children"])
+        )
+    assert graph["bg_kw"] == pytest.approx(graph["input_kw"] - hall["power_kw"])
+    assert graph["input_kw"] == pytest.approx(graph["total_loss_kw"] + graph["output_kw"])
+    bore = next(
+        item["power_kw"] for item in result["items"] if item["name"] == "Трение в стволах скважин"
+    )
+    assert graph["output_kw"] == pytest.approx(result["useful_kw"] + bore)
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -68,6 +99,7 @@ def test_incompatible_or_incomplete_station_is_unavailable(audits, field, value)
     assert result["status"] == "unavailable"
     assert result["items"] == []
     assert result["input_kw"] is None
+    assert result["operator_balance"] is None
     assert result["warnings"]
 
 

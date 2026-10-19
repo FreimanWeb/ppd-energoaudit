@@ -72,6 +72,22 @@ def options():
     return {"well_diameter_mm": 150, "local_resistance_k": 100}
 
 
+def test_operator_graph_preserves_signed_deviation_without_inventing_losses(
+    audit, network, options,
+):
+    spec = audit.spec.model_copy(update={
+        "regime": audit.spec.regime.model_copy(update={"p_electric": 400}),
+    })
+    efficient = audit_aggregate(spec, Branch.kns)
+    result = network_losses.build_network_loss_map(efficient, network, options)
+    assert result["status"] == "scenario"
+    graph = result["operator_balance"]
+    deviation = graph["groups"][0]["children"][1]
+    assert deviation["power_kw"] < 0
+    assert deviation["name"] == "Отклонение от номинального КПД"
+    assert graph["total_loss_kw"] + graph["output_kw"] == pytest.approx(graph["input_kw"])
+
+
 def test_scenario_analysis_closes_balance_and_preserves_inputs(audit, network, options):
     original = deepcopy((audit, network, options))
     result = network_losses.build_network_analysis(audit, network, options)

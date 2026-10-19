@@ -21,6 +21,7 @@ def build_station_network(audits: list[AuditResult], network: dict) -> dict:
         "useful_kw": None,
         "total_loss_kw": None,
         "balance_error_kw": None,
+        "operator_balance": None,
         "items": [],
         "segments": [],
         "wells": [],

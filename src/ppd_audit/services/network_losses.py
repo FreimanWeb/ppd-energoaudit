@@ -134,6 +134,7 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         "useful_kw": None,
         "total_loss_kw": None,
         "balance_error_kw": None,
+        "operator_balance": None,
         "items": [],
         "segments": [],
         "wells": [],
@@ -461,7 +462,41 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
     total_loss_kw = sum(
         part["power_kw"] for part in result["items"] if part["category"] == "потеря"
     )
+    decomposition = audit.decomposition
+    operator_groups = [
+        {"id": "hall", "children": [
+            {"id": "nominal", "name": "Номинальные потери НА",
+             "power_kw": decomposition.dp_nominal},
+            {"id": "efficiency", "name": "Потери из-за снижения КПД"
+             if decomposition.dp_efficiency >= 0 else "Отклонение от номинального КПД",
+             "power_kw": decomposition.dp_efficiency},
+            {"id": "pump_bg", "name": "Потери на участке Насос–БГ",
+             "power_kw": decomposition.dp_throttle},
+        ]},
+        {"id": "pipes", "children": [
+            {"id": "friction", "name": "Трение в трубопроводах до скважин",
+             "power_kw": pipe_kw},
+            {"id": "local", "name": "Местные сопротивления сети и арматуры",
+             "power_kw": local_dp * regime.q / 3.6},
+        ]},
+        {"id": "wells", "children": [
+            {"id": "choke", "name": "Штуцирование нагнетательных скважин",
+             "power_kw": choke_kw},
+        ]},
+    ]
+    for group in operator_groups:
+        group["power_kw"] = sum(child["power_kw"] for child in group["children"])
+    # At the wellhead, the energy later spent on bore friction is still output energy.
+    operator_balance = {
+        "boundary": "wellhead_after_choke",
+        "input_kw": regime.p_electric,
+        "bg_kw": available_kw,
+        "output_kw": useful_kw + well_dp * regime.q / 3.6,
+        "total_loss_kw": sum(group["power_kw"] for group in operator_groups),
+        "groups": operator_groups,
+    }
     result.update(
+        operator_balance=operator_balance,
         status="scenario",
         useful_kw=useful_kw,
         total_loss_kw=total_loss_kw,
