@@ -189,7 +189,7 @@ test("overview scheme exposes equipment without individual equipment actions", a
   await page.goto("/?object=demo-ppd#timeline");
   await section(page, "scheme");
   await expect(page.locator(".equipment-scheme")).toBeVisible();
-  await expect.poll(() => page.locator(".pressure-label").count()).toBeGreaterThan(0);
+  await expect(page.locator(".pressure-label")).toHaveCount(0);
   await expect(page.locator(".equipment-scheme").getByRole("button")).toHaveCount(0);
   await expect(page.getByLabel("Агрегат", { exact: true })).toHaveCount(0);
   await expect(page.locator(".equipment-node[data-node=\"pump-1\"]")).toBeVisible();

@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import symbols from "../../../../shared/ppd-symbols.svg?raw";
-import { layoutTopology, pressureForEdge } from "./scheme.mjs";
+import { layoutTopology } from "./scheme.mjs";
 import type { Audit, Topology } from "../../shared/types";
 import { fmt } from "../../shared/ui/format";
 type ProcessStage = {id:string;label:string;power_kw:number|null;share_pct:number|null};
@@ -9,7 +9,6 @@ export function Scheme({
   topology,
   aggregate,
   audit,
-  pressures,
   lossStages = [],
   wellCount,
 }: {
@@ -35,7 +34,7 @@ export function Scheme({
   const pumps = graph.nodes.filter((n) => n.type === "pump");
   const anchors = {
     hall:activePump && {x:activePump.px,y:aggregate ? activePump.py : pumps.reduce((sum,pump)=>sum+pump.py,0)/pumps.length},
-    pipes:pipeEdge && {x:pipeEdge.middle,y:pipeEdge.source.py},
+    pipes:pipeEdge && {x:pipeEdge.source.px + 56 + Math.max(40,pipeEdge.target.px - pipeEdge.source.px - 96) / 2,y:pipeEdge.source.py},
     wells:wells && {x:wells.px,y:wells.py},
   };
   const x0 = Math.min(...pumps.map((n) => n.px)) - 100;
@@ -51,7 +50,7 @@ export function Scheme({
         <g dangerouslySetInnerHTML={{ __html: symbols }} />
         <g>
           {pipeEdge && <a href="#pipelines" aria-label="Открыть трубопроводы" className="scheme-area-link" {...interaction("pipes")}>
-            <rect x={pipeEdge.source.px + 40} y={pipeEdge.source.py - 50} width={Math.max(40,pipeEdge.target.px - pipeEdge.source.px - 80)} height="100" rx="10" fill="var(--surface-subtle)" stroke="var(--border)" />
+            <rect x={pipeEdge.source.px + 56} y={pipeEdge.source.py - 50} width={Math.max(40,pipeEdge.target.px - pipeEdge.source.px - 96)} height="100" rx="10" fill="var(--surface-subtle)" stroke="var(--border)" />
           </a>}
           {wells && <a href="#wells" aria-label="Открыть скважины" className="scheme-area-link" {...interaction("wells")}>
             <rect x={wells.px - 90} y={wells.py - 60} width="180" height="250" rx="10" fill="var(--surface-subtle)" stroke="var(--border)" />
@@ -73,12 +72,6 @@ export function Scheme({
             </a>
           )}
           {graph.edges.map((edge, i) => {
-            const pressure = pressureForEdge(
-              edge,
-              aggregate,
-              audit?.snapshot ?? null,
-              pressures,
-            );
             return (
               <g
                 key={`${edge.from}-${edge.to}-${i}`}
@@ -93,20 +86,6 @@ export function Scheme({
                   strokeDasharray={edge.kind === "throttle" ? "7 4" : undefined}
                   markerEnd="url(#ppd-flow)"
                 />
-                {pressure !== null && (
-                  <text
-                    x={edge.middle}
-                    y={
-                      (edge.target.type === "pump"
-                        ? edge.target.py
-                        : edge.source.py) - 40
-                    }
-                    className="pressure-label"
-                  >
-                    {edge.target.type === "pump" ? "pвх" : "pвых"} ={" "}
-                    {fmt(pressure, 2)} МПа
-                  </text>
-                )}
               </g>
             );
           })}
