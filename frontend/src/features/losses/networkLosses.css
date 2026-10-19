@@ -40,3 +40,18 @@
 .stage-assumptions th:nth-child(4) { width: 17%; }
 .stage-assumptions th:nth-child(5) { width: 35%; }
 .stage-assumptions :is(th, td) { padding-inline: 12px; white-space: normal; overflow-wrap: normal; }
+
+.pipeline-losses { margin-top: var(--space-5); }
+.pipeline-loss-scroll { max-width: 100%; overflow-x: auto; }
+.pipeline-loss-list { min-width: 780px; }
+.pipeline-loss-header, .pipeline-loss-row > summary { display: grid; grid-template-columns: minmax(220px,2fr) repeat(4,minmax(100px,1fr)) 20px; align-items: center; gap: var(--space-3); padding: var(--space-3); }
+.pipeline-loss-header { color: var(--content-muted); font-size: var(--text-caption); background: var(--surface-subtle); }
+.pipeline-loss-header > span:not(:first-child), .pipeline-loss-row > summary > strong { text-align: right; font-variant-numeric: tabular-nums; }
+.pipeline-loss-row { border-bottom: 1px solid var(--border-subtle); }
+.pipeline-loss-row > summary { cursor: pointer; list-style: none; color: var(--content-primary); font-weight: var(--weight-regular); }
+.pipeline-loss-row > summary::-webkit-details-marker { display: none; }
+.pipeline-loss-row > summary:hover, .pipeline-loss-row[open] > summary { background: var(--surface-subtle); }
+.pipeline-loss-row > summary small { display: block; margin-top: var(--space-1); color: var(--content-muted); font-size: var(--text-caption); }
+.pipeline-loss-row[open] > summary svg { transform: rotate(180deg); }
+.pipeline-loss-detail { padding: var(--space-4); }
+.pipeline-loss-detail h4 { margin: var(--space-4) 0 var(--space-2); }

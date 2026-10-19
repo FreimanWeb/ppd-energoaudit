@@ -1,3 +1,4 @@
+import {PipelineLosses,type PipelineSegment,type PipelineWell} from "./PipelineLosses";
 import { LossesView } from "./LossesView";
 import { OverviewView } from "../overview/OverviewView";
 import { LinkButton } from "../../shared/ui/Button";
@@ -24,8 +25,8 @@ type Network = {
   total_loss_kw?: number | null;
   items?: Component[];
   warnings: string[];
-  segments?: { id: string; pipeline_id: string; name: string; length_m: number; inner_diameter_mm: number; flow_m3h: number; pressure_loss_mpa: number; power_kw: number; source_sheet: string; source_row: number }[];
-  wells?: { id: string; flow_m3h: number; well_loss_kw: number; armature_loss_kw: number; choke_loss_kw: number | null; required_pressure_mpa: number; available_pressure_mpa: number; deficit_mpa: number }[];
+  segments?: PipelineSegment[];
+  wells?: (PipelineWell & {well_loss_kw:number})[];
   measures?: { id: string; name: string; loss_name: string; description: string; saving_kw: number; saving_pct: number }[];
   assumptions?: { label: string; value: number | string | null; unit: string; provenance: string; basis: string }[];
   network?: { source_file: string; exported_at: string };
@@ -92,6 +93,7 @@ export function StageLosses({ stage, audit, inspectionKey }: { stage: Stage; aud
             { key: "pipeline_id", label: "Трубопровод" }, { key: "name", label: "Участок" }, { key: "length_m", label: "Длина, м" }, { key: "inner_diameter_mm", label: "Диаметр, мм" }, { key: "flow_m3h", label: "Расход, м³/ч" }, { key: "pressure_loss_mpa", label: "Потери давления, МПа", digits: 3 }, { key: "power_kw", label: "Потери, кВт" }, { key: "source", label: "Источник геометрии" },
           ]} />
         </section> : null}
+        {stage === "pipes" && data && data.status !== "unavailable" && Boolean(data.segments?.length || data.wells?.length) && <PipelineLosses segments={data.segments ?? []} wells={data.wells ?? []}/>}
         {stage === "wells" && data?.wells?.length ? <section aria-label="Потери по скважинам"><h3>Скважины и арматура</h3>
           <Table rows={data.wells} rowHighlighted={row => Number(row.deficit_mpa) > 0} columns={[
             { key: "id", label: "Скважина" }, { key: "flow_m3h", label: "Расход, м³/ч" }, { key: "well_loss_kw", label: "Трение в стволе, кВт" }, { key: "armature_loss_kw", label: "Арматура, кВт" }, { key: "choke_loss_kw", label: "Штуцирование, кВт" }, { key: "required_pressure_mpa", label: "Требуется, МПа" }, { key: "available_pressure_mpa", label: "Доступно, МПа" }, { key: "deficit_mpa", label: "Дефицит, МПа" },
