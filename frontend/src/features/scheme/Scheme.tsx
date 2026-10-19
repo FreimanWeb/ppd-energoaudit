@@ -1,49 +1,42 @@
-import { useState, type CSSProperties } from "react";
+import { type CSSProperties } from "react";
 import symbols from "../../../../shared/ppd-symbols.svg?raw";
 import { layoutTopology } from "./scheme.mjs";
 import type { Audit, Topology } from "../../shared/types";
-import { fmt } from "../../shared/ui/format";
-type ProcessStage = {id:string;label:string;power_kw:number|null;share_pct:number|null};
 
 export function Scheme({
   topology,
   aggregate,
   audit,
-  lossStages = [],
+  activeStage,
+  onStageHover,
+  onStageFocus,
   wellCount,
 }: {
   topology: Topology;
   aggregate: string;
   audit?: Audit;
   pressures?: Record<string, {p_in_mpa: number; p_out_mpa: number}>;
-  lossStages?: ProcessStage[];
+  activeStage?:string|null;
+  onStageHover?:(id:string|null)=>void;
+  onStageFocus?:(id:string|null)=>void;
   wellCount?: number;
 }) {
-  const [hovered,setHovered] = useState<string|null>(null);
-  const [focused,setFocused] = useState<string|null>(null);
-  const active = hovered ?? focused;
   const interaction = (id:string) => ({
-    "data-stage":id,"data-active":active===id?true:undefined,
-    onPointerEnter:()=>setHovered(id),onPointerLeave:()=>setHovered(null),
-    onFocus:()=>setFocused(id),onBlur:()=>setFocused(null),
+    "data-stage":id,"data-active":activeStage===id?true:undefined,
+    onPointerEnter:()=>onStageHover?.(id),onPointerLeave:()=>onStageHover?.(null),
+    onFocus:()=>onStageFocus?.(id),onBlur:()=>onStageFocus?.(null),
   });
   const graph = layoutTopology(topology);
-  const activePump = graph.nodes.find(node => node.type === "pump" && node.agg === aggregate) ?? graph.nodes.find(node=>node.type === "pump");
   const pipeEdge = graph.edges.find(edge => edge.source.type === "manifold" && edge.target.type === "valve");
   const wells = graph.nodes.find(node => node.type === "wells");
   const pumps = graph.nodes.filter((n) => n.type === "pump");
-  const anchors = {
-    hall:activePump && {x:activePump.px,y:aggregate ? activePump.py : pumps.reduce((sum,pump)=>sum+pump.py,0)/pumps.length},
-    pipes:pipeEdge && {x:pipeEdge.source.px + 56 + Math.max(40,pipeEdge.target.px - pipeEdge.source.px - 96) / 2,y:pipeEdge.source.py},
-    wells:wells && {x:wells.px,y:wells.py},
-  };
   const x0 = Math.min(...pumps.map((n) => n.px)) - 100;
   const y0 = Math.min(...pumps.map((n) => n.py)) - 70;
   return (
     <div className="scheme-stage">
       <svg
         className="equipment-scheme"
-        viewBox={`0 ${lossStages.length ? -100 : 0} ${graph.width} ${graph.height + (lossStages.length ? 100 : 0)}`}
+        viewBox={`0 0 ${graph.width} ${graph.height}`}
         aria-label="Условная технологическая схема ППД"
       >
         <title>Оборудование, водоводы, скважины и пласт</title>
@@ -171,20 +164,6 @@ export function Scheme({
                 </g>
               );
             })}
-          {lossStages.map(stage => {
-            const anchor = anchors[stage.id as keyof typeof anchors];
-            if (!anchor) return null;
-            const route = ({hall:"machine-block",pipes:"pipelines",wells:"wells"} as Record<string,string>)[stage.id];
-            return <g key={stage.id}>
-              <path className="scheme-loss-leader" d={`M${anchor.x} -14 V${anchor.y - 45}`} />
-              <a href={`#${route}`} className="scheme-loss-marker" {...interaction(stage.id)} data-loss-stage={stage.id} aria-label={`Открыть участок: ${stage.id === "hall" ? "Машинный блок" : stage.label}`}>
-              <rect x={anchor.x - 125} y="-96" width="250" height="82" rx="10" />
-              <text x={anchor.x} y="-74" className="scheme-loss-label">{stage.label}</text>
-              <text x={anchor.x} y="-49" className="scheme-loss-value">{stage.share_pct == null ? "Нет оценки" : `${fmt(stage.share_pct,1)} % потерь`}</text>
-              {stage.power_kw != null && <text x={anchor.x} y="-29" className="scheme-loss-power">{fmt(stage.power_kw,1)} кВт</text>}
-              </a>
-            </g>;
-          })}
         </g>
       </svg>
     </div>

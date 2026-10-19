@@ -28,7 +28,7 @@ export function StationOverview({objectId,source,topology}:{objectId:string;sour
           <MetricCard label="УРЭ станции" value={data.metrics.sec_kwh_m3} unit="кВт·ч/м³" help="Сумма электрических мощностей / сумма расходов всех учтённых НА на общий момент измерения. КПД отдельных насосов не усредняется."/>
           <MetricCard label="Расход станции" value={data.metrics.flow_m3h} unit="м³/ч" help="Сумма расходов НА на общий момент измерения."/>
           <MetricCard label="Мощность станции" value={data.metrics.power_kw} unit="кВт" help="Суммарная электрическая мощность учтённых НА."/>
-          <MetricCard label="Потери станции · оценка" value={data.network?.status === "scenario" ? data.network.total_loss_kw : null} unit="кВт" help="Сценарная сумма потерь машинного блока, трубопроводов и скважин на текущем режиме. Полезная мощность исключена. Это не подтверждённый потенциал экономии; без полного баланса оценка отсутствует."/>
+          <MetricCard label="Потери до устьев · оценка" value={data.network?.status === "scenario" ? data.network.operator_balance?.total_loss_kw : null} unit="кВт" help="Сценарная сумма потерь до устьев после штуцеров, как в графе ниже. Трение в стволах находится за этой границей. Выходная мощность исключена. Это не подтверждённый потенциал экономии; без полного баланса оценка отсутствует."/>
         </div>
       </Panel>
       <Panel title="Годовая оценка · сценарий" help={data.annual_basis||"Оценка работы при сохранении текущего режима и принятой годовой наработке. Это стоимость потерь, а не подтверждённая экономия мероприятия."}>

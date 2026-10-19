@@ -9,8 +9,8 @@ test('overview is station-wide, shows both demo pumps, and puts annual estimates
   expect(summary.metrics.flow_m3h).toBeGreaterThan(200);expect(summary.network.status).toBe('scenario');
   await expect(page.getByLabel('Агрегат',{exact:true})).toHaveCount(0);
   await expect(page.locator('.station-kpis .metric-card')).toHaveCount(4);
-  const losses=page.locator('.station-kpis .metric-card').filter({hasText:'Потери станции · оценка'});
-  await expect(losses.locator('strong')).toHaveText(new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(summary.network.total_loss_kw));
+  const losses=page.locator('.station-kpis .metric-card').filter({hasText:'Потери до устьев · оценка'});
+  await expect(losses.locator('strong')).toHaveText(new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(summary.network.operator_balance.total_loss_kw));
   await expect(page.locator('.station-context')).toContainText('Учтено НА: 2 из 2');
   await expect(page.locator('.station-kpis')).not.toContainText('НА в расчёте');
   await expect(page.locator('.equipment-node[data-node^="pump-"]')).toHaveCount(2);
