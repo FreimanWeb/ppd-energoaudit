@@ -54,22 +54,6 @@ test('clicking a loss shows concrete proposed actions with calculated effect',as
   await expect(proposals).toContainText('восстановление КПД');
 });
 
-test('single-series measure bars omit a repeated graph name and do not invent a percentage',async({page})=>{
-  await fixture(page);
-  await goToSection(page, "measures");
-  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
-  await expect(page.getByText('Годовой реестр мероприятий',{exact:true})).toBeVisible();
-  await page.getByText('Сравнить годовую экономию',{exact:true}).click();
-  const plot=page.getByRole('group',{name:'Годовой эффект мероприятий',exact:true});
-  await page.waitForLoadState('networkidle');
-  await plot.locator('.visx-bar').first().focus();
-  const tip=plot.getByRole('status');
-  await expect(tip.locator('strong')).toContainText('восстановление КПД');
-  await expect(tip.locator('b')).toContainText('тыс. кВт·ч/год');
-  await expect(tip.getByText('Годовой эффект мероприятий',{exact:true})).toHaveCount(0);
-  await expect(tip.locator('.chart-tooltip-share')).toHaveCount(0);
-});
-
 test('category labels wrap without ellipsis and stay within the chart on a narrow screen',async({page})=>{
   await fixture(page);
   await page.setViewportSize({width:390,height:1000});

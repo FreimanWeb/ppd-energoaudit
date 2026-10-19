@@ -75,19 +75,10 @@ test("scenario measures retain energy benefit but never claim known capital or p
 }) => {
   await fixture(page);
   await goToSection(page, "measures");
-  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
-  const annual = page
-    .getByRole("row")
-    .filter({ hasText: "сценарная оценка" })
-    .first();
-  await expect(annual).toBeVisible();
-  await expect(annual.getByRole("cell").nth(4)).toHaveText("Требует оценки");
-  await expect(annual.getByRole("cell").nth(5)).toHaveText("Требует оценки");
-  await page.getByLabel("Основание расчёта").selectOption("forecast");
-  await expect(page.getByLabel("Мероприятие денежного потока")).toBeVisible();
-  await page
-    .getByLabel("Мероприятие денежного потока")
-    .selectOption("efficiency_recovery_scenario");
+  await page.locator('[data-action-id="annual:efficiency_recovery_scenario"]').getByRole('link',{name:/Подробнее/}).click();
+  const detail=page.getByRole('region',{name:'Мероприятие',exact:true});
+  await expect(detail.locator('.network-balance-totals dd').filter({hasText:'Требует оценки'})).toHaveCount(2);
+  await detail.getByRole('button',{name:'Инвестиционная оценка',exact:true}).click();
   await expect(
     page.locator(".page-kpis strong").filter({ hasText: "Требует оценки" }),
   ).toHaveCount(4);

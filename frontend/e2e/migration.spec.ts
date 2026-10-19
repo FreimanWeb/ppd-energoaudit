@@ -87,9 +87,10 @@ test("loss graphs, working point, measures and connection templates", async ({
   await expect(page.locator(".visx-axis-x").first()).toBeVisible();
   await expect(page.locator(".visx-axis-y").first()).toBeVisible();
   await section(page, "measures");
-  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
+  await page.locator('[data-action-id="annual:throttle_down"]').getByRole('link',{name:/Подробнее/}).click();
+  await page.getByText('Расчёт уставки для выбранного режима',{exact:true}).click();
   await expect(page.locator("main")).toContainText("Оптимизация уставок");
-  await page.getByLabel("Основание расчёта").selectOption("forecast");
+  await page.getByRole('button',{name:'Инвестиционная оценка',exact:true}).click();
   await expect(page.getByLabel("Горизонт экономики")).toBeEnabled();
   await expect(chart(page)).toBeVisible();
   await expect(page.locator("main")).toContainText("NPV");

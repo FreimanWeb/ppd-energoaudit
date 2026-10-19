@@ -1,5 +1,5 @@
 import {readNetworkScenario,scenarioParameters} from "./networkScenario.mjs";
-import {useEffect,useState} from "react";
+import {useEffect,useState,type ReactNode} from "react";
 import {segment,useResource} from "../../shared/api";
 import {contextBody,type PageProps} from "../../shared/ui/context";
 import {Panel} from "../../shared/ui/Panel";
@@ -14,8 +14,8 @@ type Network={status:string;measures?:NonNullable<Parameters<typeof catalogMeasu
   name:string;saving_kw:number;before:{input_kw:number};after:{input_kw:number};assumptions:string[];
 }|null};
 
-export function ChainMeasures({context,annual,eligible,loading,error}: {
-  context:PageProps;annual:Parameters<typeof catalogMeasures>[0];eligible:boolean;loading:boolean;error?:string;
+export function ChainMeasures({context,annual,eligible,loading,error,annualDetail}: {
+  context:PageProps;annual:Parameters<typeof catalogMeasures>[0];eligible:boolean;loading:boolean;error?:string;annualDetail:(id:string)=>ReactNode;
 }) {
   const [intervention,setIntervention]=useState<string|null>(null);
   const supported=["kns54an","demo-ppd"].includes(context.objectId);
@@ -49,14 +49,16 @@ export function ChainMeasures({context,annual,eligible,loading,error}: {
     {chosen ? <section className="network-measure action-detail" aria-label="Мероприятие" data-action-id={chosen.id}>
       <div className="network-section-heading"><h3>{chosen.name}</h3><LinkButton href={measureHref(null,stage)}>К списку мероприятий</LinkButton></div>
       <p>{chosen.description}</p>
+      {chosen.kind==="annual" ? annualDetail(chosen.id.slice("annual:".length)) : <>
       <dl className="network-balance-totals">
-        <div><dt>{chosen.kind === "annual" ? "Годовая сценарная экономия" : "Снижение электрического ввода"}</dt><dd>{fmt(chosen.value,chosen.kind === "annual" ? 0 : 1)} {chosen.unit}</dd></div>
+        <div><dt>Снижение электрического ввода</dt><dd>{fmt(chosen.value,1)} {chosen.unit}</dd></div>
         {chosen.money!=null&&<div><dt>Денежный эффект</dt><dd>{fmt(chosen.money)} тыс. ₽/год</dd></div>}
         <div><dt>CAPEX</dt><dd>{chosen.capex==null ? "Требует оценки" : `${fmt(chosen.capex)} тыс. ₽`}</dd></div>
         <div><dt>Окупаемость</dt><dd>{chosen.capex==null ? "Требует оценки" : chosen.capex === 0 ? "Без CAPEX" : chosen.payback==null ? "Не определена" : `${fmt(chosen.payback)} лет`}</dd></div>
       </dl>
-      <p className="muted">{chosen.kind === "annual" ? "Сценарий сохранения выбранного режима и принятой годовой наработки. Достижимость эффекта требует проверки." : "Сценарий одного выбранного НА: его расход распределён по сети, остальные насосы выключены. Это не оценка совместной работы станции."}</p>
+      <p className="muted">Сценарий одного выбранного НА: его расход распределён по сети, остальные насосы выключены. Это не оценка совместной работы станции.</p>
       {chosen.assumptions.length>0&&<details><summary>Условия оценки</summary><ul>{chosen.assumptions.map(note=><li key={note}>{note}</li>)}</ul></details>}
+      </>}
       <div className="content-actions">
         <LinkButton href={scenario ? "#network-scenario" : `#${chosen.stage === "hall" ? "machine-losses" : chosen.stage === "pipes" ? "pipelines" : "wells"}`}>{scenario ? "Вернуться к гидравлическому сценарию" : "Разобрать потери участка"}</LinkButton>
         {chosen.intervention&&<Button loading={comparison.loading} onClick={()=>setIntervention(chosen.intervention)}>Оценить сценарий</Button>}
