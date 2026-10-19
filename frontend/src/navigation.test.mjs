@@ -60,9 +60,9 @@ test("sidebar sections preserve every route with a distinct icon", async () => {
   const { navigationSections, pages } = await import("./app/navigation.mjs");
   assert.ok(navigationSections, "sectioned navigation is missing");
   assert.deepEqual(navigationSections.map(s => s.label), ["Все объекты","Обзор","Машинный блок","Трубопроводы","Скважины","Мероприятия","Данные и методика"]);
-  assert.equal(pages.length, 19);
-  assert.equal(new Set(pages.map(p => p.id)).size, 19);
-  assert.equal(new Set(pages.map(p => p.icon)).size, 19);
+  assert.equal(pages.length, 20);
+  assert.equal(new Set(pages.map(p => p.id)).size, 20);
+  assert.equal(new Set(pages.map(p => p.icon)).size, 20);
   assert.equal(pages.some(p => p.id === "scheme"), false);
   assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
 });
@@ -101,7 +101,7 @@ test("operator list keeps three real objects and one explicit demo", async () =>
 test('overview stays station-wide and injection forecasting belongs to wells',async()=>{
  const {navigationSections,pageForMode}=await import('./app/navigation.mjs');
  assert.deepEqual(navigationSections.find(section=>section.root==='timeline').pages.map(page=>page.id),['timeline','overview','losses']);
- assert.deepEqual(navigationSections.find(section=>section.root==='pipelines').pages.map(page=>page.id),['pipelines','network-scenario']);
+ assert.deepEqual(navigationSections.find(section=>section.root==='pipelines').pages.map(page=>page.id),['pipelines','network','network-scenario']);
  assert.equal(pageForMode('field_trip','network-scenario'),'network-scenario');
  assert.ok(navigationSections.find(section=>section.root==='wells').pages.some(page=>page.id==='forecast'));
 });

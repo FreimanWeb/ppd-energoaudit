@@ -13,6 +13,7 @@ export const navigationSections = [
   ]},
   {label:"Трубопроводы",root:"pipelines",pages:[
     {id:"pipelines",label:"Потери",icon:"pipelines"},
+    {id:"network",label:"Разводящая сеть",icon:"network"},
     {id:"network-scenario",label:"Гидравлический сценарий",icon:"scheme"},
   ]},
   {label:"Скважины",root:"wells",pages:[
@@ -42,6 +43,7 @@ const fieldPages = new Set([
   "well-history",
   "losses",
   "network-scenario",
+  "network",
   "working-point",
   "measures",
   "formulas",

@@ -28,6 +28,9 @@ _UNITS = {
     "pump_state": "",
 }
 
+# Текущая версия схемы: migrate() доводит любую более старую БД до неё.
+SCHEMA_VERSION = 13
+
 _SCHEMA_V1 = """
 CREATE TABLE ngdu (
     id INTEGER PRIMARY KEY,
@@ -313,7 +316,8 @@ class AuditDatabase:
                             f"ALTER TABLE telemetry_measurements ADD COLUMN {column} {column_type}"
                         )
                 connection.execute("PRAGMA user_version = 9")
-            if version < 10:
+            # The other v10 branch added runtimes without tariff tables.
+            if version < 11:
                 connection.execute(
                     """CREATE TABLE IF NOT EXISTS electricity_tariffs (
                         year INTEGER PRIMARY KEY CHECK (year BETWEEN 1 AND 9999),
@@ -398,6 +402,81 @@ class AuditDatabase:
                     )"""
                 )
                 connection.execute("PRAGMA user_version = 12")
+
+            if version < 13:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(aggregates)")}
+                if "runtime_total_h" not in columns:
+                    connection.execute("ALTER TABLE aggregates ADD COLUMN runtime_total_h REAL")
+                connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+    def set_default_density(self, plant_code: str, density: float) -> None:
+        """Плотность агента объекта, кг/м³: используется, если в окне нет замера."""
+        with self._connection() as connection:
+            updated = connection.execute(
+                "UPDATE plants SET default_density = ? WHERE code = ?", (density, plant_code)
+            ).rowcount
+        if not updated:
+            raise KeyError(plant_code)
+
+    def set_runtime_total(
+        self,
+        plant_code: str,
+        aggregate_code: str,
+        hours: float | None,
+        *,
+        technical_place_code: str = "main",
+    ) -> None:
+        """Наработка агрегата с начала эксплуатации, ч."""
+        with self._connection() as connection:
+            aggregate_id = self._aggregate_id(
+                connection, plant_code, aggregate_code, technical_place_code
+            )
+            connection.execute(
+                "UPDATE aggregates SET runtime_total_h = ? WHERE id = ?", (hours, aggregate_id)
+            )
+
+    def station_metric_events(
+        self, plant_code: str, metric: str, start: datetime, end: datetime
+    ) -> list[tuple[datetime, float]]:
+        """События станционной метрики за [start, end) и последнее событие до start.
+
+        Давления пишутся по изменению значения, поэтому значение на начало окна —
+        это последнее событие перед ним.
+        """
+        with self._connection() as connection:
+            plant_id = self._id(connection, "SELECT id FROM plants WHERE code = ?", plant_code)
+            previous = connection.execute(
+                """
+                SELECT timestamp, value FROM telemetry_measurements
+                WHERE plant_id = ? AND aggregate_id IS NULL AND metric = ? AND timestamp < ?
+                ORDER BY timestamp DESC, id DESC LIMIT 1
+                """,
+                (plant_id, metric, self._iso(start)),
+            ).fetchone()
+            rows = connection.execute(
+                """
+                SELECT timestamp, value FROM telemetry_measurements
+                WHERE plant_id = ? AND aggregate_id IS NULL AND metric = ?
+                  AND timestamp >= ? AND timestamp < ?
+                ORDER BY timestamp, id
+                """,
+                (plant_id, metric, self._iso(start), self._iso(end)),
+            ).fetchall()
+        events = ([previous] if previous else []) + list(rows)
+        return [(datetime.fromisoformat(row["timestamp"]), row["value"]) for row in events]
+
+    def last_station_timestamp(self, plant_code: str, metric: str) -> datetime | None:
+        """Время последнего события станционной метрики."""
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT MAX(tm.timestamp) AS timestamp
+                FROM telemetry_measurements tm JOIN plants p ON p.id = tm.plant_id
+                WHERE p.code = ? AND tm.aggregate_id IS NULL AND tm.metric = ?
+                """,
+                (plant_code, metric),
+            ).fetchone()
+        return datetime.fromisoformat(row["timestamp"]) if row and row["timestamp"] else None
 
     def plant_density_default(self, plant_code: str, at: date) -> dict[str, Any] | None:
         with self._connection() as connection:
@@ -970,7 +1049,7 @@ class AuditDatabase:
         with self._connection() as connection:
             row = connection.execute(
                 """
-                SELECT a.code, a.role
+                SELECT a.code, a.role, a.runtime_total_h
                 FROM aggregates a
                 JOIN technical_places tp ON tp.id = a.technical_place_id
                 JOIN plants p ON p.id = tp.plant_id
@@ -988,7 +1067,7 @@ class AuditDatabase:
                 dict(row)
                 for row in connection.execute(
                     """
-                    SELECT a.code, a.role
+                    SELECT a.code, a.role, a.runtime_total_h
                     FROM aggregates a
                     JOIN technical_places tp ON tp.id = a.technical_place_id
                     JOIN plants p ON p.id = tp.plant_id

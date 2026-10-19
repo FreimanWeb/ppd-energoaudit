@@ -24,6 +24,7 @@ import { CRMPage } from "../pages/CRM";
 import { CRMWellsPage } from "../pages/CRMWells";
 import { WorkingPointPage } from "../pages/WorkingPoint";
 import { MeasuresPage } from "../pages/Measures";
+import { NetworkPage } from "../pages/Network";
 import { FormulasPage } from "../pages/Formulas";
 import { OnboardingPage } from "../pages/Onboarding";
 import type { PageProps } from "../shared/ui/context";
@@ -488,6 +489,7 @@ export function App({ logout }: { logout?: () => void }) {
           <WorkingPointPage key={contextKey} {...context} />
         )}
         {page === "measures" && <MeasuresPage key={contextKey} {...context} />}
+        {page === "network" && <NetworkPage key={contextKey} {...context} />}
         {page === "onboarding" && (
           <OnboardingPage key={contextKey} {...context} />
         )}

@@ -30,7 +30,13 @@ from ppd_audit.measures.economics import (  # noqa: E402
     DEFAULT_HORIZON_YEARS,
     InjectionProfile,
 )
-from ppd_audit.services import catalog, crm_view, forecast_data, telemetry_view  # noqa: E402
+from ppd_audit.services import (  # noqa: E402
+    catalog,
+    crm_view,
+    forecast_data,
+    network_view,
+    telemetry_view,
+)
 from ppd_audit.services.result_scope import ResultScope, result_scope as _result_scope  # noqa: E402
 from ppd_audit.services.telemetry_audit import (  # noqa: E402
     excluded_snapshots_by_manifold_pressure as _excluded_snapshots_by_manifold_pressure,
@@ -52,6 +58,8 @@ SCADA_DIR = TELEMETRY_DIR / DEFAULT_SCADA_DIRNAME
 SCADA_TAGS = catalog.source_paths(_ROOT)["scada_tags"]
 CRM_DIR = catalog.source_paths(_ROOT)["crm"]
 DOWNTIME_DIR = catalog.source_paths(_ROOT)["downtime"]
+NETWORK_DIR = catalog.source_paths(_ROOT)["network"]
+NETWORK_CONFIG = catalog.source_paths(_ROOT)["network_config"]
 
 
 @st.cache_resource(show_spinner="Первый запуск: читаем паспорта и выгрузки телеметрии…")
@@ -370,4 +378,12 @@ def forecast_series(
         end_day,
         period_days=period_days,
         horizon=horizon,
+    )
+
+
+@st.cache_data(show_spinner="Считаем разводящую сеть…")
+def network(object_id: str, eta: float | None = None) -> dict:
+    """Разводящая сеть станции: трение, прочие потери и штуцеры по скважинам."""
+    return network_view.network_view(
+        database(), NETWORK_DIR, NETWORK_CONFIG, object_id, tariff=tariff(), eta=eta
     )

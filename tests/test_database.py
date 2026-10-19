@@ -6,6 +6,7 @@ from ppd_audit import db as db_module
 from ppd_audit.config import project_root
 from ppd_audit.db import (
     DATABASE_PATH_ENV,
+    SCHEMA_VERSION,
     AuditDatabase,
     TelemetryMeasurement,
     default_database_path,
@@ -270,7 +271,7 @@ def test_v9_migration_upgrades_v8_and_preserves_source_metadata(tmp_path, existi
         metadata if existing_columns else dict.fromkeys(metadata)
     )
     with db._connection() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 
 
 def test_v9_migration_does_not_hide_missing_telemetry_table(tmp_path):
@@ -283,3 +284,56 @@ def test_v9_migration_does_not_hide_missing_telemetry_table(tmp_path):
         db.migrate()
     with db._connection() as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
+
+
+def test_v10_migration_adds_runtime_total_and_keeps_aggregates(tmp_path):
+    db = AuditDatabase(tmp_path / "audit.sqlite")
+    db.migrate()
+    db.upsert_plant("kns54", "КНС-54", "Азнакаевскнефть", "пресная", "кнс")
+    db.upsert_aggregate("kns54", "НА-1", "работа")
+    with db._connection() as connection:
+        connection.execute("ALTER TABLE aggregates DROP COLUMN runtime_total_h")
+        connection.execute("PRAGMA user_version = 9")
+
+    db.migrate()
+    db.migrate()
+
+    assert db.aggregate("kns54", "НА-1") == {
+        "code": "НА-1",
+        "role": "работа",
+        "runtime_total_h": None,
+    }
+    db.set_runtime_total("kns54", "НА-1", 13500.0)
+    assert db.aggregates("kns54")[0]["runtime_total_h"] == 13500.0
+    with db._connection() as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+
+
+def test_default_density_can_be_refined(tmp_path):
+    db = AuditDatabase(tmp_path / "audit.sqlite")
+    db.migrate()
+    db.upsert_plant("opu", "КНС-ОПУ", "Джалильнефть", "агрессивная", "кнс", default_density=1123.0)
+
+    db.set_default_density("opu", 1142.0)
+
+    assert db.plant("opu")["default_density"] == 1142.0
+    with pytest.raises(KeyError):
+        db.set_default_density("нет-такого", 1000.0)
+
+
+def test_station_events_carry_the_value_from_before_the_window(tmp_path):
+    db = AuditDatabase(tmp_path / "audit.sqlite")
+    db.migrate()
+    db.upsert_plant("kns54", "КНС-54", "Азнакаевскнефть", "пресная", "кнс")
+    db.upsert_aggregate("kns54", "НА-1", "работа")
+    db.add_measurement("kns54", None, datetime(2026, 7, 1, 10), "p_bg", 13.0, "МПа")
+    db.add_measurement("kns54", None, datetime(2026, 7, 2, 10), "p_bg", 14.0, "МПа")
+    db.add_measurement("kns54", "НА-1", datetime(2026, 7, 2, 11), "p_out", 15.0, "МПа")
+
+    events = db.station_metric_events(
+        "kns54", "p_bg", datetime(2026, 7, 2), datetime(2026, 7, 3)
+    )
+
+    assert events == [(datetime(2026, 7, 1, 10), 13.0), (datetime(2026, 7, 2, 10), 14.0)]
+    assert db.last_station_timestamp("kns54", "p_bg") == datetime(2026, 7, 2, 10)
+    assert db.last_station_timestamp("kns54", "p_in") is None

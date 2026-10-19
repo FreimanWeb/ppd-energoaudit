@@ -32,6 +32,7 @@ export function Passport({ audit }: { audit: Audit }) {
               "Номинальный КПД насоса (η_нас.ном)": formatEfficiency(p?.eta_nom),
               "Номинальная мощность (P_ном), кВт": p?.power_nom,
               "Частота вращения (n), об/мин": p?.n_rpm,
+              "Наработка с начала эксплуатации, ч": audit.passport?.runtime_total_h,
               "Кривая подачи и напора (Q–H)": p?.curve_qh?.length ? "Паспортные координаты" : "Отсутствует",
               "Кривая подачи и КПД (Q–η)": p?.curve_qeta?.length ? "Паспортные координаты" : "Отсутствует",
             }} />

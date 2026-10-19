@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from functools import cache
 from pathlib import Path
 
 import yaml
@@ -67,6 +68,7 @@ def bootstrap_database(
 
         seed_demo(database)
     database.seed_confirmed_density_defaults()
+    sync_reference_values(database, plants_dir)
     if telemetry_dir is not None:
         seed_telemetry_from_excel(database, telemetry_dir)
     return database
@@ -132,7 +134,7 @@ def seed_passports(
             raw.get("water_type", "пресная"),
             raw.get("branch", "кнс"),
             is_example=raw.get("is_example", False),
-            default_density=_first_regime_value(raw, "rho"),
+            default_density=_object_density(raw),
             default_viscosity=_first_regime_value(raw, "nu"),
         )
         for aggregate in raw.get("aggregates", []):
@@ -176,6 +178,57 @@ def seed_passports(
                 )
         seeded.append(raw["id"])
     return seeded
+
+
+def sync_reference_values(database: AuditDatabase, plants_dir: Path) -> None:
+    """Перенести в существующую БД справочные значения, уточнённые в YAML.
+
+    Паспорта переносятся в БД один раз, при первом заполнении, а плотность
+    агента объекта и наработка агрегатов с начала эксплуатации уточняются
+    позже. Без синхронизации уже созданная БД продолжала бы считать по
+    старым значениям. Запись выполняется только при расхождении.
+    """
+    stamp = tuple(
+        (path.name, path.stat().st_mtime_ns) for path in sorted(plants_dir.glob("*.yaml"))
+    )
+    for code, (density, runtimes) in _reference_values(plants_dir, stamp).items():
+        try:
+            plant = database.plant(code)
+        except KeyError:
+            continue
+        if density is not None and plant["default_density"] != density:
+            database.set_default_density(code, density)
+        current = {row["code"]: row["runtime_total_h"] for row in database.aggregates(code)}
+        for aggregate, hours in runtimes.items():
+            if aggregate in current and current[aggregate] != hours:
+                database.set_runtime_total(code, aggregate, hours)
+
+
+@cache
+def _reference_values(
+    plants_dir: Path, stamp: tuple
+) -> dict[str, tuple[float | None, dict[str, float | None]]]:
+    """Плотность и наработки из YAML; ``stamp`` сбрасывает кэш при изменении файлов."""
+    values = {}
+    for path in sorted(plants_dir.glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not raw.get("id"):
+            continue
+        density = float(raw["density"]) if raw.get("density") is not None else None
+        runtimes = {
+            aggregate["id"]: aggregate["runtime_total_h"]
+            for aggregate in raw.get("aggregates", [])
+            if "runtime_total_h" in aggregate
+        }
+        values[raw["id"]] = (density, runtimes)
+    return values
+
+
+def _object_density(raw: dict) -> float | None:
+    """Плотность агента объекта: явное значение объекта, иначе из выездного замера."""
+    if raw.get("density") is not None:
+        return float(raw["density"])
+    return _first_regime_value(raw, "rho")
 
 
 def _first_regime_value(raw: dict, field: str) -> float | None:

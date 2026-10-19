@@ -1,6 +1,16 @@
 import {goToSection, selectDate} from "./helpers";
 import { test, expect } from "@playwright/test";
 
+test("imported network opens under pipelines with real source data", async ({page}) => {
+  const response=page.waitForResponse(response=>new URL(response.url()).pathname === "/api/objects/kns54an/network");
+  await page.goto("/?object=kns54an&aggregate=НА-1&day=2026-09-29#network");
+  const data=await (await response).json();
+  expect(data.wells.length).toBeGreaterThan(20);
+  await expect(page.locator('.sidebar-nav a[aria-current="page"]')).toHaveText("Трубопроводы");
+  await expect(page.getByRole("heading",{name:"Водоводы и скважины",exact:true})).toBeVisible();
+  await expect(page.getByRole("group",{name:"Потери мощности по скважинам, кВт",exact:true}).locator("svg.visx-chart")).toBeVisible();
+});
+
 test("chain map is separate from hydraulic scenarios and well history", async ({page}) => {
   await page.goto("/?object=demo-ppd&aggregate=НА-1&day=2026-10-01&timestamp=2026-10-01T00:30:00#losses");
   const map = page.locator(".page-panel").filter({has:page.getByRole("heading",{name:"Карта потерь по цепочке",exact:true})});

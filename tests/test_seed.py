@@ -112,3 +112,39 @@ aggregates:
     assert seeded["transmission_ratio"] == 4.55
     assert seeded["transmission_eff"] == 0.92
     assert db.clarifications("kns97", "НА-1")[0]["field"] == "transmission_eff"
+
+
+def test_refined_density_and_runtime_reach_an_existing_database(tmp_path):
+    import yaml
+
+    from ppd_audit.db_seed import sync_reference_values
+
+    plants = tmp_path / "plants"
+    plants.mkdir()
+    raw = {
+        "id": "opu",
+        "name": "КНС-ОПУ",
+        "ngdu": "Джалильнефть",
+        "aggregates": [{"id": "НА-1", "regime": {"rho": 1123.0, "p_in": 1, "p_out": 9}}],
+    }
+    (plants / "opu.yaml").write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    database = bootstrap_database(tmp_path / "audit.sqlite", plants)
+    assert database.plant("opu")["default_density"] == 1123.0
+
+    raw["density"] = 1142.0
+    raw["aggregates"][0]["runtime_total_h"] = 300.0
+    (plants / "opu.yaml").write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    sync_reference_values(database, plants)
+
+    assert database.plant("opu")["default_density"] == 1142.0
+    assert database.aggregate("opu", "НА-1")["runtime_total_h"] == 300.0
+
+
+def test_passports_bring_density_and_runtime_into_a_new_database(tmp_path):
+    from ppd_audit.config import project_root
+
+    database = bootstrap_database(tmp_path / "audit.sqlite", project_root() / "config" / "plants")
+
+    assert database.plant("knsopu")["default_density"] == 1142.0
+    assert database.aggregate("kns54an", "НА-1")["runtime_total_h"] == 13500.0
+    assert database.aggregate("kns97pren", "НА-2 ПР")["runtime_total_h"] == 43846.0

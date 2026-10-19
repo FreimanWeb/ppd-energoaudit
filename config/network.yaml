@@ -1,0 +1,37 @@
+# Разводящая сеть ППД: геометрия водоводов и карточки нагнетательных скважин.
+#
+# Файлы лежат в каталоге data/network (переопределяется PPD_NETWORK_DIR):
+#   pipelines_file — выгрузка реестра трубопроводов НГДУ (участки, диаметры, стенки);
+#   wells_archive  — архив карточек скважин из АРМИТС (inf_skw<номер>.xls по папкам КНС).
+#
+# Для станции:
+#   pipelines_sheet — лист реестра с участками станции;
+#   wells_folder    — начало имени папки станции в архиве карточек;
+#   station_nodes   — узлы станции в реестре, от которых начинаются разводящие
+#                     водоводы (сравнение без учёта регистра, пробелов и дефисов).
+schema: network.v1
+pipelines_file: pipelines.xlsx
+wells_archive: armits_wells.zip
+
+plants:
+  knsopu:
+    pipelines_sheet: ОПУ труб
+    wells_folder: ОПУ
+    station_nodes:
+      - КНС-ОПУ
+      - Узел выхода КНС-ОПУ
+      - БГ-1 (КНС-ОПУ)
+      - Задвижка (выход с КНС) (КНС-ОПУ)
+  kns54an:
+    pipelines_sheet: 54 труб
+    wells_folder: "54"
+    station_nodes:
+      - КНС-54
+      - БГ-1 (КНС-54)
+      - Задвижка (выход с КНС) (КНС-54)
+  kns97pren:
+    pipelines_sheet: 97-2 труб
+    wells_folder: 97-2
+    station_nodes:
+      - КНС-97
+      - КНС 97ПР

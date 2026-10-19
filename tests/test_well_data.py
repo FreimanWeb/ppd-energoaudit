@@ -8,7 +8,10 @@ from ppd_audit.db_seed import bootstrap_database
 
 @pytest.fixture
 def db(tmp_path):
-    return bootstrap_database(tmp_path / "audit.sqlite", project_root() / "config/plants")
+    database = bootstrap_database(tmp_path / "audit.sqlite", project_root() / "config/plants")
+    # Test dated overrides independently of later corrections to the YAML fallback.
+    database.set_default_density("knsopu", 1123)
+    return database
 
 
 def test_confirmed_density_is_available_from_receipt_not_backfilled(db):

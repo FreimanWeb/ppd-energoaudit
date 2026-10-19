@@ -147,6 +147,7 @@ class AggregateSpec(BaseModel):
     vfd: bool = False
     eta_pump_due: float | None = None  # должный КПД насоса при рабочей подаче (с кривой Q-η)
     h_pump_due: float | None = None  # должный напор при рабочей подаче, м (с кривой Q-H)
+    runtime_total_h: float | None = None  # наработка с начала эксплуатации, ч
     regime: RegimeMeasurement | None = None
     reference: ReferenceOutputs | None = None
 
@@ -166,6 +167,7 @@ class ObjectSpec(BaseModel):
     is_example: bool = False  # Пример для верификации, не показывать как рабочий объект.
     water_type: WaterType = WaterType.fresh
     branch: Branch = Branch.kns
+    density: float | None = None  # плотность закачиваемого агента объекта, кг/м³
     source: str = ""  # откуда собран спец (файл/ручной ввод)
     telemetry: dict[str, Any] = Field(default_factory=dict)
     aggregates: list[AggregateSpec] = Field(default_factory=list)
