@@ -1,3 +1,4 @@
+import {readNetworkScenario,scenarioParameters} from "./networkScenario.mjs";
 import {useEffect,useState} from "react";
 import {segment,useResource} from "../../shared/api";
 import {contextBody,type PageProps} from "../../shared/ui/context";
@@ -19,9 +20,13 @@ export function ChainMeasures({context,annual,eligible,loading,error}: {
   const [intervention,setIntervention]=useState<string|null>(null);
   const supported=["kns54an","demo-ppd"].includes(context.objectId);
   const path=`/objects/${segment(context.objectId)}/aggregates/${segment(context.aggregateId)}/network-losses`;
-  const network=useResource<Network>(eligible&&supported ? path : null,contextBody(context));
-  const comparison=useResource<Network>(eligible&&supported&&intervention ? path : null,contextBody(context,{intervention}));
   const params=new URL(location.href).searchParams;
+  const scenarioValue=params.get("network_scenario");
+  const scenario=readNetworkScenario(scenarioValue);
+  const invalidScenario=Boolean(scenarioValue && !scenario);
+  const measureContext={...context,networkScenario:scenario ?? undefined};
+  const network=useResource<Network>(eligible&&supported&&!invalidScenario ? path : null,contextBody(context,scenario ? {scenario} : {}));
+  const comparison=useResource<Network>(eligible&&supported&&!invalidScenario&&intervention ? path : null,contextBody(context,{intervention,...(scenario ? {scenario} : {})}));
   const stage=stageDefinitions.some(stage=>stage.id===params.get("stage")) ? params.get("stage")! : "";
   const id=params.get("measure") || "";
   const actions=catalogMeasures(annual,network.data);
@@ -34,6 +39,8 @@ export function ChainMeasures({context,annual,eligible,loading,error}: {
       history.replaceState(null,"",measureHref(null,event.target.value));
       window.dispatchEvent(new PopStateEvent("popstate"));
     }}><option value="">Все участки</option>{stageDefinitions.map(stage=><option key={stage.id} value={stage.id}>{stage.id === "hall" ? "Машинный блок" : stage.label}</option>)}</select></label></div>
+    {invalidScenario && <p className="notice" role="alert">Некорректные параметры гидравлического сценария. Оценка мероприятий внешней сети не выполнена.</p>}
+    {scenario && chosen?.kind!=="annual" && <details className="stage-assumptions"><summary>Параметры из гидравлического сценария</summary><ul>{scenarioParameters.map(parameter=><li key={parameter.key}>{parameter.label}: {fmt(scenario[parameter.key])}</li>)}</ul></details>}
     <p className="muted">Годовая экономия и снижение мощности показаны раздельно. Эффекты альтернативных мероприятий не суммируются.</p>
     {loading&&<p className="muted">Загружаем мероприятия машинного блока…</p>}
     {error&&<p className="notice error" role="alert">{error}</p>}
@@ -51,7 +58,7 @@ export function ChainMeasures({context,annual,eligible,loading,error}: {
       <p className="muted">{chosen.kind === "annual" ? "Сценарий сохранения выбранного режима и принятой годовой наработки. Достижимость эффекта требует проверки." : "Сценарий одного выбранного НА: его расход распределён по сети, остальные насосы выключены. Это не оценка совместной работы станции."}</p>
       {chosen.assumptions.length>0&&<details><summary>Условия оценки</summary><ul>{chosen.assumptions.map(note=><li key={note}>{note}</li>)}</ul></details>}
       <div className="content-actions">
-        <LinkButton href={`#${chosen.stage === "hall" ? "machine-block" : chosen.stage === "pipes" ? "pipelines" : "wells"}`}>Разобрать потери участка</LinkButton>
+        <LinkButton href={scenario ? "#network-scenario" : `#${chosen.stage === "hall" ? "machine-losses" : chosen.stage === "pipes" ? "pipelines" : "wells"}`}>{scenario ? "Вернуться к гидравлическому сценарию" : "Разобрать потери участка"}</LinkButton>
         {chosen.intervention&&<Button loading={comparison.loading} onClick={()=>setIntervention(chosen.intervention)}>Оценить сценарий</Button>}
       </div>
       {intervention&&<Status {...comparison}/>}
@@ -61,7 +68,7 @@ export function ChainMeasures({context,annual,eligible,loading,error}: {
       </section>}
     </section> : <>
       {id&&!loading&&!network.loading&&<p className="notice" role="status">Это мероприятие недоступно для выбранного режима или участка.</p>}
-      <MeasureCards actions={rows} context={context}/>
+      <MeasureCards actions={rows} context={measureContext}/>
       {!rows.length&&!loading&&!network.loading&&eligible&&<p className="muted">Для выбранного участка применимые мероприятия не рассчитаны.</p>}
     </>}
   </Panel>;

@@ -33,7 +33,7 @@ test("overview has compact KPI cards, explicit comparisons and keyboard help", a
     await expect(page.locator(".metric-card").filter({has: page.getByText(label, {exact: true})})).toHaveAttribute("data-tone", "bad");
   await expect(page.getByRole("button", {name: "Сравнение", exact: true})).toHaveCount(0);
   await expect(page.getByRole("heading",{name:"КПД",exact:true})).toBeVisible();
-  await expect(page.getByRole("heading", {name: /^Агрегат и обвязка до блока гребёнок/})).toBeVisible();
+  await expect(page.getByRole("heading", {name: /^Цифровая карта потерь мощности/})).toHaveCount(0);
   await expect(page.getByRole("link", {name: "Карта потерь мощности →", exact: true})).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

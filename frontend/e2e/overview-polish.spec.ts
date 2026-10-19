@@ -5,6 +5,7 @@ test('overview groups efficiency and opens references horizontally without neste
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#machine-block');
   await expect(page.getByRole('link', { name: 'Карта потерь мощности →', exact: true })).toHaveCount(0);
+  await goToSection(page,'machine-losses');
   const top = page.getByRole('region', {name: 'Мероприятия участка'});
   const all = top.getByRole('link', { name: 'Перейти к мероприятиям', exact: true });
   await expect(all).toHaveAttribute('href', /stage=hall.*#measures$/);
@@ -12,6 +13,7 @@ test('overview groups efficiency and opens references horizontally without neste
   const link = (await all.boundingBox())!;
   expect(link.x).toBeGreaterThan(heading.x + heading.width);
   expect(Math.abs(link.y + link.height / 2 - heading.y - heading.height / 2)).toBeLessThan(2);
+  await goToSection(page,'machine-block');
   const ure = page.locator('.page-panel').filter({ has: page.getByRole('heading', { name: 'Удельный расход энергии', exact: true }) });
   const toggle = ure.getByRole('button', { name: 'Ориентиры УРЭ', exact: true });
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');

@@ -31,10 +31,12 @@ test('overview is station-wide, shows both demo pumps, and puts annual estimates
 
 test('machine loss map belongs to the machine block and redundant history return is absent',async({page})=>{
   await page.goto('/?object=demo-ppd&aggregate=НА-1#machine-block');
-  await expect(page.getByRole('heading',{name:'Агрегат и обвязка до блока гребёнок',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})).toHaveCount(0);
+  await page.getByRole('navigation',{name:'Вкладки: Машинный блок',exact:true}).getByRole('link',{name:'Карта потерь',exact:true}).click();
+  await expect(page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})).toBeVisible();
   await expect(page.getByLabel('Агрегат',{exact:true}).locator('option')).toHaveCount(2);
   await goToSection(page,'losses');
-  await expect(page.getByRole('heading',{name:'Агрегат и обвязка до блока гребёнок',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})).toHaveCount(0);
   await expect(page.getByRole('link',{name:'← Вернуться к истории объекта',exact:true})).toHaveCount(0);
   await goToSection(page,'forecast');
   await expect(page.getByRole('navigation',{name:'Вкладки: Скважины',exact:true})).toBeVisible();

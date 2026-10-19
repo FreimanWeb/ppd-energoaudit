@@ -71,8 +71,8 @@ test("loss graphs, working point, measures and connection templates", async ({
   page,
 }) => {
   await selectFixture(page);
-  await section(page, "machine-block");
-  const waterfall = page.locator(".page-panel:not(:has(.network-losses))").getByRole("group", {name: "Декомпозиция мощности", exact: true});
+  await section(page, "machine-losses");
+  const waterfall = page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole("group", {name: "Декомпозиция мощности", exact: true});
   await expect(waterfall.locator("svg.visx-chart")).toBeVisible();
   await page.getByRole("button",{name:"Детализация потерь НА",exact:true}).click();
   await expect(waterfall.locator(".visx-bar")).toHaveCount(6);
@@ -80,7 +80,7 @@ test("loss graphs, working point, measures and connection templates", async ({
   await expect(firstBar).toHaveAttribute("aria-label", /кВт/);
   await firstBar.focus();
   await expect(waterfall.locator(".native-chart-tooltip b").first()).toBeVisible();
-  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button', { name: 'Структура, %', exact: true }).click();
+  await page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('button', { name: 'Структура, %', exact: true }).click();
   await expect(page.getByRole('group',{name:'Структура мощности, %',exact:true}).locator('svg.visx-chart')).toBeVisible();
   await section(page, "working-point");
   await expect(chart(page)).toBeVisible();

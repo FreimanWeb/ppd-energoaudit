@@ -10,7 +10,7 @@ test("stage percentages use total losses rather than input power", () => {
     {name:"Полезная мощность",power_kw:800,category:"полезная"},
   ]};
   const stages = networkStages(data);
-  assert.deepEqual(stages.map(stage => stage.share_pct),[50,30,20]);
+  assert.deepEqual(stages.map(stage => stage.share_pct),[50,50,0]);
   assert.equal(stages.reduce((sum,stage) => sum + stage.power_kw,0),200);
   assert.deepEqual(networkStages({...data,status:"infeasible"}),[]);
   assert.deepEqual(networkStages({...data,total_loss_kw:0}),[]);

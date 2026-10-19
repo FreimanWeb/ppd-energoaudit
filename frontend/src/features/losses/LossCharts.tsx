@@ -1,3 +1,4 @@
+import {lossLabel,lossLabels} from "../../shared/lossLabels";
 import { Plot, type Trace } from "../../charts/Plot";
 import { fmt } from "../../shared/ui/format";
 import { Tooltip } from "../../shared/ui/Tooltip";
@@ -13,6 +14,7 @@ export function LossCharts({
   mode = "decomposition",
   onSelect,
   showSummary = true,
+  inputLabel,
   axisLabels,
   groups,
 }: {
@@ -22,6 +24,7 @@ export function LossCharts({
   mode?: "decomposition" | "percentage";
   onSelect?: (name: string) => void;
   showSummary?: boolean;
+  inputLabel?: string;
   axisLabels?: Record<string, string>;
   groups?: {label:string;names:string[]}[];
 }) {
@@ -34,27 +37,26 @@ export function LossCharts({
     );
   if (!losses.length)
     return <p className="notice">Декомпозиция для выбранного режима недоступна.</p>;
-  const chart = lossChartData(power, losses);
+  const label=(name:string)=>axisLabels?.[name] ?? lossLabel(name);
+  const displayed=losses.map(item=>({...item,name:label(item.name)}));
+  const select=(name:string)=>onSelect?.(losses.find(item=>label(item.name) === name)?.name ?? name);
+  const chart = lossChartData(power, displayed, inputLabel ?? lossLabels.input);
   const categoryGroups=groups?.flatMap(group=>{
-    const names=chart.waterfall.x.filter(name=>group.names.includes(name));
-    return names.length ? [{label:group.label,from:axisLabels?.[names[0]] ?? names[0],to:axisLabels?.[names.at(-1)!] ?? names.at(-1)!}] : [];
+    const names=losses.filter(item=>group.names.includes(item.name)).map(item=>item.name);
+    return names.length ? [{label:group.label,from:label(names[0]),to:label(names.at(-1)!)}] : [];
   });
-  if (axisLabels) {
-    chart.waterfall.tooltip = chart.waterfall.tooltip.map((point, index) => ({ ...point, selection: chart.waterfall.x[index] }));
-    chart.waterfall.x = chart.waterfall.x.map(label => axisLabels[label] ?? label);
-  }
   return (
     <>
-      {mode === "percentage" ? <LossPercentage power={power} losses={losses.filter(item=>item.category !== "промежуточная")} onSelect={onSelect} /> : <Plot
-        onSelect={onSelect}
+      {mode === "percentage" ? <LossPercentage basisLabel={inputLabel === lossLabels.bg ? "гидравлической мощности на БГ" : undefined} power={power} losses={displayed.filter(item=>item.category !== "промежуточная")} onSelect={select} /> : <Plot
+        onSelect={select}
         title="Декомпозиция мощности"
         data={[chart.waterfall as Trace]}
         layout={{ categoryGroups, height: 440, yaxis: { title: { text: "Мощность, кВт" } }, margin: { l: 65, r: 25, t: 20, b: 100 } }}
       />}
       {showSummary && <p className="muted">
-        Подведённая мощность {fmt(power)} кВт · полезная{" "}
+        {lossLabels.input} {fmt(power)} кВт · {lossLabels.useful.toLowerCase()}
         {fmt(losses.find((x) => x.category === "полезная")?.power_kw)} кВт.
-        <Tooltip label="Статьи потерь" content={<>Потери КПД — дополнительная мощность сверх паспортного состояния. Номинальные — базовые потери двигателя, насоса и передачи. Дросселирование — снижение давления арматурой. Гидравлические потери — сопротивление трубопровода и обвязки. Износ, неоптимальная подача и вязкость — составляющие ветки перекачки.</>} />
+        <Tooltip label="Статьи потерь" content={<>{lossLabels.efficiency} — дополнительная мощность сверх паспортного состояния. {lossLabels.nominal} — базовые потери двигателя, насоса и передачи. {lossLabels.na_throttle} — дополнительная мощность НА из-за снижения давления перед БГ. {lossLabels.hydraulic_bg} — потеря гидравлической мощности между выкидом насоса и БГ.</>} />
       </p>}
     </>
   );

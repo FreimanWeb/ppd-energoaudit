@@ -35,7 +35,7 @@ export function inspectionHref(page, key, href = location.href) {
   if (inspectionFor(key)) url.searchParams.set("inspect", key ?? "");
   else url.searchParams.delete("inspect");
   if (page === "measures") { url.searchParams.delete("measure"); url.searchParams.delete("stage"); }
-  url.hash = page === "losses" ? "machine-block" : page;
+  url.hash = page === "losses" ? "machine-losses" : page;
   return url.href;
 }
 /** @param {string|undefined} key @param {string} [href] */

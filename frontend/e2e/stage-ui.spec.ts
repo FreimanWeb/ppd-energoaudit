@@ -8,12 +8,13 @@ test("machine diagnostics are visible immediately without duplicate navigation",
   await expect(page.getByText("КПД насоса расчётный", {exact:true})).toBeVisible();
   await expect(page.getByRole("button", {name:"Диагностика агрегата",exact:true})).toHaveCount(0);
   await expect(page.getByRole("navigation", {name:"Навигация по потерям"})).toHaveCount(0);
-  await expect(page.locator(".stage-losses")).not.toContainText("2026-10-18T");
+  await expect(page.locator(".stage-losses")).toHaveCount(0);
   const efficiency = page.locator(".machine-efficiency");
   const main = (await efficiency.locator(":scope > .metric-values").boundingBox())!;
   const diagnostics = (await efficiency.locator(":scope > .metric-group").boundingBox())!;
   expect(diagnostics.x).toBeGreaterThan(main.x + main.width);
-  expect(Math.abs(diagnostics.y - main.y)).toBeLessThan(20);
+  expect(Math.abs(diagnostics.y-main.y)).toBeLessThan(20);
+  await page.getByRole("navigation",{name:"Вкладки: Машинный блок",exact:true}).getByRole("link",{name:"Карта потерь",exact:true}).click();
   const action = page.getByRole("link", {name:"Перейти к мероприятиям",exact:true});
   await expect(action).toHaveClass(/ds-button/);
   await action.click();

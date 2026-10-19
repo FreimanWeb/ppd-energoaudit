@@ -2,9 +2,9 @@ import { Plot } from "../../charts/Plot";
 import { fmt } from "../../shared/ui/format";
 import type { Loss } from "./LossCharts";
 
-export function LossPercentage({ power, losses, onSelect }: { power: number; losses: Loss[]; onSelect?: (name: string) => void }) {
+export function LossPercentage({ power, losses, onSelect, basisLabel="потреблённой мощности" }: { power: number; losses: Loss[]; onSelect?: (name: string) => void; basisLabel?:string }) {
   if (!Number.isFinite(power) || power <= 0 || losses.some(item => !Number.isFinite(item.share)))
-    return <p className="notice">Процентная структура недоступна: нет достоверной подведённой мощности или долей составляющих.</p>;
+    return <p className="notice">Процентная структура недоступна: нет достоверной потреблённой мощности или долей составляющих.</p>;
   if (losses.some(item => item.share < 0 || item.power_kw < 0))
     return <p className="notice">Для режима с отрицательными коррекциями выберите «Разложение». Исходные значения сохранены в таблице.</p>;
   const total = losses.reduce((sum, item) => sum + item.share, 0);
@@ -21,9 +21,9 @@ export function LossPercentage({ power, losses, onSelect }: { power: number; los
   return <>
     <Plot onSelect={onSelect} title="Структура мощности, %" data={data} layout={{
       barmode: "relative", height: 210,
-      xaxis: { range: [0, 100], title: { text: "Доля от подведённой мощности, %" } },
+      xaxis: { range: [0, 100], title: { text: `Доля от ${basisLabel}, %` } },
       yaxis: { visible: false }, margin: { l: 20, r: 20, t: 15, b: 65 },
     }} />
-    <p className="muted">Показанные составляющие: {fmt(total * 100, 1)}% подведённой мощности.</p>
+    <p className="muted">Показанные составляющие: {fmt(total * 100, 1)}% {basisLabel}.</p>
   </>;
 }

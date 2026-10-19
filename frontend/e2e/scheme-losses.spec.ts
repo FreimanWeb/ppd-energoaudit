@@ -6,22 +6,22 @@ test("scheme shows report groups as consumption shares below equipment", async (
   await page.goto("/?object=demo-ppd&aggregate=НА-1&mode=field_trip#overview");
   const balance = (await (await response).json()).network;
   const scheme = page.getByRole("region",{name:"Условная технологическая схема ППД",exact:true});
-  const markers = page.locator(".loss-flow-stage");
-  await expect(markers).toHaveCount(3);
+  const markers = page.locator(".loss-flow-article");
+  await expect(markers).toHaveCount(6);
   await expect(page.locator(".scheme-loss-summary")).toHaveCount(0);
-  const hall = balance.operator_balance.groups.find((group:{id:string})=>group.id === "hall").power_kw;
+  const hall = balance.operator_balance.groups.find((group:{id:string})=>group.id === "hall").children[0].power_kw;
   const pct = new Intl.NumberFormat("ru-RU",{maximumFractionDigits:1}).format(hall/balance.input_kw*100);
-  await expect(markers.first().locator(".loss-flow-parent .loss-flow-share")).toHaveText(`${pct} % потребления`);
-  await expect(scheme).toContainText("100 % — потреблённая мощность");
+  await expect(markers.first().locator(".loss-flow-share")).toHaveText(`${pct} % потребления`);
+  await expect(scheme.locator('.scheme-power-reading[data-reading="input"] .scheme-power-share')).toContainText("100 % ввода");
   for (const width of [1800,1280,390]) {
     await page.setViewportSize({width,height:1000});
     await expect(scheme.locator("svg").getByRole("button")).toHaveCount(0);
-    await expect(scheme.locator(".loss-flow-toggle")).toHaveCount(3);
+    await expect(scheme.locator(".loss-flow-article")).toHaveCount(6);
     expect(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
   await expect(page.getByLabel("Агрегат",{exact:true})).toHaveCount(0);
   await page.reload();
-  await expect(markers).toHaveCount(3);
+  await expect(markers).toHaveCount(6);
 });
 
 test("unavailable balance never shows invented percentages", async ({page}) => {
@@ -32,7 +32,7 @@ test("unavailable balance never shows invented percentages", async ({page}) => {
   });
   await page.goto("/?object=demo-ppd&aggregate=НА-1&mode=field_trip#overview");
   await expect(page.locator(".scheme-panel")).toContainText("Доли потерь недоступны");
-  await expect(page.locator(".loss-flow-parent .loss-flow-value")).toHaveText(["Нет оценки","Нет оценки","Нет оценки"]);
+  await expect(page.locator(".loss-flow-article .loss-flow-value")).toHaveText(Array(6).fill("Нет оценки"));
   await expect(page.locator(".station-kpis .metric-card").filter({hasText:"Потери до устьев · оценка"}).locator("strong")).toHaveText("Нет данных");
 });
 
@@ -41,10 +41,11 @@ test('conditional scheme groups wells, has no duplicated cards, and links hover 
   const scheme=page.getByRole('region',{name:'Условная технологическая схема ППД',exact:true});
   await expect(scheme).toBeVisible();
   await expect(scheme.locator('.scheme-loss-summary')).toHaveCount(0);
-  await expect(scheme.locator('.well-group-count')).toHaveText('В расчёте: 6 скважин');
-  for(const id of ['hall','pipes','wells']){
+  await expect(scheme.locator('.node-label').filter({hasText:'Группа скважин'})).toHaveText('Группа скважин (6 шт.)');
+  await expect(scheme.locator('.well-group-count')).toHaveCount(0);
+  for(const id of ['hall','pipes']){
     const area=scheme.locator(`.scheme-area-link[data-stage="${id}"]`);
-    const card=scheme.locator(`.loss-flow-stage[data-stage="${id}"]`);
+    const card=scheme.locator(`.loss-flow-article[data-stage="${id}"]`).first();
     await expect(area.locator('rect')).toHaveCSS('stroke','rgb(229, 231, 235)');
     await card.hover();
     await expect(area).toHaveAttribute('data-active','true');

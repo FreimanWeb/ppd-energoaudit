@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 import streamlit as st
 import ui
 
-from tabs.common import Ctx, fmt, loss_components
+from ppd_audit.core.pump import KnsDecomposition
+from tabs.common import LOSS_LABELS, Ctx, fmt, loss_components, loss_label
 
 
 _LOSS_GLOSSARY = {
@@ -29,17 +30,23 @@ _LOSS_GLOSSARY = {
 
 
 def _loss_glossary(labels: list[str]) -> list[tuple[str, str]]:
-    return [(label, _LOSS_GLOSSARY[label]) for label in labels if label in _LOSS_GLOSSARY]
+    return [
+        (loss_label(label), _LOSS_GLOSSARY[label]) for label in labels if label in _LOSS_GLOSSARY
+    ]
 
 
 def _power_flow(ctx: Ctx) -> None:
-    st.markdown("**Поток мощности: P_эл → полезная мощность + статьи потерь**")
     useful, losses = loss_components(ctx.audit)
-    losses = [(label, value) for label, value in losses if abs(value) > 1e-6]
+    losses = [(loss_label(label), value) for label, value in losses if abs(value) > 1e-6]
     p_el = ctx.audit.regime.p_electric or 0.0
-    node_labels = [f"P_эл  {fmt(p_el, 0)} кВт", f"Полезная  {fmt(useful, 0)}"] + [
-        f"{label}  {fmt(value, 0)}" for label, value in losses
+    output_label = LOSS_LABELS[
+        "bg" if isinstance(ctx.audit.decomposition, KnsDecomposition) else "useful"
     ]
+    st.markdown(f"**Поток мощности: {LOSS_LABELS['input']} → {output_label} + статьи потерь**")
+    node_labels = [
+        f"{LOSS_LABELS['input']}  {fmt(p_el, 0)} кВт",
+        f"{output_label}  {fmt(useful, 0)}",
+    ] + [f"{label}  {fmt(value, 0)}" for label, value in losses]
     node_colors = ["#2f80ed", "#2e9e6b"] + ["#e08a6b"] * len(losses)
     fig = go.Figure(
         go.Sankey(
@@ -70,7 +77,8 @@ def _power_flow(ctx: Ctx) -> None:
     st.plotly_chart(fig, width="stretch")
     pct_useful = useful / p_el * 100 if p_el else 0.0
     st.caption(
-        f"P_эл = {fmt(p_el, 1)} кВт · полезная {fmt(useful, 1)} кВт "
+        f"{LOSS_LABELS['input']} {fmt(p_el, 1)} кВт · "
+        f"{output_label.lower()} {fmt(useful, 1)} кВт "
         f"({fmt(pct_useful, 1)} %). Ширина потока пропорциональна доле мощности."
     )
 
@@ -94,15 +102,18 @@ def render(ctx: Ctx) -> None:
         ui.provenance((f"T_год из телеметрии: {fmt(ctx.scope.annual_runtime_hours, 1)} ч", "ok"))
     useful, losses = loss_components(audit)
     p_el = audit.regime.p_electric
-    losses = [(lbl, v) for lbl, v in losses if abs(v) > 1e-6]
+    losses = [(loss_label(lbl), v) for lbl, v in losses if abs(v) > 1e-6]
 
     if not losses:
         st.info(
             "Декомпозиция потерь для этого агрегата неприменима. "
-            "Ниже — полезная мощность против подведённой."
+            "Ниже — полезная мощность против потреблённой."
         )
 
-    labels = ["P_эл (подвод)"] + [label for label, _ in losses] + ["Полезная мощность"]
+    output_label = LOSS_LABELS[
+        "bg" if isinstance(audit.decomposition, KnsDecomposition) else "useful"
+    ]
+    labels = [LOSS_LABELS["input"]] + [label for label, _ in losses] + [output_label]
     measures = ["absolute"] + ["relative"] * len(losses) + ["total"]
     values = [p_el] + [-v for _, v in losses] + [0]
     fig = go.Figure(
@@ -125,9 +136,9 @@ def render(ctx: Ctx) -> None:
     st.plotly_chart(fig, width="stretch")
     _power_flow(ctx)
 
-    st.markdown("**Структура (доли от подведённой мощности P_эл):**")
+    st.markdown("**Структура (доли от потреблённой мощности P_эл):**")
     t_year = ctx.scope.annual_runtime_hours
-    rows = [("Полезная мощность", useful)] + losses
+    rows = [(output_label, useful)] + losses
     st.dataframe(
         {
             "Составляющая": [r[0] for r in rows],
@@ -138,7 +149,7 @@ def render(ctx: Ctx) -> None:
         width="stretch",
         hide_index=True,
     )
-    glossary = _loss_glossary([label for label, _ in losses])
+    glossary = _loss_glossary([label for label, _ in loss_components(audit)[1]])
     if glossary:
         st.markdown("### Расшифровка статей")
         st.dataframe(

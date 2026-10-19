@@ -60,9 +60,9 @@ test("sidebar sections preserve every route with a distinct icon", async () => {
   const { navigationSections, pages } = await import("./app/navigation.mjs");
   assert.ok(navigationSections, "sectioned navigation is missing");
   assert.deepEqual(navigationSections.map(s => s.label), ["Все объекты","Обзор","Машинный блок","Трубопроводы","Скважины","Мероприятия","Данные и методика"]);
-  assert.equal(pages.length, 20);
-  assert.equal(new Set(pages.map(p => p.id)).size, 20);
-  assert.equal(new Set(pages.map(p => p.icon)).size, 20);
+  assert.equal(pages.length, 21);
+  assert.equal(new Set(pages.map(p => p.id)).size, 21);
+  assert.equal(new Set(pages.map(p => p.icon)).size, 21);
   assert.equal(pages.some(p => p.id === "scheme"), false);
   assert.deepEqual(navigationSections.flatMap(s => s.pages), pages);
 });
@@ -95,7 +95,7 @@ test("source modes omit irrelevant measurement parameters and unknown modes fall
 test("operator list keeps three real objects and one explicit demo", async () => {
   const {operatorObjects,pageForMode} = await import("./app/navigation.mjs");
   assert.deepEqual(operatorObjects(["knsopu","kns54an","kns97pren","demo-ppd","kns10bn","dns7"].map(code => ({code}))).map(o => o.code),["knsopu","kns54an","kns97pren","demo-ppd"]);
-  for (const page of ["machine-block","pipelines","wells"]) assert.equal(pageForMode("field_trip",page),page);
+  for (const page of ["machine-block","machine-losses","pipelines","wells"]) assert.equal(pageForMode("field_trip",page),page);
 });
 
 test('overview stays station-wide and injection forecasting belongs to wells',async()=>{
@@ -104,4 +104,14 @@ test('overview stays station-wide and injection forecasting belongs to wells',as
  assert.deepEqual(navigationSections.find(section=>section.root==='pipelines').pages.map(page=>page.id),['pipelines','network','network-scenario']);
  assert.equal(pageForMode('field_trip','network-scenario'),'network-scenario');
  assert.ok(navigationSections.find(section=>section.root==='wells').pages.some(page=>page.id==='forecast'));
+});
+
+
+test('machine block separates indicators, loss map and working point',async()=>{
+ const {navigationSections,pageForMode}=await import('./app/navigation.mjs');
+ assert.deepEqual(navigationSections.find(section=>section.root==='machine-block').pages.map(page=>[page.id,page.label]),[
+  ['machine-block','Показатели'],['machine-losses','Карта потерь'],['working-point','Рабочая точка'],
+ ]);
+ assert.equal(pageForMode('analysis','machine-losses'),'machine-losses');
+ assert.equal(pageForMode('field_trip','machine-losses'),'machine-losses');
 });

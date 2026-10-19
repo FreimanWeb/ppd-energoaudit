@@ -8,7 +8,8 @@ export const navigationSections = [
     {id:"losses",label:"Карта потерь",icon:"losses"},
   ]},
   {label:"Машинный блок",root:"machine-block",pages:[
-    {id:"machine-block",label:"Потери и КПД",icon:"machine-block"},
+    {id:"machine-block",label:"Показатели",icon:"machine-block"},
+    {id:"machine-losses",label:"Карта потерь",icon:"machine-losses"},
     {id:"working-point",label:"Рабочая точка",icon:"working-point"},
   ]},
   {label:"Трубопроводы",root:"pipelines",pages:[
@@ -38,6 +39,7 @@ export const pages = navigationSections.flatMap(section => section.pages);
 const fieldPages = new Set([
   "overview",
   "machine-block",
+  "machine-losses",
   "pipelines",
   "wells",
   "well-history",

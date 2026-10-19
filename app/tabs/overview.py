@@ -13,7 +13,8 @@ import plotly.graph_objects as go
 import streamlit as st
 import ui
 
-from tabs.common import Ctx, fmt, loss_components
+from ppd_audit.core.pump import KnsDecomposition
+from tabs.common import LOSS_LABELS, Ctx, fmt, loss_components, loss_label
 
 
 def _kpi_rows(ctx: Ctx) -> None:
@@ -104,16 +105,19 @@ def _loss_structure_and_measures(ctx: Ctx) -> None:
 
     audit, tariff = ctx.audit, ctx.tariff
     useful, losses = loss_components(audit)
-    losses = [(lbl, v) for lbl, v in losses if abs(v) > 1e-6]
+    losses = [(loss_label(lbl), v) for lbl, v in losses if abs(v) > 1e-6]
     p_el = audit.regime.p_electric or 0.0
 
     cc = st.columns([1.25, 1])
     with cc[0]:
-        st.markdown("**Куда уходит подведённая мощность**")
+        st.markdown("**Куда уходит потреблённая мощность**")
         if p_el <= 0:
             st.info("Нет данных об электрической мощности.")
         else:
-            parts = [("Полезная", useful, "#2e9e6b")] + [
+            output_label = LOSS_LABELS[
+                "bg" if isinstance(audit.decomposition, KnsDecomposition) else "useful"
+            ]
+            parts = [(output_label, useful, "#2e9e6b")] + [
                 (lbl, v, c)
                 for (lbl, v), c in zip(
                     losses, ["#d9534f", "#e0a106", "#e08a6b", "#c48a4a", "#9aa5b1"], strict=False

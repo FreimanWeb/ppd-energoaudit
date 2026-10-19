@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
+from pathlib import Path
 
 from ppd_audit.services.analysis import loss_components  # noqa: F401
+
+
+_LOSS_DICTIONARY = json.loads(
+    (Path(__file__).resolve().parents[2] / "shared" / "loss-labels.json").read_text()
+)
+LOSS_LABELS = _LOSS_DICTIONARY["labels"]
+
+
+def loss_label(name: str) -> str:
+    return LOSS_LABELS.get(_LOSS_DICTIONARY["aliases"].get(name), name)
 
 
 @dataclass

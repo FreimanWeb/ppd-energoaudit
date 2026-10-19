@@ -1,5 +1,5 @@
 /** @param {number} input @param {{name:string,power_kw:number,share:number,category:string}[]} items */
-export function lossChartData(input, items) {
+export function lossChartData(input, items, inputLabel="Подведённая мощность") {
   const useful = items.find((x) => x.category === "полезная");
   const bars = items.filter((x) => x.category === "потеря" || x.category === "промежуточная");
   return {
@@ -8,7 +8,7 @@ export function lossChartData(input, items) {
       orientation: "v",
       measure: ["absolute", ...bars.map(x => x.category === "промежуточная" ? "absolute" : "relative"), "absolute"],
       x: [
-        "Подведённая мощность",
+        inputLabel,
         ...bars.map((x) => x.name),
         useful?.name ?? "Полезная мощность",
       ],
@@ -25,15 +25,18 @@ export function lossChartData(input, items) {
   };
 }
 
-/** @param {import('../shared/types').Audit['losses']} items */
-export function aggregateLossGroups(items) {
+/** @param {import('../shared/types').Audit['losses']} items @param {boolean} [detailed] */
+export function aggregateLossGroups(items, detailed=false) {
   const names=["Дросселирование","Гидравл. насос→БГ"];
   const combined=items.filter(item=>names.includes(item.name));
   if(!combined.length) return items;
+  const order=["Полезная мощность","Номинальные","Потери КПД","Износ","Неоптимальная подача","Дросселирование","Гидравл. насос→БГ"];
+  const ordered=[...items].sort((a,b)=>(order.indexOf(a.name)<0 ? order.length : order.indexOf(a.name))-(order.indexOf(b.name)<0 ? order.length : order.indexOf(b.name)));
+  if(detailed) return ordered;
   /** @param {'annual_kwh'|'annual_rub'} key */
   const annual=key=>combined.every(item=>typeof item[key] === "number")
     ? combined.reduce((sum,item)=>sum+Number(item[key]),0) : null;
-  return [...items.filter(item=>!names.includes(item.name)),{
+  return [...ordered.filter(item=>!names.includes(item.name)),{
     ...combined[0],name:"Потери на участке Насос–БГ",
     power_kw:combined.reduce((sum,item)=>sum+item.power_kw,0),
     share:combined.reduce((sum,item)=>sum+item.share,0),

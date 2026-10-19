@@ -2,6 +2,7 @@ import {
   memo,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -194,9 +195,22 @@ export function CartesianPlot({
     top = 24;
   const categories:(string|number)[]=model.xAxis.type === "category" ? chartDomains(model,hidden).x : [];
   const categoryWidth=Math.max(24,(width-left-right)/Math.max(1,categories.length)-12);
-  const categoryLabelHeight=Math.max(14,...categories.map(value=>Math.ceil(String(value).length/Math.max(1,Math.floor(categoryWidth/6)))*14));
+  const [categoryLabelHeight,setCategoryLabelHeight]=useState(0);
+  useLayoutEffect(()=>{
+    if(!categories.length) return;
+    const axis=surface.current?.querySelector<SVGGElement>('.visx-axis-x');
+    if(!axis) return;
+    const measure=()=>{
+      const box=axis.getBBox();
+      setCategoryLabelHeight(Math.ceil(box.y+box.height));
+    };
+    measure();
+    const observer=new ResizeObserver(measure);
+    observer.observe(axis);
+    return ()=>observer.disconnect();
+  },[model,width,hidden]);
   const bottom=model.xAxis.hidden ? 12 : categories.length
-    ? Math.max(48,categoryLabelHeight+20+(model.categoryGroups?.length ? 42 : 0))
+    ? Math.max(48,categoryLabelHeight+16+(model.categoryGroups?.length ? 42 : 0))
     : model.categoryGroups?.length ? 84 : 48;
   const innerWidth = Math.max(10, width - left - right),
     innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 56 : 0));

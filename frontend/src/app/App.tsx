@@ -13,7 +13,6 @@ import {
   operatorObjects,
   navigationSections,
   pageForMode,
-  filterObjects,
   readAnalysisContext,
   analysisContextURL,
   initialPage,
@@ -38,7 +37,6 @@ import type {
 } from "../shared/types";
 import { Notice } from "./components/Notice";
 import { Icon } from "./components/Icon";
-import { Filters } from "./components/Filters";
 import "../style.css";
 
 
@@ -55,8 +53,6 @@ export function App({ logout }: { logout?: () => void }) {
   } = selection;
   const [sidebarOpen, setSidebarOpen] = useState(false),
     [rawPage, setPage] = useState(() => initialPage(location.href));
-  const [waters, setWaters] = useState<string[]>([]),
-    [ngdus, setNgdus] = useState<string[]>([]);
   useEffect(() => {
     const update = () => {
       setPage(initialPage(location.href));
@@ -76,12 +72,10 @@ export function App({ logout }: { logout?: () => void }) {
   const monitoringPage = page === "portfolio" || page === "timeline" || page === "overview";
   const objects = useResource<Plant[]>("/catalog/objects");
   const visibleObjects = operatorObjects(objects.data ?? []);
-  const filtered = filterObjects(visibleObjects, waters, ngdus);
-  const selectableObjects = page === "portfolio" ? visibleObjects : filtered;
   const object =
-    selectableObjects.find((o) => o.code === objectChoice) ??
-    selectableObjects.find((o) => o.code === "kns54an") ??
-    selectableObjects[0];
+    visibleObjects.find((o) => o.code === objectChoice) ??
+    visibleObjects.find((o) => o.code === "kns54an") ??
+    visibleObjects[0];
   useEffect(() => {
     if (objects.data && object && ((objectChoice && !visibleObjects.some(item => item.code === objectChoice)) || (page === "timeline" && objectChoice !== object.code))) {
       changeSelection({object:object.code,aggregate:"",day:"",timestamp:""});
@@ -211,8 +205,6 @@ export function App({ logout }: { logout?: () => void }) {
     setSelection(next);
     setPage("timeline");
 
-    setWaters([]);
-    setNgdus([]);
     setSidebarOpen(false);
     window.scrollTo({top: 0, behavior: "instant"});
   }
@@ -261,6 +253,7 @@ export function App({ logout }: { logout?: () => void }) {
     "losses",
     "network-scenario",
     "machine-block",
+    "machine-losses",
     "pipelines",
     "wells",
     "sources",
@@ -320,25 +313,21 @@ export function App({ logout }: { logout?: () => void }) {
                   <option value="telemetry_view">Просмотр телеметрии</option>
                 </select>
               </label>
-              <div className="selector-filters">
-                <Filters title="Тип воды" options={[...new Set(visibleObjects.map(o => o.water_type))]} chosen={waters} onChange={setWaters} />
-                <Filters title="НГДУ" options={[...new Set(visibleObjects.map(o => o.ngdu_name))]} chosen={ngdus} onChange={setNgdus} />
-              </div>
               <label>
                 Объект
                 <select
                   aria-label="Объект"
                   value={object?.code ?? ""}
-                  disabled={!filtered.length}
+                  disabled={!visibleObjects.length}
                   onChange={(e) => {
                     changeSelection({object: e.target.value, aggregate: "", day: "", timestamp: ""});
 
                   }}
                 >
                   <option value="" disabled>
-                    {objects.data?.length && !filtered.length ? "Нет подходящих объектов" : "Выберите объект"}
+                    {objects.data?.length && !visibleObjects.length ? "Нет подходящих объектов" : "Выберите объект"}
                   </option>
-                  {filtered.map((o) => (
+                  {visibleObjects.map((o) => (
                     <option key={o.code} value={o.code}>
                       {mode === "field_trip" ? "" : o.has_telemetry ? "● " : "○ "}
                       {o.name}
@@ -422,9 +411,8 @@ export function App({ logout }: { logout?: () => void }) {
           onSelectTimestamp={value => changeSelection({day:value.slice(0,10),timestamp:value})} />}
         {page === "timeline" && telemetryMessage && <p className="notice" role="status">{telemetryMessage}</p>}
         <Notice {...objects} />
-        {page !== "portfolio" && objects.data && !filtered.length && <div className="notice" role="status">
-          <p>{objects.data.length ? "Нет объектов с выбранными фильтрами. Измените тип воды или НГДУ." : "Каталог объектов пуст."}</p>
-          {(waters.length > 0 || ngdus.length > 0) && <button type="button" onClick={() => { setWaters([]); setNgdus([]); }}>Сбросить фильтры</button>}
+        {page !== "portfolio" && objects.data && !visibleObjects.length && <div className="notice" role="status">
+          <p>Каталог объектов пуст.</p>
         </div>}
         <Notice {...aggregates} />
         <Notice {...dates} />
@@ -466,7 +454,7 @@ export function App({ logout }: { logout?: () => void }) {
         )}
         {page === "overview" && object && <StationOverview key={`${object.code}:${source}`} objectId={object.code} source={source} topology={topology.data} />}
         {page === "snapshot" && audit && <SnapshotView audit={audit} />}
-        {audit && ["machine-block","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${page}`} stage={page === "machine-block" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} inspectionKey={context.inspectionKey} />}
+        {audit && ["machine-block","machine-losses","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${page}`} view={page === "machine-losses" ? "map" : "indicators"} stage={page === "machine-block" || page === "machine-losses" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} inspectionKey={context.inspectionKey} />}
         {page === "well-history" && object && <WellHistory objectId={object.code} />}
         {(page === "losses" || page === "network-scenario") && audit && <NetworkLosses key={`${contextKey}:${timestamp}:${page}`} audit={audit} view={page === "losses" ? "map" : "scenario"} />}
         {(page === "losses" || page === "network-scenario") && !audit && <p className="notice">Для расчёта выберите агрегат и доступный режим.</p>}

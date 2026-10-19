@@ -13,49 +13,14 @@ async function section(page: Page, hash: string) {
   await goToSection(page, hash);
 }
 
-test("water and NGDU filters actually constrain selectable objects and reset safely", async ({
-  page,
-}) => {
+test("sidebar keeps object selection without water and NGDU filters", async ({page}) => {
   await fixture(page);
-  const all = await page
-    .getByLabel("Объект", { exact: true })
-    .locator("option")
-    .count();
-  await page
-    .locator(".object-filter")
-    .filter({ hasText: "Тип воды" })
-    .locator("summary")
-    .click();
-  await page.getByLabel("Тип воды: пресная", { exact: true }).check();
-  await expect(
-    page
-      .getByLabel("Объект", { exact: true })
-      .locator('option[value="kns54an"]'),
-  ).toHaveCount(0);
-  expect(
-    await page.getByLabel("Объект", { exact: true }).locator("option").count(),
-  ).toBeLessThan(all);
-  await page.getByLabel("Тип воды: пресная", { exact: true }).uncheck();
-  await page
-    .locator(".object-filter")
-    .filter({ hasText: "НГДУ" })
-    .locator("summary")
-    .click();
-  await page.getByLabel("НГДУ: Азнакаевскнефть", { exact: true }).check();
-  await expect(
-    page
-      .getByLabel("Объект", { exact: true })
-      .locator('option[value="kns97pren"]'),
-  ).toHaveCount(0);
-  await expect(
-    page
-      .getByLabel("Объект", { exact: true })
-      .locator('option[value="kns54an"]'),
-  ).toHaveCount(1);
-  await page.getByLabel("НГДУ: Азнакаевскнефть", { exact: true }).uncheck();
-  await expect(
-    page.getByLabel("Объект", { exact: true }).locator("option"),
-  ).toHaveCount(all);
+  await expect(page.locator("aside .object-filter")).toHaveCount(0);
+  const objects=page.getByLabel("Объект",{exact:true});
+  await expect(objects.locator('option[value="kns54an"]')).toHaveCount(1);
+  await expect(objects.locator('option[value="kns97pren"]')).toHaveCount(1);
+  await objects.selectOption("kns97pren");
+  await expect(objects).toHaveValue("kns97pren");
 });
 
 test("calendar statuses distinguish valid and unfit days and changing month can select history", async ({
@@ -282,9 +247,9 @@ test("machine block keeps efficiency diagnostics separate from the overview", as
 test("scheme area opens wells and its throttling breakdown", async ({page}) => {
   await fixture(page);
   await section(page,'scheme');
-  await page.getByRole('link',{name:'Открыть участок: Скважины и арматура',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Скважины и арматура',exact:true}).first()).toBeVisible();
-  await expect(page.locator('main')).toContainText('Штуцирование скважин');
+  await page.getByRole('link',{name:'Открыть скважины',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Скважины',exact:true}).first()).toBeVisible();
+  await expect(page.locator('main')).toContainText('Потери на штуцирование нагнетательных скважин');
 });
 
 async function hoverLineEnd(

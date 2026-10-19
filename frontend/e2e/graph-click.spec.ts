@@ -34,9 +34,9 @@ test('CRM graph accepts a real well click and keyboard activation', async ({ pag
 
 test('loss charts scroll locally and retain full labels on mobile', async ({ page }) => {
   await fixture(page);
-  await goToSection(page, "machine-block");
+  await goToSection(page, "machine-losses");
   await page.setViewportSize({ width: 390, height: 844 });
-  const plot=page.locator('.page-panel:not(:has(.network-losses))').getByRole('group',{name:'Декомпозиция мощности',exact:true});
+  const plot=page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Декомпозиция мощности',exact:true});
   await expect(plot.locator('svg.visx-chart')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   const labels=await plot.locator('.visx-axis-x text').allTextContents();

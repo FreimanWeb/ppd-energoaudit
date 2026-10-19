@@ -111,6 +111,8 @@ test('aggregate overview groups pump to BG losses and retains signed and annual 
   {name:'Гидравл. насос→БГ',power_kw:5,share:.05,category:'потеря',annual_kwh:50,annual_rub:250},
  ];
  const result=aggregateLossGroups(items);
+ assert.deepEqual(result.map(x=>x.name),["Полезная мощность","Номинальные","Потери КПД","Потери на участке Насос–БГ"]);
+ assert.deepEqual(aggregateLossGroups(items,true).map(x=>x.name),["Полезная мощность","Номинальные","Потери КПД","Дросселирование","Гидравл. насос→БГ"]);
  assert.equal(result.length,4);
  const combined=result.find(x=>x.name==='Потери на участке Насос–БГ');
  assert.equal(combined.power_kw,15);

@@ -5,7 +5,7 @@ const context='/?object=demo-ppd&aggregate=НА-1&day=2026-10-18&timestamp=2026-
 test('area cards open the same measure detail and retain context after reload',async({page})=>{
   await page.goto(context+'#pipelines');
   const actions=page.getByRole('region',{name:'Мероприятия участка',exact:true});
-  const card=actions.locator('[data-action-id]').first();
+  const card=actions.locator('[data-action-id]').filter({hasText:'Очистить трубы'}).first();
   await expect(card).toContainText('Очистить трубы');
   const id=await card.getAttribute('data-action-id');
   const name=await card.locator('h4').innerText();
@@ -40,8 +40,11 @@ test('station priorities link to an aggregate at the common station timestamp',a
 test('chain waterfall groups match their own bars and stay inside the chart',async({page})=>{
   await page.goto(context+'#losses');
   const chart=page.getByRole('group',{name:'Декомпозиция мощности',exact:true});
-  await expect(chart.locator('.chart-category-group')).toHaveCount(3);
-  await expect(chart.locator('.chart-category-group text')).toHaveText(['Машинный блок','Трубопроводы','Скважины и арматура']);
+  await expect(chart.locator('.chart-category-group')).toHaveCount(2);
+  await expect(chart.locator('.chart-category-group text')).toHaveText(['Машинный блок и обвязка до БГ','От БГ до устьев скважин']);
+  await expect(chart.locator('.chart-category-group').last()).toHaveAttribute('data-from','Потери в трубопроводах до скважин (трение и местные потери)');
+  await expect(chart.locator('.chart-category-group').last()).toHaveAttribute('data-to','Потери на штуцирование нагнетательных скважин');
+  await expect(page.getByLabel('Потери по участкам цепочки').locator('dt')).toHaveText(['Машинный блок и обвязка до БГ','От БГ до устьев скважин']);
   for(const group of await chart.locator('.chart-category-group').all()){
     const geometry=await group.evaluate(group=>{
       const svg=group.closest('svg')!,start=group.getAttribute('data-from'),end=group.getAttribute('data-to');
@@ -56,8 +59,15 @@ test('chain waterfall groups match their own bars and stay inside the chart',asy
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
   }
   await page.setViewportSize({width:390,height:844});
-  await expect(chart.locator('.chart-category-group')).toHaveCount(3);
+  await expect(chart.locator('.chart-category-group')).toHaveCount(2);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole('button',{name:'Детализация',exact:true}).click();
+  await expect(chart.locator('.chart-category-group').first()).toHaveText('Машинный блок и обвязка до БГ');
+  const external=chart.locator('.chart-category-group').filter({hasText:'От БГ до устьев скважин'});
+  await expect(external).toHaveAttribute('data-from','Трение в трубопроводах до скважин');
+  await expect(external).toHaveAttribute('data-to','Потери на штуцирование нагнетательных скважин');
+  await expect(chart.locator('.chart-category-group').filter({hasText:'Скважины'})).toHaveAttribute('data-from','Трение в стволах скважин');
+
 });
 
 test('CRM aggregate forecast is hidden from the operator tabs but its URL works',async({page})=>{

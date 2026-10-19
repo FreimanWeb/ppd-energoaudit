@@ -24,13 +24,15 @@ export function catalogMeasures(annual = [], network = null) {
   ];
 }
 
-/** @param {string|null} id @param {string} stage @param {{objectId:string,aggregateId:string,source:string,timestamp:string}|null} [context] @param {string} [href] */
+/** @param {string|null} id @param {string} stage @param {{objectId:string,aggregateId:string,source:string,timestamp:string,networkScenario?:Record<string,number>}|null} [context] @param {string} [href] */
 export function measureHref(id,stage,context=null,href=location.href) {
   const url=new URL(href);
   url.searchParams.delete('inspect');
   if(id) url.searchParams.set('measure',id); else url.searchParams.delete('measure');
   if(stage) url.searchParams.set('stage',stage); else url.searchParams.delete('stage');
   if(context) {
+    if(context.networkScenario) url.searchParams.set('network_scenario',JSON.stringify(context.networkScenario));
+    else url.searchParams.delete('network_scenario');
     url.searchParams.set('object',context.objectId);
     url.searchParams.set('aggregate',context.aggregateId);
     url.searchParams.set('mode',context.source === 'field_trip' ? 'field_trip' : 'analysis');

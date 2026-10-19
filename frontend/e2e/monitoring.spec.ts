@@ -168,10 +168,9 @@ test("portfolio defaults to today and uses a common selected end date for all ch
   await expect(card.locator(".portfolio-history-range time").last()).toHaveAttribute("datetime", "2026-07-07");
 });
 
-test("legacy filters cannot replace the object opened from a monitoring card", async ({ page }) => {
+test("opening an object from a monitoring card preserves its selection", async ({ page }) => {
   await page.goto("/?object=kns54an&aggregate=НА-1&day=2026-09-29#overview");
-  await page.locator(".object-filter").filter({ hasText: "Тип воды" }).locator("summary").click();
-  await page.getByLabel("Тип воды: пресная", { exact: true }).check();
+  await expect(page.locator("aside .object-filter")).toHaveCount(0);
   await page.getByRole("link", { name: "Все объекты", exact: true }).click();
   await page.getByRole("button", { name: /Открыть историю: КНС-54/ }).click();
   await expect(page.getByLabel("Объект", { exact: true })).toHaveValue("kns54an");

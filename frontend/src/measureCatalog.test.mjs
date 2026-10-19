@@ -22,3 +22,21 @@ test('measure URLs replace stale focus and preserve the measurement and history 
   const station=new URL(measureHref('annual:restore','hall',{objectId:'demo-ppd',aggregateId:'НА-2',source:'telemetry',timestamp:'2026-10-17T20:00:00'},url.href),'http://localhost');
   assert.equal(station.searchParams.get('aggregate'),'НА-2');assert.equal(station.searchParams.get('day'),'2026-10-17');
 });
+
+test('choking measures belong to the BG-to-wellhead section',()=>{
+  const rows=catalogMeasures([],{status:'scenario',measures:[{id:'head',name:'Head',loss_name:'Штуцирование скважин',description:'',saving_kw:5,saving_pct:1}]});
+  assert.equal(rows[0].stage,'pipes');
+});
+
+
+test('hydraulic measure links carry custom parameters and unrelated cards clear them',()=>{
+  const context={objectId:'demo-ppd',aggregateId:'НА-1',source:'telemetry',timestamp:'2026-10-18T22:00:00',networkScenario:{roughness_mm:.2}};
+  const url=new URL(measureHref('network:clean_pipes','pipes',context,'http://localhost/?start=2026-09-19#network-scenario'),'http://localhost');
+  assert.deepEqual(JSON.parse(url.searchParams.get('network_scenario')),context.networkScenario);
+  assert.equal(url.searchParams.get('timestamp'),context.timestamp);
+  assert.equal(url.searchParams.get('start'),'2026-09-19');
+  const filtered=new URL(measureHref(null,'pipes',null,url.href),'http://localhost');
+  assert.equal(filtered.searchParams.get('network_scenario'),url.searchParams.get('network_scenario'));
+  const normal=new URL(measureHref(null,'pipes',{...context,networkScenario:undefined},url.href),'http://localhost');
+  assert.equal(normal.searchParams.has('network_scenario'),false);
+});

@@ -10,6 +10,6 @@ export function MeasureCards({actions,context}:{actions:ReturnType<typeof catalo
     <h4>{action.name}</h4>
     <p className="network-measure-saving">{fmt(action.value,action.kind === 'annual' ? 0 : 1)} {action.unit}</p>
     <p className="muted">{action.kind === 'annual' ? 'Годовая сценарная оценка' : 'Сценарий одного НА при прежней закачке; с настройкой напора'}</p>
-    <LinkButton href={measureHref(action.id,action.stage,context ? {...context,aggregateId:action.aggregate || context.aggregateId} : null)} aria-label={`Подробнее: ${action.name}`}>Подробнее</LinkButton>
+    <LinkButton href={measureHref(action.id,action.stage,context ? {...context,aggregateId:action.aggregate || context.aggregateId,networkScenario:action.kind === "network" ? context.networkScenario : undefined} : null)} aria-label={`Подробнее: ${action.name}`}>Подробнее</LinkButton>
   </article>)}</div>;
 }

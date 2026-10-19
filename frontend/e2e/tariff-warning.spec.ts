@@ -13,7 +13,6 @@ test("fallback tariff warning stays visible across audit sections", async ({page
   await goToSection(page, "losses");
   await expect(page.getByRole("status").filter({hasText:warning})).toBeVisible();
   await goToSection(page, "measures");
-  await page.getByText("Расширенный расчёт экономики машинного блока",{exact:true}).click();
   await expect(page.getByRole("status").filter({hasText:warning})).toBeVisible();
-  await expect(page.getByText("Годовой реестр мероприятий",{exact:true})).toBeVisible();
+  await expect(page.locator('.action-list [data-action-id^="annual:"]').first()).toBeVisible();
 });

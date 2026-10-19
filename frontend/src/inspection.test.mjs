@@ -7,7 +7,7 @@ test('inspection links preserve explicit measurement and reject unknown keys',()
  assert.equal(url.searchParams.get('aggregate'),'b');
  assert.equal(url.searchParams.get('inspect'),'sec_fact');
  assert.equal(url.hash,'#sources');
- assert.equal(new URL(inspectionHref('losses','eta_unit',url.href)).hash,'#machine-block');
+ assert.equal(new URL(inspectionHref('losses','eta_unit',url.href)).hash,'#machine-losses');
  assert.equal(inspectionFor('__proto__'),undefined);
  assert.equal(new URL(inspectionHref('sources','bogus',url.href)).searchParams.has('inspect'),false);
 });

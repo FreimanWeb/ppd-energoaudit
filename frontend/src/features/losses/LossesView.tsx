@@ -1,9 +1,10 @@
+import {lossLabel,lossLabels} from "../../shared/lossLabels";
 import { Button, LinkButton } from "../../shared/ui/Button";
 import { segment, useResource } from "../../shared/api";
 import { Status } from "../../shared/ui/Status";
 import { inspections, inspectionFor, inspectionHref, relatedMeasures } from "../inspection/inspection.mjs";
 import "../inspection/inspection.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "../overview/dashboardData.mjs";
 import { LossCharts } from "./LossCharts";
@@ -12,14 +13,16 @@ import { Table } from "../../shared/ui/Table";
 import { fmt } from "../../shared/ui/format";
 import { aggregateLossGroups } from "../../pages/lossChartData.mjs";
 
-export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionKey?: string }) {
+export function LossesView({ audit, inspectionKey, summary, children }: { audit: Audit; inspectionKey?: string; summary?:ReactNode; children?:ReactNode }) {
   const [mode, setMode] = useState<"decomposition" | "percentage">("decomposition");
   const view = dashboardData(audit);
   const [detailed,setDetailed]=useState(()=>Boolean(inspectionFor(inspectionKey)?.loss));
   useEffect(()=>{setDetailed(Boolean(inspectionFor(inspectionKey)?.loss));},[inspectionKey]);
   const grouped=aggregateLossGroups(view.losses);
-  const losses=detailed ? view.losses : grouped;
+  const losses:Audit["losses"]=detailed ? aggregateLossGroups(view.losses,true) : grouped;
   const canDetail=grouped !== view.losses;
+  const labels:Record<string,string>=canDetail ? {"Полезная мощность":lossLabels.bg} : {};
+  const label=(name:string)=>labels[name] ?? lossLabel(name);
 
   const [nameChoice, setName] = useState("");
   useEffect(() => setName(""), [inspectionKey]);
@@ -37,9 +40,10 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
   const measures = relatedMeasures(proposals.data?.annual ?? [], metric);
   return (
     <>
-    <Panel title="Агрегат и обвязка до блока гребёнок" caption="Разложение мощности выбранного НА. Полезная мощность — на выходе блока гребёнок, до внешних трубопроводов и скважин." help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
+    <Panel title="Цифровая карта потерь мощности" caption="Агрегат и обвязка до блока гребёнок. Разложение мощности выбранного НА." help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
       {view.usable ? (
         <>
+          {summary}
           {view.losses.length > 0 && <div className="metric-toolbar">
             <div className="metric-segments" role="group" aria-label="Представление карты потерь">
               <button type="button" aria-pressed={mode === "decomposition"} onClick={() => setMode("decomposition")}>Разложение</button>
@@ -47,15 +51,17 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
             </div>
             {canDetail && <Button variant="secondary" aria-expanded={detailed} onClick={()=>{setDetailed(previous=>!previous);setName("");}}>{detailed ? "Свернуть детализацию НА" : "Детализация потерь НА"}</Button>}
           </div>}
-          <LossCharts onSelect={name => { if (losses.some((item: Audit["losses"][number]) => item.name === name)) setName(name); }} power={audit.audit.metrics.p_electric_kw ?? 0} losses={losses} status={audit.quality.status} mode={mode} />
+          <LossCharts onSelect={setName} power={audit.audit.metrics.p_electric_kw ?? 0} losses={losses} status={audit.quality.status} mode={mode} axisLabels={labels} showSummary={false} />
+          <p className="muted">Потреблённая мощность {fmt(audit.audit.metrics.p_electric_kw)} кВт · {canDetail ? "гидравлическая мощность на БГ" : "полезная мощность"} {fmt(losses.find(item=>item.category === "полезная")?.power_kw)} кВт.</p>
+          {detailed && view.losses.some((item:Audit["losses"][number])=>item.name === "Потери КПД") && <p className="muted">Износ и неоптимальная подача в текущем расчёте не разделены: показана суммарная составляющая снижения КПД.</p>}
           {selectedName && <section className="inspection-result" aria-label="Разбор составляющей">
-            <header className="loss-selection-heading"><h3>{selectedName}</h3>
+            <header className="loss-selection-heading"><h3>{label(selectedName)}</h3>
               {metric && <nav aria-label="Основание составляющей">
                 <LinkButton href={inspectionHref("sources", metric)}>Источники</LinkButton>
                 <LinkButton href={inspectionHref("formulas", metric)}>Формулы</LinkButton>
               </nav>}
             </header>
-            {selected ? <p>{fmt(selected.power_kw)} кВт · {fmt(selected.share * 100, 2)}% подведённой мощности.</p>
+            {selected ? <p>{fmt(selected.power_kw)} кВт · {fmt(selected.share * 100, 2)}% потреблённой мощности.</p>
               : <p className="notice">Эта составляющая разложения недоступна в выбранном режиме. Годовая оценка и возможные мероприятия имеют отдельное расчётное основание.</p>}
             {(selected?.category === "потеря" || addresses.length > 0) && <section className="loss-measures" aria-label="Предлагаемые мероприятия">
               <header><h4>Что можно изменить</h4>{measures.length > 0 && <LinkButton href={inspectionHref("measures", metric)}>Оценить мероприятия</LinkButton>}</header>
@@ -68,7 +74,7 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
           </section>}
           <details><summary>Таблица составляющих</summary>
           <Table
-            rows={losses.map((loss: Audit["losses"][number]) => ({ ...loss, percent: loss.share * 100 }))}
+            rows={losses.map((loss: Audit["losses"][number]) => ({ ...loss, name:label(loss.name), percent: loss.share * 100 }))}
             columns={[
               { key: "name", label: "Составляющая" },
               { key: "power_kw", label: "Мощность, кВт" },
@@ -83,8 +89,10 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
               ? "сценарий непрерывной работы"
               : audit.source === "field_trip" ? "выездная оценка" : "оценка по телеметрии"}, не фактически достигнутая экономия.
           </p>
+          {canDetail && <p className="muted">Примечание: расчёт выполнен для участка до БГ; потери далее по системе ППД здесь не учтены.</p>}
         </>
       ) : <p className="notice error">Карта потерь не построена: режим непригоден для экономических выводов.</p>}
+      {children}
     </Panel>
     </>
   );

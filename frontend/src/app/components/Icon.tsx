@@ -1,4 +1,5 @@
 const iconPaths = {
+  "machine-losses": "M3 3v18h18 M6 6h3v12H6z M11 6h3v4h-3z M16 10h3v4h-3z",
   "machine-block": "M3 6h18v15H3z M7 6V3h10v3 M6 11h4v6H6z M14 11h4v6h-4z",
   pipelines: "M2 8h8v8h12 M2 12h4v8h16 M10 6v8 M18 14v8",
   wells: "M8 3h8 M12 3v18 M7 7h10 M5 21h14 M9 7l-3 14 M15 7l3 14",

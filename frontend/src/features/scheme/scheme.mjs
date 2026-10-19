@@ -2,13 +2,24 @@
 export function layoutTopology(topology) {
   const maxY = Math.max(0, ...topology.nodes.map((n) => n.y));
   const minX = Math.min(0, ...topology.nodes.map((n) => n.x));
+  const pumpX = Math.min(...topology.nodes.filter(node=>node.type === "pump").map(node=>node.x));
+  const valveX = Math.min(...topology.nodes.filter(node=>node.type === "valve" && node.x>pumpX).map(node=>node.x));
   const nodes = topology.nodes.map((n) => ({
     ...n,
-    px: 110 + (n.x - minX) * 220,
+    px: 110 + (n.x - minX) * 220 + (n.x >= pumpX ? 60 : 0) + (n.x >= valveX ? 60 : 0),
     py: 100 + (maxY - n.y) * 150 + (n.type === "reservoir" ? 160 : 0),
   }));
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const edges = topology.edges.flatMap((edge) => {
+  const connections=topology.edges.flatMap(edge=>{
+    const source=byId.get(edge.from),target=byId.get(edge.to);
+    if(source?.type !== "valve" || target?.type !== "wells" || edge.kind !== "throttle") return [edge];
+    const choke={...source,id:`${source.id}:choke`,type:"choke",label:"Штуцеры",sub:undefined,px:target.px-100,py:target.py};
+    source.label="ЗРА";
+    nodes.push(choke);
+    byId.set(choke.id,choke);
+    return [{...edge,to:choke.id,kind:undefined},{...edge,from:choke.id}];
+  });
+  const edges = connections.flatMap((edge) => {
     const source = byId.get(edge.from),
       target = byId.get(edge.to);
     if (!source || !target) return [];
