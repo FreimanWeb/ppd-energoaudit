@@ -46,8 +46,8 @@ test("timeline keeps the selected regime through chain losses and measure compar
   await expect(panel.getByLabel("Потери по участкам цепочки")).toContainText("Машинный зал и обвязка");
   await expect(panel.getByLabel("Потери по участкам цепочки").locator("dd")).toHaveCount(3);
   await expect(panel.getByText("Приоритетные мероприятия", {exact:true})).toBeVisible();
-  await panel.getByRole("button", {name:"Поток мощности",exact:true}).click();
-  await panel.getByRole("button", {name:"Трение в трубопроводах",exact:true}).click();
+  await panel.getByRole("button", {name:"Структура, %",exact:true}).click();
+  await panel.getByRole("button", {name:/^Трение в трубопроводах:/}).click();
   await expect(panel.getByText("Мероприятия по выбранной составляющей", {exact:true})).toBeVisible();
   await expect(panel.getByRole("button", {name:"Оценить сценарий",exact:true})).toHaveCount(1);
   await page.setViewportSize({width:390,height:844});
@@ -70,7 +70,7 @@ test("timeline keeps the selected regime through chain losses and measure compar
 });
 
 test("infeasible chain does not offer savings", async ({page}) => {
-  await page.goto("/?object=kns54an&aggregate=НА-1&day=2026-09-29#network-scenario");
+  await page.goto("/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T23:30:00#network-scenario");
   const panel = page.locator(".page-panel").filter({has:page.getByRole("heading", {name:"Гидравлический сценарий",exact:true})});
   await panel.getByText("Параметры сценария",{exact:true}).click();
   await panel.getByLabel("Требуемое полезное давление без перепада высот, МПа").fill("30");

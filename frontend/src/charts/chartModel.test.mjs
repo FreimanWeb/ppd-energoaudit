@@ -54,10 +54,6 @@ test('loss tooltip values and selection survive renderer geometry without changi
  assert.deepEqual(bars[1].point.tooltip,{value:45,unit:'кВт',share:.45,selection:'Потери'});
  assert.equal(bars[2].point.tooltip.value,-5);
  assert.equal(bars[0].point.customdata,undefined);
- const flow=buildChartModel([data.sankey]);
- assert.equal(flow.nodes[0].tooltip.value,100);
- assert.equal(flow.nodes[1].tooltip.share,.6);
- assert.equal(flow.links[1].tooltip.selection,'Потери');
  const percent=buildChartModel([{type:'bar',orientation:'h',name:'Полезная',x:[60],y:[''],tooltip:[{value:60,unit:'кВт',share:.6,selection:'Полезная'}]}]);
  assert.equal(barIntervals(percent)[0].point.tooltip.share,.6);
 });

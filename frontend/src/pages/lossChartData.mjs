@@ -1,53 +1,60 @@
 /** @param {number} input @param {{name:string,power_kw:number,share:number,category:string}[]} items */
 export function lossChartData(input, items) {
   const useful = items.find((x) => x.category === "полезная");
-  const losses = items.filter((x) => x.category === "потеря");
-  const flows = items.filter((x) => x.power_kw > 0);
+  const bars = items.filter((x) => x.category === "потеря" || x.category === "промежуточная");
   return {
     waterfall: {
       type: "waterfall",
       orientation: "v",
-      measure: ["absolute", ...losses.map(() => "relative"), "absolute"],
+      measure: ["absolute", ...bars.map(x => x.category === "промежуточная" ? "absolute" : "relative"), "absolute"],
       x: [
         "Подведённая мощность",
-        ...losses.map((x) => x.name),
-        "Полезная мощность",
+        ...bars.map((x) => x.name),
+        useful?.name ?? "Полезная мощность",
       ],
-      y: [input, ...losses.map((x) => -x.power_kw), useful?.power_kw ?? 0],
+      y: [input, ...bars.map((x) => x.category === "промежуточная" ? x.power_kw : -x.power_kw), useful?.power_kw ?? 0],
       tooltip: [{ value: input, unit: "кВт", share: input > 0 ? 1 : undefined },
-        ...losses.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name })),
+        ...bars.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name })),
         { value: useful?.power_kw ?? 0, unit: "кВт", share: useful?.share, selection: useful?.name }],
       connector: { line: { color: "#d5dedb" } },
       decreasing: { marker: { color: "#c76e62" } },
       increasing: { marker: { color: "#c58b25" } },
       totals: { marker: { color: "#1f4e4a" } },
     },
-    sankey: {
-      type: "sankey",
-      arrangement: "snap",
-      node: {
-        tooltip: [{ value: input, unit: "кВт", share: input > 0 ? 1 : undefined }, ...flows.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name }))],
-        label: ["Подведённая мощность", ...flows.map((x) => x.name)],
-        color: [
-          "#426b80",
-          ...flows.map((x) =>
-            x.category === "полезная" ? "#1f4e4a" : "#c76e62",
-          ),
-        ],
-        pad: 25,
-        thickness: 20,
-      },
-      link: {
-        tooltip: flows.map(x => ({ value: x.power_kw, unit: "кВт", share: x.share, selection: x.name })),
-        source: flows.map(() => 0),
-        target: flows.map((_, i) => i + 1),
-        value: flows.map((x) => x.power_kw),
-        color: flows.map((x) =>
-          x.category === "полезная"
-            ? "rgba(31,78,74,.35)"
-            : "rgba(199,110,98,.3)",
-        ),
-      },
-    },
+
   };
+}
+
+/** @param {import('../shared/types').Audit['losses']} items */
+export function aggregateLossGroups(items) {
+  const names=["Дросселирование","Гидравл. насос→БГ"];
+  const combined=items.filter(item=>names.includes(item.name));
+  if(!combined.length) return items;
+  /** @param {'annual_kwh'|'annual_rub'} key */
+  const annual=key=>combined.every(item=>typeof item[key] === "number")
+    ? combined.reduce((sum,item)=>sum+Number(item[key]),0) : null;
+  return [...items.filter(item=>!names.includes(item.name)),{
+    ...combined[0],name:"Потери на участке Насос–БГ",
+    power_kw:combined.reduce((sum,item)=>sum+item.power_kw,0),
+    share:combined.reduce((sum,item)=>sum+item.share,0),
+    annual_kwh:annual("annual_kwh"),annual_rub:annual("annual_rub"),
+  }];
+}
+
+/** @param {{input_kw:number,bg_kw:number,output_kw:number,groups:{id:string,power_kw:number,children:{name:string,power_kw:number}[]}[]}|null|undefined} balance */
+export function chainLossGroups(balance) {
+  if(!balance) return [];
+  const hall=balance.groups.find(group=>group.id === "hall");
+  const pipes=balance.groups.find(group=>group.id === "pipes");
+  const wells=balance.groups.find(group=>group.id === "wells");
+  if(!hall || !pipes || !wells) return [];
+  /** @param {string} name @param {number} power_kw @param {string} category */
+  const item=(name,power_kw,category)=>({name,power_kw,share:power_kw/balance.input_kw,category});
+  return [
+    ...hall.children.map(child=>item(child.name,child.power_kw,"потеря")),
+    item("Гидравлическая мощность на БГ",balance.bg_kw,"промежуточная"),
+    item("Потери в трубопроводах",pipes.power_kw,"потеря"),
+    item("Штуцирование нагнетательных скважин",wells.power_kw,"потеря"),
+    item("Гидравлическая мощность на устьях",balance.output_kw,"полезная"),
+  ];
 }

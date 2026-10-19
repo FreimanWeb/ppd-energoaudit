@@ -37,10 +37,7 @@ const tickDateFormat = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month:
 const number = (value: unknown) => typeof value === "number" ? chartNumberFormat.format(value) : String(value ?? "—");
 function axisTick(value: unknown, type: string) {
   if (type === "time") return tickDateFormat.format(new Date(Number(value)));
-  const text = number(value);
-  return type === "category" && text.length > 18
-    ? `${text.slice(0, 16)}…`
-    : text;
+  return number(value);
 }
 function makeScale(
   axis: AxisModel,
@@ -194,8 +191,13 @@ export function CartesianPlot({
   const hasBrush = model.xAxis.type === "time" && model.data.length > 2 && model.showBrush !== false && timeInteraction?.showBrush !== false;
   const left = model.yAxis.hidden ? 12 : model.horizontal ? 110 : 66,
     right = 20,
-    top = 24,
-    bottom = model.xAxis.hidden ? 12 : model.categoryGroups?.length ? 84 : 48;
+    top = 24;
+  const categories:(string|number)[]=model.xAxis.type === "category" ? chartDomains(model,hidden).x : [];
+  const categoryWidth=Math.max(24,(width-left-right)/Math.max(1,categories.length)-12);
+  const categoryLabelHeight=Math.max(14,...categories.map(value=>Math.ceil(String(value).length/Math.max(1,Math.floor(categoryWidth/6)))*14));
+  const bottom=model.xAxis.hidden ? 12 : categories.length
+    ? Math.max(48,categoryLabelHeight+20+(model.categoryGroups?.length ? 42 : 0))
+    : model.categoryGroups?.length ? 84 : 48;
   const innerWidth = Math.max(10, width - left - right),
     innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 56 : 0));
   useEffect(() => {
@@ -685,6 +687,7 @@ export function CartesianPlot({
                 fill: chartTheme.text,
                 fontSize: 11,
                 textAnchor: "middle",
+                ...(model.xAxis.type === "category" ? {width:categoryWidth,verticalAnchor:"start" as const,lineHeight:"14px"} : {}),
               })}
               label={model.xAxis.label}
               labelProps={{ fill: chartTheme.text, fontSize: 11 }}
@@ -693,7 +696,7 @@ export function CartesianPlot({
           {model.categoryGroups?.map(group=>{
             if (!model.data.some(row=>row.x === group.from) || !model.data.some(row=>row.x === group.to)) return null;
             const span=Math.min(48,Math.max(1,barSpan-3));
-            const start=x(group.from)-span/2,end=x(group.to)+span/2,y=innerHeight+38;
+            const start=x(group.from)-span/2,end=x(group.to)+span/2,y=innerHeight+categoryLabelHeight+24;
             return <g className="chart-category-group" key={group.label} data-from={group.from} data-to={group.to} role="group" aria-label={group.label}>
               <path d={`M${start},${y-6}V${y}H${end}V${y-6}`} fill="none" stroke={chartTheme.text} strokeWidth={1}/>
               <text x={(start+end)/2} y={y+18} textAnchor="middle" fill={chartTheme.text} fontSize={11}>{group.label}</text>
@@ -712,6 +715,7 @@ export function CartesianPlot({
                 fill: chartTheme.text,
                 fontSize: 11,
                 textAnchor: "end",
+                ...(model.yAxis.type === "category" ? {width:left-16,verticalAnchor:"middle" as const,lineHeight:"14px"} : {}),
                 dy: 3,
               })}
               label={model.yAxis.label}
@@ -814,7 +818,7 @@ export function CartesianChart({
     [model, choices],
   );
   return (
-    <div className="native-chart">
+    <div className="native-chart" style={{overflowX:model.xAxis.type === "category" ? "auto" : undefined}}>
       {(adjustableScale || hasBrush) && <div className="chart-toolbar">
         {adjustableScale && <div className="chart-scale-controls" role="group" aria-label="Масштаб вертикальной оси">
           <button type="button" aria-pressed={fromZero} onClick={()=>setFromZero(true)}>От нуля</button>
@@ -823,7 +827,7 @@ export function CartesianChart({
         {hasBrush && <ExplanationTooltip label="Масштаб графика" content="Потяните границы полосы снизу, чтобы приблизить временной диапазон." />}
         {hasBrush && <button type="button" disabled={!viewport} onClick={()=>setViewport(null)}>Весь период</button>}
       </div>}
-      <div className="native-chart-stage" style={{ height: model.height }}>
+      <div className="native-chart-stage" style={{ height: model.height, minWidth:model.xAxis.type === "category" ? chartDomains(model,hidden).x.length*110+86 : undefined }}>
         <ParentSize debounceTime={30}>
           {({ width }) =>
             width > 0 ? (

@@ -16,7 +16,7 @@ async function fixture(page: import('@playwright/test').Page) {
   await expect(page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Декомпозиция мощности',exact:true})).toBeVisible();
 }
 
-test('loss tooltips show original power and share once in all three modes',async({page})=>{
+test('loss tooltips show original power and share once in both modes',async({page})=>{
   await fixture(page);
   await expect(page.getByLabel('Составляющая потерь')).toHaveCount(0);
   async function compact(plot: import('@playwright/test').Locator) {
@@ -34,11 +34,6 @@ test('loss tooltips show original power and share once in all three modes',async
   await useful.click();
   await expect(page.getByLabel('Разбор составляющей')).toContainText('Полезная мощность');
   await expect(page.getByLabel('Предлагаемые мероприятия')).toHaveCount(0);
-  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Поток мощности',exact:true}).click();
-  plot=page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Поток мощности',exact:true});
-  await plot.getByRole('button',{name:'Полезная мощность',exact:true}).hover();
-  await compact(plot);
-  await expect(plot.locator('.flow-node title,.flow-link title')).toHaveCount(0);
   await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Структура, %',exact:true}).click();
   plot=page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Структура мощности, %',exact:true});
   await plot.getByRole('button',{name:/^Полезная мощность:/}).hover();
@@ -54,8 +49,8 @@ test('clicking a loss shows concrete proposed actions with calculated effect',as
   await expect(proposals).toContainText('Расчётный эффект');
   await expect(proposals).toContainText('CAPEX требует оценки');
   await expect(page.locator('main')).not.toContainText('связи этой составляющей');
-  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Поток мощности',exact:true}).click();
-  await page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Поток мощности',exact:true}).getByRole('button',{name:'Потери КПД',exact:true}).press('Enter');
+  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button',{name:'Структура, %',exact:true}).click();
+  await page.locator(".page-panel:not(:has(.network-losses))").getByRole('group',{name:'Структура мощности, %',exact:true}).getByRole('button',{name:/^Потери КПД:/}).press('Enter');
   await expect(proposals).toContainText('восстановление КПД');
 });
 
@@ -73,4 +68,20 @@ test('single-series measure bars omit a repeated graph name and do not invent a 
   await expect(tip.locator('b')).toContainText('тыс. кВт·ч/год');
   await expect(tip.getByText('Годовой эффект мероприятий',{exact:true})).toHaveCount(0);
   await expect(tip.locator('.chart-tooltip-share')).toHaveCount(0);
+});
+
+test('category labels wrap without ellipsis and stay within the chart on a narrow screen',async({page})=>{
+  await fixture(page);
+  await page.setViewportSize({width:390,height:1000});
+  const plot=page.locator('.page-panel:not(:has(.network-losses))').getByRole('group',{name:'Декомпозиция мощности',exact:true});
+  const input=plot.locator('.visx-axis-x text').filter({hasText:'Подведённая'});
+  await expect.poll(async()=> (await input.locator('tspan').allTextContents()).join(' ')).toBe('Подведённая мощность');
+  expect(await input.locator('tspan').count()).toBeGreaterThan(1);
+  expect(await plot.locator('.visx-axis-x').textContent()).not.toContain('…');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const bounds=(await plot.locator('svg.visx-chart').boundingBox())!;
+  for(const label of await plot.locator('.visx-axis-x text').all()){
+    const box=(await label.boundingBox())!;
+    expect(box.y+box.height).toBeLessThanOrEqual(bounds.y+bounds.height);
+  }
 });

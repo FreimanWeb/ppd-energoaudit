@@ -32,33 +32,15 @@ test('CRM graph accepts a real well click and keyboard activation', async ({ pag
   await expect(page.getByLabel('Скважина графа')).toHaveValue(well);
 });
 
-test('charts and full flow labels fit their container after mobile resize', async ({ page }) => {
+test('loss charts scroll locally and retain full labels on mobile', async ({ page }) => {
   await fixture(page);
   await goToSection(page, "machine-block");
-  await page.locator('.page-panel:not(:has(.network-losses))').getByRole('button', { name: 'Поток мощности', exact: true }).click();
-  const plots = page.locator('svg.visx-chart');
-  await expect(plots.first()).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(async () => plots.evaluateAll(elements => elements.length > 0 && elements.every(el => {
-    const chart = el.getBoundingClientRect();
-    const container = el.closest('.plot-wrap')!.getBoundingClientRect();
-    return chart.width > 0 && chart.width <= container.width + 1;
-  }))).toBe(true);
+  const plot=page.locator('.page-panel:not(:has(.network-losses))').getByRole('group',{name:'Декомпозиция мощности',exact:true});
+  await expect(plot.locator('svg.visx-chart')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  const sankey = page.locator(".page-panel:not(:has(.network-losses))").getByRole('group', { name: 'Поток мощности', exact: true });
-  await expect.poll(async () => sankey.evaluate(el => {
-    const plot = el.getBoundingClientRect();
-    const nodes = [...el.querySelectorAll('.flow-node rect')];
-    return nodes.length >= 2 && nodes.every(node => {
-      const box = node.getBoundingClientRect();
-      return box.left >= plot.left && box.right <= plot.right;
-    });
-  })).toBe(true);
-  const labelBounds = await sankey.locator('.flow-node-label').evaluateAll(labels =>
-    labels.map(label => ({ width: label.getBoundingClientRect().width, text: label.textContent })),
-  );
-  expect(labelBounds.length).toBeGreaterThanOrEqual(2);
-  expect(labelBounds.every(label => label.width > 0 && label.text)).toBe(true);
-  await expect(sankey.getByLabel('Состав потока мощности')).toContainText('Подведённая мощность');
-  await expect(sankey.getByLabel('Состав потока мощности')).toContainText('Полезная мощность');
+  const labels=await plot.locator('.visx-axis-x text').allTextContents();
+  expect(labels.length).toBeGreaterThanOrEqual(2);
+  expect(labels.every(text=>text && !text.includes('…'))).toBe(true);
+  await expect(page.getByRole('button',{name:'Поток мощности',exact:true})).toHaveCount(0);
 });

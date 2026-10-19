@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from "react";
+import type { OperatorBalance } from "../scheme/LossFlow";
+import { chainLossGroups } from "../../pages/lossChartData.mjs";
 import type { Audit } from "../../shared/types";
 import { segment, useResource } from "../../shared/api";
 import { Button, LinkButton } from "../../shared/ui/Button";
@@ -20,11 +22,20 @@ const axisLabels: Record<string, string> = {
   "Потери передачи": "Передача",
   "Потери насоса": "Насос",
   "Гидравлика насос→БГ": "До БГ",
+  "Гидравлическая мощность на БГ": "Мощность на БГ",
   "Трение в трубопроводах": "Трубы",
   "Арматура сети и скважин": "Арматура",
   "Трение в стволах скважин": "НКТ",
   "Штуцирование скважин": "Штуцеры",
   "Полезная мощность": "Закачка",
+  "Полезная закачка": "Закачка",
+  "Номинальные потери НА": "Номинальные",
+  "Потери из-за снижения КПД": "Снижение КПД",
+  "Отклонение от номинального КПД": "Отклонение КПД",
+  "Потери на участке Насос–БГ": "Насос–БГ",
+  "Потери в трубопроводах": "Трубопроводы",
+  "Штуцирование нагнетательных скважин": "Штуцирование",
+  "Гидравлическая мощность на устьях": "На устьях",
 };
 const parameters = [
   { key: "roughness_mm", label: "Шероховатость труб, мм", value: 0.1, min: 0, max: 5, step: 0.01 },
@@ -43,6 +54,7 @@ type NetworkResponse = {
   title: string;
   input_kw: number;
   useful_kw: number | null;
+  operator_balance?: OperatorBalance|null;
   total_loss_kw: number | null;
   balance_error_kw: number | null;
   items: (Loss & { provenance: Provenance; basis: string })[];
@@ -59,7 +71,8 @@ type NetworkResponse = {
 export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "map" | "scenario" }) {
   const editable = view === "scenario";
   const [scenario, setScenario] = useState<Scenario>(() => Object.fromEntries(parameters.map(p => [p.key, p.value])) as Scenario);
-  const [mode, setMode] = useState<"decomposition" | "flow" | "percentage">("decomposition");
+  const [mode, setMode] = useState<"decomposition" | "percentage">("decomposition");
+  const [detailed,setDetailed]=useState(false);
   const [selectedName, setSelectedName] = useState("");
   const [intervention, setIntervention] = useState<Intervention | null>(null);
   const demo = audit.audit.object_id === "demo-ppd";
@@ -70,6 +83,21 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
     JSON.stringify({ source: audit.source, ...(audit.source === "telemetry" && timestamp ? { day: timestamp.slice(0, 10), timestamp } : {}), ...(editable ? {scenario, intervention} : {}) }),
   );
   const data = resource.data;
+  const bgPower=data?.status === "scenario" ? data.operator_balance?.bg_kw : undefined;
+  const physicalItems=data && data.status !== "unavailable" ? data.items.flatMap(item=>
+    item.name === "Гидравлика насос→БГ" && typeof bgPower === "number" && Number.isFinite(bgPower)
+      ? [item,{name:"Гидравлическая мощность на БГ",power_kw:bgPower,share:bgPower/data.input_kw,category:"промежуточная"}]
+      : [item]) : [];
+  const balance=data?.status === "scenario" ? data.operator_balance : null;
+  const summaryItems=chainLossGroups(balance);
+  const grouped=!editable && !detailed && summaryItems.length>0;
+  const chartItems=grouped ? summaryItems : physicalItems;
+  const groups=grouped && balance ? [
+    {id:"hall",label:"Машинный блок",names:balance.groups.find(group=>group.id === "hall")!.children.map(child=>child.name)},
+    {id:"pipes",label:"Трубопроводы",names:["Потери в трубопроводах"]},
+    {id:"wells",label:"Скважины и арматура",names:["Штуцирование нагнетательных скважин"]},
+  ] : stageDefinitions.map(stage=>({...stage,label:stage.id === "hall" ? "Машинный блок" : stage.label}));
+  const stages=grouped && balance ? balance.groups.map(group=>({id:group.id,label:groups.find(stage=>stage.id === group.id)!.label,power_kw:group.power_kw,share_pct:group.power_kw/balance.input_kw*100})) : networkStages(data);
   const selected = data && data.status !== "unavailable" ? data.items.find(item => item.name === selectedName) : undefined;
   const measures = networkMeasures(data?.status ?? "", data?.measures ?? [], selectedName);
   const comparison = data?.status === "scenario" && data.comparison?.measure_id === intervention ? data.comparison : null;
@@ -109,24 +137,27 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
         {data.status === "scenario" ? <>
           <dl className="network-balance-totals">
             <div><dt>Подведённая мощность</dt><dd>{fmt(data.input_kw)} кВт</dd></div>
-            <div><dt>Потери всей цепочки</dt><dd>{fmt(data.total_loss_kw)} кВт</dd></div>
-            <div><dt>Полезная мощность</dt><dd>{fmt(data.useful_kw)} кВт</dd></div>
-            <div><dt>Невязка баланса</dt><dd>{fmt(data.balance_error_kw !== null && Math.abs(data.balance_error_kw) < 1e-9 ? 0 : data.balance_error_kw, 3)} кВт</dd></div>
+            <div><dt>Гидравлическая мощность на БГ</dt><dd>{fmt(bgPower)} кВт</dd></div>
+            <div><dt>Потери всей цепочки</dt><dd>{fmt(grouped ? balance?.total_loss_kw : data.total_loss_kw)} кВт</dd></div>
+            <div><dt>{grouped ? "На устьях после штуцеров" : "Полезная мощность"}</dt><dd>{fmt(grouped ? balance?.output_kw : data.useful_kw)} кВт</dd></div>
+            <div><dt>Невязка баланса</dt><dd>{fmt(grouped && balance ? balance.input_kw-balance.total_loss_kw-balance.output_kw : data.balance_error_kw !== null && Math.abs(data.balance_error_kw) < 1e-9 ? 0 : data.balance_error_kw, 3)} кВт</dd></div>
           </dl>
           <dl className="network-balance-totals" aria-label="Потери по участкам цепочки">
-            {networkStages(data).map(stage => <div key={stage.id}><dt>{stage.label}</dt><dd>{fmt(stage.power_kw)} кВт · {fmt(stage.share_pct,1)} % потерь</dd></div>)}
+            {stages.map(stage => <div key={stage.id}><dt>{stage.label}</dt><dd>{fmt(stage.power_kw)} кВт · {fmt(stage.share_pct,1)} % {grouped ? "потребления" : "потерь"}</dd></div>)}
           </dl>
           <div className="metric-toolbar"><div className="metric-segments" role="group" aria-label="Представление всей цепочки">
             <button type="button" aria-pressed={mode === "decomposition"} onClick={() => setMode("decomposition")}>Разложение</button>
-            <button type="button" aria-pressed={mode === "flow"} onClick={() => setMode("flow")}>Поток мощности</button>
             <button type="button" aria-pressed={mode === "percentage"} onClick={() => setMode("percentage")}>Структура, %</button>
-          </div></div>
+          </div>
+            {!editable && summaryItems.length>0 && <Button variant="secondary" aria-expanded={detailed} onClick={()=>{setDetailed(previous=>!previous);setSelectedName("");}}>{detailed ? "Свернуть детализацию" : "Детализация"}</Button>}
+          </div>
+          <p className="stage-basis">{grouped ? "Граница расчёта — устья после штуцеров. Трение в НКТ доступно в детализации." : "Подробный баланс включает трение в стволах скважин до полезной закачки."}</p>
           {mode === "decomposition" ? <>
             <div className="network-waterfall-scroll" tabIndex={0} role="region" aria-label="Разложение всей цепочки, горизонтальная прокрутка">
-              <div className="network-waterfall-wide"><LossCharts power={data.input_kw} losses={data.items} mode={mode} showSummary={false} axisLabels={axisLabels} groups={stageDefinitions.map(stage=>({...stage,label:stage.id === "hall" ? "Машинный блок" : stage.label}))} onSelect={setSelectedName} /></div>
+              <div className="network-waterfall-wide"><LossCharts power={data.input_kw} losses={chartItems} mode={mode} showSummary={false} axisLabels={axisLabels} groups={groups} onSelect={setSelectedName} /></div>
             </div>
             <p className="muted network-waterfall-hint">На узком экране прокрутите график вправо; доступны стрелки клавиатуры.</p>
-          </> : <LossCharts power={data.input_kw} losses={data.items} mode={mode} showSummary={false} onSelect={setSelectedName} />}
+          </> : <LossCharts power={data.input_kw} losses={chartItems} mode={mode} showSummary={false} onSelect={setSelectedName} />}
           {editable ? <><section className="network-actions" aria-label="Мероприятия всей цепочки">
             <div className="network-section-heading">
               <h3>{selected ? "Мероприятия по выбранной составляющей" : "Приоритетные мероприятия"}</h3>

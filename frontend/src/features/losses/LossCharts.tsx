@@ -19,7 +19,7 @@ export function LossCharts({
   power: number;
   losses: Loss[];
   status?: string;
-  mode?: "decomposition" | "flow" | "percentage";
+  mode?: "decomposition" | "percentage";
   onSelect?: (name: string) => void;
   showSummary?: boolean;
   axisLabels?: Record<string, string>;
@@ -45,22 +45,16 @@ export function LossCharts({
   }
   return (
     <>
-      {mode === "percentage" ? <LossPercentage power={power} losses={losses} onSelect={onSelect} /> : mode === "decomposition" ? <Plot
+      {mode === "percentage" ? <LossPercentage power={power} losses={losses.filter(item=>item.category !== "промежуточная")} onSelect={onSelect} /> : <Plot
         onSelect={onSelect}
         title="Декомпозиция мощности"
         data={[chart.waterfall as Trace]}
         layout={{ categoryGroups, height: 440, yaxis: { title: { text: "Мощность, кВт" } }, margin: { l: 65, r: 25, t: 20, b: 100 } }}
-      /> : <Plot onSelect={onSelect} title="Поток мощности" data={[chart.sankey as Trace]} layout={{ height: 380, margin: { l: 15, r: 15, t: 15, b: 15 } }} />}
-      {mode === "flow" && losses.some((x) => x.power_kw < 0) && (
-        <p className="muted">
-          Отрицательные составляющие показаны на диаграмме декомпозиции; поток
-          мощности отображает только положительные значения.
-        </p>
-      )}
+      />}
       {showSummary && <p className="muted">
         Подведённая мощность {fmt(power)} кВт · полезная{" "}
         {fmt(losses.find((x) => x.category === "полезная")?.power_kw)} кВт.
-        <Tooltip label="Статьи потерь" content={<>Ширина потока соответствует мощности. Потери КПД — дополнительная мощность сверх паспортного состояния. Номинальные — базовые потери двигателя, насоса и передачи. Дросселирование — снижение давления арматурой. Гидравлические потери — сопротивление трубопровода и обвязки. Износ, неоптимальная подача и вязкость — составляющие ветки перекачки.</>} />
+        <Tooltip label="Статьи потерь" content={<>Потери КПД — дополнительная мощность сверх паспортного состояния. Номинальные — базовые потери двигателя, насоса и передачи. Дросселирование — снижение давления арматурой. Гидравлические потери — сопротивление трубопровода и обвязки. Износ, неоптимальная подача и вязкость — составляющие ветки перекачки.</>} />
       </p>}
     </>
   );

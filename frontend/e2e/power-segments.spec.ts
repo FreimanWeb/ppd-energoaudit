@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('loss presentation switches between decomposition and flow without changing data', async ({ page }) => {
+test('loss presentation switches between decomposition and percentage without changing data', async ({ page }) => {
   await page.route('**/snapshot-audit', async route => {
     const response = await route.fetch();
     const audit = await response.json();
@@ -32,18 +32,10 @@ test('loss presentation switches between decomposition and flow without changing
   await expect(motor).not.toHaveClass(/is-active/);
   await page.getByText('Таблица составляющих', { exact: true }).click();
   const tableBefore = await panel.locator('table').innerText();
-  await panel.getByRole('button', { name: 'Поток мощности', exact: true }).click();
-  await expect(plot).toHaveCount(0);
-  await expect(panel.locator('svg.visx-flow')).toBeVisible();
-  await expect(page.getByText(/Отрицательные составляющие показаны/)).toBeVisible();
-  await expect(panel.locator('.flow-node-label').filter({ hasText: 'Коррекция' })).toHaveCount(0);
-  expect(await panel.locator('table').innerText()).toBe(tableBefore);
-  await panel.locator('.flow-node').filter({ hasText: 'Полезная мощность' }).hover();
-  await expect(panel.locator('.flow-chart').getByRole('status').locator('b')).toHaveText('300 кВт');
-  await expect(panel.locator('.flow-chart').getByRole('status').locator('.chart-tooltip-share')).toHaveText('50 %');
   await panel.getByRole('button', { name: 'Структура, %', exact: true }).click();
   await expect(page.getByText(/Для режима с отрицательными коррекциями/)).toBeVisible();
   await expect(panel.locator('.plot-wrap')).toHaveCount(0);
+  expect(await panel.locator('table').innerText()).toBe(tableBefore);
   await panel.getByRole('button', { name: 'Разложение', exact: true }).click();
   await expect(plot).toBeVisible();
   await expect(panel.locator('svg.visx-flow')).toHaveCount(0);

@@ -1,4 +1,4 @@
-import { LinkButton } from "../../shared/ui/Button";
+import { Button, LinkButton } from "../../shared/ui/Button";
 import { segment, useResource } from "../../shared/api";
 import { Status } from "../../shared/ui/Status";
 import { inspections, inspectionFor, inspectionHref, relatedMeasures } from "../inspection/inspection.mjs";
@@ -10,14 +10,22 @@ import { LossCharts } from "./LossCharts";
 import { Panel } from "../../shared/ui/Panel";
 import { Table } from "../../shared/ui/Table";
 import { fmt } from "../../shared/ui/format";
+import { aggregateLossGroups } from "../../pages/lossChartData.mjs";
 
 export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionKey?: string }) {
-  const [mode, setMode] = useState<"decomposition" | "flow" | "percentage">("decomposition");
+  const [mode, setMode] = useState<"decomposition" | "percentage">("decomposition");
   const view = dashboardData(audit);
+  const [detailed,setDetailed]=useState(()=>Boolean(inspectionFor(inspectionKey)?.loss));
+  useEffect(()=>{setDetailed(Boolean(inspectionFor(inspectionKey)?.loss));},[inspectionKey]);
+  const grouped=aggregateLossGroups(view.losses);
+  const losses=detailed ? view.losses : grouped;
+  const canDetail=grouped !== view.losses;
+
   const [nameChoice, setName] = useState("");
   useEffect(() => setName(""), [inspectionKey]);
-  const selectedName = nameChoice || inspectionFor(inspectionKey)?.loss || "";
-  const selected = view.losses.find((item: Audit["losses"][number]) => item.name === selectedName);
+  const inspectedLoss=inspectionFor(inspectionKey)?.loss || "";
+  const selectedName = nameChoice || (!detailed && ["Дросселирование","Гидравл. насос→БГ"].includes(inspectedLoss) ? "Потери на участке Насос–БГ" : inspectedLoss);
+  const selected = losses.find((item: Audit["losses"][number]) => item.name === selectedName);
   const metric = nameChoice ? Object.entries(inspections).find(([key, item]) => key.endsWith("_loss") && item.loss === nameChoice)?.[0] : inspectionKey;
   const addresses = inspectionFor(metric)?.addresses ?? [];
   const timestamp = audit.snapshot?.timestamp;
@@ -35,11 +43,11 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
           {view.losses.length > 0 && <div className="metric-toolbar">
             <div className="metric-segments" role="group" aria-label="Представление карты потерь">
               <button type="button" aria-pressed={mode === "decomposition"} onClick={() => setMode("decomposition")}>Разложение</button>
-              <button type="button" aria-pressed={mode === "flow"} onClick={() => setMode("flow")}>Поток мощности</button>
               <button type="button" aria-pressed={mode === "percentage"} onClick={() => setMode("percentage")}>Структура, %</button>
             </div>
+            {canDetail && <Button variant="secondary" aria-expanded={detailed} onClick={()=>{setDetailed(previous=>!previous);setName("");}}>{detailed ? "Свернуть детализацию НА" : "Детализация потерь НА"}</Button>}
           </div>}
-          <LossCharts onSelect={name => { if (view.losses.some((item: Audit["losses"][number]) => item.name === name)) setName(name); }} power={audit.audit.metrics.p_electric_kw ?? 0} losses={view.losses} status={audit.quality.status} mode={mode} />
+          <LossCharts onSelect={name => { if (losses.some((item: Audit["losses"][number]) => item.name === name)) setName(name); }} power={audit.audit.metrics.p_electric_kw ?? 0} losses={losses} status={audit.quality.status} mode={mode} />
           {selectedName && <section className="inspection-result" aria-label="Разбор составляющей">
             <header className="loss-selection-heading"><h3>{selectedName}</h3>
               {metric && <nav aria-label="Основание составляющей">
@@ -60,7 +68,7 @@ export function LossesView({ audit, inspectionKey }: { audit: Audit; inspectionK
           </section>}
           <details><summary>Таблица составляющих</summary>
           <Table
-            rows={view.losses.map((loss: Audit["losses"][number]) => ({ ...loss, percent: loss.share * 100 }))}
+            rows={losses.map((loss: Audit["losses"][number]) => ({ ...loss, percent: loss.share * 100 }))}
             columns={[
               { key: "name", label: "Составляющая" },
               { key: "power_kw", label: "Мощность, кВт" },
