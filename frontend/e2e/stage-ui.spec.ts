@@ -12,8 +12,7 @@ test("machine diagnostics are visible immediately without duplicate navigation",
   const efficiency = page.locator(".machine-efficiency");
   const main = (await efficiency.locator(":scope > .metric-values").boundingBox())!;
   const diagnostics = (await efficiency.locator(":scope > .metric-group").boundingBox())!;
-  expect(diagnostics.x).toBeGreaterThan(main.x + main.width);
-  expect(Math.abs(diagnostics.y-main.y)).toBeLessThan(20);
+  expect(diagnostics.y).toBeGreaterThan(main.y + main.height);
   await page.getByRole("navigation",{name:"Вкладки: Машинный блок",exact:true}).getByRole("link",{name:"Карта потерь",exact:true}).click();
   const action = page.getByRole("link", {name:"Перейти к мероприятиям",exact:true});
   await expect(action).toHaveClass(/ds-button/);

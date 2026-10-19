@@ -9,9 +9,7 @@ test('overview keeps fact and calculation primary and preserves secondary refere
   const ure = page.locator('.page-panel').filter({ has: page.getByRole('heading', { name: 'Удельный расход энергии', exact: true }) });
   await expect(ure.getByText('Факт', { exact: true })).toBeVisible();
   await expect(ure.getByText('Расчётный', { exact: true })).toBeVisible();
-  await expect(ure.getByText('Цель ППД-2035', { exact: true })).not.toBeVisible();
   await page.screenshot({ path: '/tmp/ppd-overview-table.png', fullPage: true });
-  await ure.getByText('Ориентиры УРЭ', { exact: true }).click();
   await expect(ure.getByText('Цель ППД-2035', { exact: true })).toBeVisible();
   await expect(ure.getByText('Оптимальный', { exact: true })).toBeVisible();
   await goToSection(page, "machine-block");

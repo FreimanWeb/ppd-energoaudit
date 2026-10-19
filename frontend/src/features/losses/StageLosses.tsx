@@ -1,4 +1,3 @@
-import { EfficiencyKpiPanel } from "../overview/EfficiencyKpiPanel";
 import {lossLabel,lossLabels} from "../../shared/lossLabels";
 import {PipelineLosses,type PipelineSegment,type PipelineWell} from "./PipelineLosses";
 import { LossesView } from "./LossesView";
@@ -97,7 +96,6 @@ export function StageLosses({ stage, audit, inspectionKey, view="indicators" }: 
       </div>;
   if(stage==="hall"){
     if(view==="indicators") return <>
-      <div className="overview-primary machine-summary"><EfficiencyKpiPanel audit={audit}/></div>
       <OverviewView audit={audit}/>
       <Panel title="Режим машинного блока"><Table rows={[
         {name:"Напор",value:audit.audit.metrics.h_fact_m,unit:"м"},

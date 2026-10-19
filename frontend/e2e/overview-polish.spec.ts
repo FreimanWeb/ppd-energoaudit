@@ -1,7 +1,7 @@
 import { goToSection } from "./helpers";
 import { test, expect } from '@playwright/test';
 
-test('overview groups efficiency and opens references horizontally without nested card frames', async ({ page }) => {
+test('overview groups efficiency and keeps references visible without nested card frames', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29#machine-block');
   await expect(page.getByRole('link', { name: 'Карта потерь мощности →', exact: true })).toHaveCount(0);
@@ -15,23 +15,16 @@ test('overview groups efficiency and opens references horizontally without neste
   expect(Math.abs(link.y + link.height / 2 - heading.y - heading.height / 2)).toBeLessThan(2);
   await goToSection(page,'machine-block');
   const ure = page.locator('.page-panel').filter({ has: page.getByRole('heading', { name: 'Удельный расход энергии', exact: true }) });
-  const toggle = ure.getByRole('button', { name: 'Ориентиры УРЭ', exact: true });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  const reference = ure.getByText('Цель ППД-2035', { exact: true });
+  await expect(ure.getByRole('button',{name:'Ориентиры УРЭ',exact:true})).toHaveCount(0);
+  const reference=ure.getByText('Цель ППД-2035',{exact:true});
   await expect(reference).toBeVisible();
-  await expect.poll(async () => {
-    const a = (await ure.getByText('Факт', { exact: true }).boundingBox())!;
-    const b = (await reference.boundingBox())!;
-    return b.x > a.x && Math.abs(a.y - b.y) < 2;
-  }).toBe(true);
-  await toggle.click();
-  await expect(reference).not.toBeVisible();
+  const fact=(await ure.getByText('Факт',{exact:true}).boundingBox())!;
+  expect((await reference.boundingBox())!.y).toBeGreaterThan(fact.y);
   await expect(page.getByRole('heading',{name:'КПД',exact:true})).toBeVisible();
   await goToSection(page, "machine-block");
   const efficiency = page.locator('.page-panel').filter({ has: page.getByRole('heading', { name: 'КПД', exact: true }) });
-  await expect(efficiency.locator('.metric-segment-divider')).toHaveCount(1);
+  await expect(efficiency.locator('.metric-segment-divider')).not.toBeVisible();
+  await expect(efficiency.locator('.machine-efficiency > .metric-group')).toHaveCSS('border-top-width','1px');
   for (const name of ['Коэф. загрузки ЭД', 'КПД ЭД расчётный', 'КПД насоса расчётный'])
     await expect(efficiency.getByText(name, { exact: true })).toBeVisible();
   for (const panel of [efficiency])

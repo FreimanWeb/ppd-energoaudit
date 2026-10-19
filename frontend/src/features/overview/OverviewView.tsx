@@ -6,8 +6,9 @@ import { dashboardData } from "./dashboardData.mjs";
 import { metricAssessment } from "../../shared/metrics/metricAssessment.mjs";
 import { MetricCard } from "../../shared/ui/MetricCard";
 import type { PageProps } from "../../shared/ui/context";
+import { EfficiencyKpiPanel } from "./EfficiencyKpiPanel";
 import { AnnualSummary } from "./AnnualSummary";
-import { OverviewMetricPanel } from "./OverviewMetricPanel";
+import { Panel } from "../../shared/ui/Panel";
 import { metricHelp } from "./Kpis";
 import { Passport } from "./Passport";
 import { Quality } from "./Quality";
@@ -20,16 +21,22 @@ export function OverviewView({ audit, context, scheme, clarifications }: { audit
     <div className="overview-page">
       <Quality audit={audit} clarifications={clarifications} />
       <p className="muted">УРЭ выбранного агрегата {audit.audit.aggregate_id}: электрическая энергия на объём его закачки. Суммарный УРЭ станции доступен в истории при выборе «Вся станция».</p>
-      <div className="overview-primary">
-        <OverviewMetricPanel title="Удельный расход энергии" actionLabel="Ориентиры УРЭ" layout="ure" details={<MetricCard label="" value={null} unit="" help="" segments={[
-          { label: "Цель ППД-2035", value: audit.target_sec, unit: "кВт·ч/м³", help: metricHelp["Цель ППД-2035"], ...metricAssessment(audit.target_sec, null, "higher", v.usable) },
-        ]} />}>
-          <MetricCard label="" value={null} unit="" help="" segments={[
-            { label: "Факт", links: metricLinks("sec_fact"), value: m.sec_fact_kwh_m3, unit: "кВт·ч/м³", help: metricHelp["УРЭ факт"], ...metricAssessment(m.sec_fact_kwh_m3, m.sec_calc_kwh_m3, "higher", v.usable) },
-            { label: "Расчётный", links: metricLinks("sec_calc"), value: m.sec_calc_kwh_m3, unit: "кВт·ч/м³", help: metricHelp["УРЭ расчётный"], ...metricAssessment(m.sec_calc_kwh_m3, null, "higher", v.usable) },
-            { label: "Оптимальный", links: metricLinks("sec_optimal"), value: v.usable ? m.sec_optimal_kwh_m3 : null, unit: "кВт·ч/м³", help: metricHelp["УРЭ оптимальный"], ...metricAssessment(v.usable ? m.sec_optimal_kwh_m3 : null, null, "higher", v.usable) },
-          ]} />
-        </OverviewMetricPanel>
+      <div className="overview-primary machine-kpi-panels">
+        <Panel title="Удельный расход энергии">
+          <div className="machine-ure overview-metric-values-ure">
+            <MetricCard label="" value={null} unit="" help="" segments={[
+              { label: "Факт", links: metricLinks("sec_fact"), value: m.sec_fact_kwh_m3, unit: "кВт·ч/м³", help: metricHelp["УРЭ факт"], ...metricAssessment(m.sec_fact_kwh_m3, m.sec_calc_kwh_m3, "higher", v.usable) },
+              { label: "Расчётный", links: metricLinks("sec_calc"), value: m.sec_calc_kwh_m3, unit: "кВт·ч/м³", help: metricHelp["УРЭ расчётный"], ...metricAssessment(m.sec_calc_kwh_m3, null, "higher", v.usable) },
+            ]}/>
+            <div className="machine-kpi-secondary">
+              <MetricCard label="" value={null} unit="" help="" segments={[
+                { label: "Оптимальный", links: metricLinks("sec_optimal"), value: v.usable ? m.sec_optimal_kwh_m3 : null, unit: "кВт·ч/м³", help: metricHelp["УРЭ оптимальный"], ...metricAssessment(v.usable ? m.sec_optimal_kwh_m3 : null, null, "higher", v.usable) },
+                { label: "Цель ППД-2035", value: audit.target_sec, unit: "кВт·ч/м³", help: metricHelp["Цель ППД-2035"], ...metricAssessment(audit.target_sec, null, "higher", v.usable) },
+              ]}/>
+            </div>
+          </div>
+        </Panel>
+        <EfficiencyKpiPanel audit={audit} />
       </div>
       {scheme}
       {v.usable ? (

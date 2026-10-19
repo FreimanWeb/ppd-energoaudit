@@ -12,7 +12,7 @@ export function AnnualSummary({ audit }: { audit: Audit }) {
     return <p className="notice error">Годовая экономия скрыта: режим непригоден для экономических выводов.</p>;
   const segment = (label: string, value: unknown, unit: string, help: string): MetricSegment => {
     const assessment = metricAssessment(value, 0, "higher", true);
-    return { label, value, unit, help, tone: assessment.tone, reason: assessment.reason };
+    return { label, value, unit, help, tone: "neutral", reason: assessment.reason };
   };
   return (
     <Panel
