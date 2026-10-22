@@ -280,7 +280,7 @@ def _comparison(points):
 
 
 def monitoring_objects(
-    database: AuditDatabase, *, now=None, history_days=30, history_end=None
+    database: AuditDatabase, *, now=None, history_days=30, history_end=None, include_history=True
 ) -> dict:
     now = now or datetime.now(UTC)
     plants, _, rows = _load(database, history_days=history_days)
@@ -288,7 +288,7 @@ def monitoring_objects(
     for row in rows:
         by_object[row["object_id"]].append(row)
     history_by_object = defaultdict(list)
-    if history_end is not None:
+    if include_history and history_end is not None:
         if history_end == date.max:
             raise ValueError("Конец периода выходит за допустимый диапазон.")
         history_start = date.fromordinal(max(1, history_end.toordinal() - history_days + 1))
@@ -308,7 +308,7 @@ def monitoring_objects(
         period_start = date.fromisoformat(object_rows[0]["timestamp"][:10]) if object_rows else None
         period_end = date.fromisoformat(latest_at[:10]) if latest_at else None
         history_basis = basis
-        if history_end is not None:
+        if include_history and history_end is not None:
             historic, history_basis, _ = _points(history_by_object[plant["code"]], kpi_only=True)
             kpi_points = {stamp: p for stamp, p in historic.items() if p["basis"] != "none"}
             period_start, period_end = history_start, history_end
@@ -319,7 +319,7 @@ def monitoring_objects(
                 period_end,
                 history_basis in ("interval", "mixed"),
             )
-            if period_start is not None
+            if include_history and period_start is not None
             else []
         )
         status = "unknown" if change is None else "attention" if change > 10 else "normal"
@@ -353,6 +353,28 @@ def monitoring_objects(
         key=lambda item: ({"attention": 0, "unknown": 1, "normal": 2}[item["status"]], item["name"])
     )
     return {"generated_at": now.isoformat(), "interval_hours": 2, "objects": objects}
+
+
+def monitoring_history(database: AuditDatabase, *, history_days: int, history_end: date) -> dict:
+    if history_end == date.max:
+        raise ValueError("Конец периода выходит за допустимый диапазон.")
+    start = date.fromordinal(max(1, history_end.toordinal() - history_days + 1))
+    plants, _, rows = _load(database, start=start, end=history_end)
+    by_object = defaultdict(list)
+    for row in rows:
+        by_object[row["object_id"]].append(row)
+    objects = []
+    for plant in plants:
+        points, basis, _ = _points(by_object[plant["code"]], kpi_only=True)
+        points = {stamp: point for stamp, point in points.items() if point["basis"] != "none"}
+        history = _gap_points(points, start, history_end, basis in ("interval", "mixed"))
+        objects.append({
+            "code": plant["code"],
+            "history": [
+                {"timestamp": point["timestamp"], "value": point["sec_kwh_m3"]} for point in history
+            ],
+        })
+    return {"objects": objects}
 
 
 def object_timeline(

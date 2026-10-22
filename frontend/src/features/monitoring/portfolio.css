@@ -52,6 +52,9 @@
 .portfolio-change strong { font-size: var(--text-body-large); white-space: nowrap; }
 .portfolio-reading .portfolio-change-up { color: var(--warning); }
 .portfolio-sparkline-frame { width: 100%; height: 128px; color: var(--accent); margin-top: var(--space-4); }
+.portfolio-history-skeleton { height: 128px; margin-top: var(--space-4); border-radius: var(--radius-md); background: linear-gradient(90deg, var(--surface-hover), var(--border), var(--surface-hover)); background-size: 200% 100%; animation: portfolio-history-loading 1.5s ease-in-out infinite; }
+@keyframes portfolio-history-loading { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .portfolio-history-skeleton { animation: none; } }
 .portfolio-sparkline { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .portfolio-card-attention .portfolio-sparkline-frame { color: var(--warning); }
 .portfolio-sparkline line { stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }

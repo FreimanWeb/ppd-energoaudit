@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 
 from ..db import AuditDatabase, default_database_path
-from ..services.monitoring import monitoring_objects, object_timeline
+from ..services.monitoring import monitoring_history, monitoring_objects, object_timeline
 
 
 router = APIRouter()
@@ -24,9 +24,31 @@ def _database():
 
 
 @router.get("/monitoring/objects")
-def objects(history_days: int = Query(30, ge=1, le=180), history_end: date | None = None) -> dict:
+def objects(
+    history_days: int = Query(30, ge=1, le=180),
+    history_end: date | None = None,
+    include_history: bool = True,
+) -> dict:
     try:
-        return monitoring_objects(_database(), history_days=history_days, history_end=history_end)
+        return monitoring_objects(
+            _database(),
+            history_days=history_days,
+            history_end=history_end,
+            include_history=include_history,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(503, detail="База телеметрии недоступна или не подготовлена.") from exc
+
+
+@router.get("/monitoring/history")
+def history(
+    history_end: date,
+    history_days: int = Query(30, ge=1, le=180),
+) -> dict:
+    try:
+        return monitoring_history(_database(), history_days=history_days, history_end=history_end)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc)) from exc
     except sqlite3.DatabaseError as exc:

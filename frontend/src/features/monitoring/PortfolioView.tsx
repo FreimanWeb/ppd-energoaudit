@@ -88,12 +88,15 @@ function Sparkline({ history, start, end }: { history: MonitoringObject["history
 export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) => void }) {
   const today = new Intl.DateTimeFormat("sv-SE", {timeZone: "Europe/Moscow"}).format(new Date());
   const [endDate, setEndDate] = useState(today);
-  const resource = useResource<Portfolio>(`/monitoring/objects?history_days=180&history_end=${endDate}`);
+  const resource = useResource<Portfolio>("/monitoring/objects?history_days=180&include_history=false");
   const [query, setQuery] = useState("");
   const [ngdu, setNgdu] = useState<string[]>([]);
   const [water, setWater] = useState<string[]>([]);
   const [status, setStatus] = useState("all");
   const [historyDays, setHistoryDays] = useState(30);
+  const historyResource = useResource<{ objects: Pick<MonitoringObject, "code" | "history">[] }>(
+    resource.data ? `/monitoring/history?history_days=${historyDays}&history_end=${endDate}` : null,
+  );
   const objects = operatorObjects(resource.data?.objects ?? []);
   const visible = visibleObjects(objects, query, ngdu, water, status);
   return <div className="portfolio-page">
@@ -122,7 +125,8 @@ export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) =
       {!visible.length && <p className="notice">{objects.length ? "Объекты не найдены. Измените условия поиска." : "Объекты ещё не добавлены. После загрузки каталога они появятся здесь."}</p>}
       <div className="portfolio-grid">
         {visible.map(object => {
-          const period = portfolioHistory(object.history, endDate, historyDays);
+          const history = historyResource.data?.objects.find(item => item.code === object.code)?.history ?? [];
+          const period = portfolioHistory(history, endDate, historyDays);
           return <article className={`portfolio-card portfolio-card-${object.status}`} key={object.code}>
           <div className="portfolio-card-heading"><div><p>{object.ngdu_name || "НГДУ не указано"}</p><h2>{object.name}</h2></div><span className={`portfolio-badge portfolio-badge-${object.status}`}>{statusLabel[object.status]}</span></div>
           {object.code === "demo-ppd" && <p className="notice">Демо · синтетические данные</p>}
@@ -130,7 +134,9 @@ export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) =
           <div className="portfolio-reading"><div><span>Удельный расход энергии</span><strong>{formatNumber(object.sec_kwh_m3, 3)} <small>кВт·ч/м³</small></strong>{object.kpi_at && <span>УРЭ за <time dateTime={object.kpi_at}>{timestamp(object.kpi_at)}</time></span>}</div><div className={`portfolio-change ${object.change_pct != null && object.change_pct > 0 ? "portfolio-change-up" : ""}`}>
             {object.change_pct == null ? <span>Нет сравнения</span> : <><strong>{object.change_pct > 0 ? "+" : ""}{formatNumber(object.change_pct, 1)} %</strong><span>к предыдущей точке той же базы</span></>}
           </div></div>
-          <Sparkline history={period.history} start={period.start} end={period.end} />
+          {historyResource.error ? <div className="portfolio-no-history" role="alert">{historyResource.error}</div>
+            : !historyResource.data ? <div className="portfolio-history-skeleton" role="status" aria-label="Загрузка истории УРЭ" aria-busy="true" />
+            : <Sparkline history={period.history} start={period.start} end={period.end} />}
           <div className="portfolio-history-caption"><span>История УРЭ</span><span>{object.basis === "daily" ? "Суточные данные" : object.basis === "interval" ? "Интервальные данные" : "Нет расчётной базы"}</span></div>
           {period.start && <div className="portfolio-history-range"><time dateTime={period.start}>{periodDate(period.start)}</time><span>—</span><time dateTime={period.end}>{periodDate(period.end)}</time></div>}
           <p className="portfolio-card-note">{object.note || "Откройте историю, чтобы сопоставить показатели объекта."}</p>

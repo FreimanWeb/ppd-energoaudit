@@ -151,6 +151,48 @@ def test_portfolio_history_ends_at_selected_date_without_changing_latest_reading
     assert client.get("/monitoring/objects?history_end=9999-12-31").status_code == 400
 
 
+def test_portfolio_summary_does_not_load_or_build_history(database, monkeypatch):
+    add(database, "A", "2026-07-01T00:00:00", q_day=100, energy=200)
+    routes = import_module("ppd_audit.api.monitoring_routes")
+    service = monitoring()
+    monkeypatch.setenv("PPD_DATABASE_PATH", str(database.path))
+    app = FastAPI()
+    app.include_router(routes.router)
+    client = TestClient(app)
+    full = client.get("/monitoring/objects").json()
+
+    def no_history(*args, **kwargs):
+        pytest.fail("summary must not build history")
+
+    monkeypatch.setattr(service, "_gap_points", no_history)
+    summary = client.get("/monitoring/objects?include_history=false")
+    assert summary.status_code == 200
+    for item, expected in zip(summary.json()["objects"], full["objects"], strict=True):
+        assert item == {**expected, "history": []}
+
+
+def test_separate_portfolio_history_matches_combined_response(database, monkeypatch):
+    add(database, "A", "2025-01-01T00:00:00", q_day=100, energy=100)
+    add(database, "A", "2026-07-01T00:00:00", q_day=100, energy=200)
+    routes = import_module("ppd_audit.api.monitoring_routes")
+    monkeypatch.setenv("PPD_DATABASE_PATH", str(database.path))
+    app = FastAPI()
+    app.include_router(routes.router)
+    client = TestClient(app)
+    params = "history_days=7&history_end=2025-01-03"
+    full = client.get("/monitoring/objects?" + params).json()
+    response = client.get("/monitoring/history?" + params)
+    assert response.status_code == 200
+    assert {item["code"]: item["history"] for item in response.json()["objects"]} == {
+        item["code"]: item["history"] for item in full["objects"]
+    }
+    assert (
+        client.get("/monitoring/history?history_days=181&history_end=2025-01-03").status_code == 422
+    )
+    assert client.get("/monitoring/history?history_end=9999-12-31").status_code == 400
+    assert client.get("/monitoring/history?history_end=bad").status_code == 422
+
+
 def test_latest_partial_reading_does_not_show_old_efficiency_as_current(database):
     add(database, "A", "2026-07-01T00:00:00", q_day=100, energy=100)
     add(database, "A", "2026-07-02T00:00:00", p_in=1)
