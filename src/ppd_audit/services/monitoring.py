@@ -56,7 +56,8 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
         """)
         ]
         params = [aggregate_code, aggregate_code]
-        query = """
+        latest_join = "JOIN latest l ON l.plant_id = tm.plant_id" if start is None else ""
+        query = f"""
             WITH latest AS (
                 SELECT tm.plant_id, MAX(tm.timestamp) AS latest_at FROM telemetry_measurements tm
                 JOIN technical_places tp ON tp.id = tm.technical_place_id
@@ -66,10 +67,10 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
                 GROUP BY tm.plant_id
             )
             SELECT p.code AS object_id, tm.aggregate_id, tm.timestamp, tm.metric, tm.value,
-                   tm.quality, l.latest_at
+                   tm.quality
             FROM telemetry_measurements tm JOIN plants p ON p.id = tm.plant_id
             JOIN technical_places tp ON tp.id = tm.technical_place_id
-            JOIN latest l ON l.plant_id = tm.plant_id
+            {latest_join}
             WHERE (p.is_example = 0 OR p.code = 'demo-ppd') AND tp.code = 'main'
               AND tm.metric IN ('q_day','energy','flow_rate','power','p_in','p_out')
         """
@@ -86,7 +87,7 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
             query += " AND tm.timestamp >= replace(datetime(l.latest_at, ?), ' ', 'T')"
             params.append(f"-{history_days} days")
         query += " ORDER BY tm.timestamp, tm.id"
-        rows = [dict(row) for row in conn.execute(query, params)]
+        rows = conn.execute(query, params).fetchall()
     return plants, aggregates, rows
 
 
@@ -113,13 +114,16 @@ def _totals(scopes, left, right):
     return a, b, a / b if matched and a is not None and a > 0 and b else None
 
 
-def _points(rows, aggregate_id=None):
+def _points(rows, aggregate_id=None, *, kpi_only=False):
     daily = defaultdict(lambda: defaultdict(dict))
     instant = defaultdict(lambda: defaultdict(dict))
     daily_at = {}
-    has_interval = any(row["metric"] == "flow_rate" for row in rows)
+    interval_times = {row["timestamp"] for row in rows if row["metric"] == "flow_rate"}
+    has_interval = bool(interval_times)
     for row in rows:
         stamp, scope, metric = row["timestamp"], row["aggregate_id"], row["metric"]
+        if kpi_only and metric not in ("q_day", "energy") and stamp not in interval_times:
+            continue
         value = (
             _nonnegative(row["value"]) if row["quality"] in (None, "", "good", "ready") else None
         )
@@ -294,18 +298,18 @@ def monitoring_objects(
     objects = []
     for plant in plants:
         object_rows = by_object[plant["code"]]
-        mapped, basis, _ = _points(object_rows)
+        mapped, basis, _ = _points(object_rows, kpi_only=True)
         points = sorted(mapped.values(), key=lambda point: point["timestamp"])
         comparable = [p for p in points if p["sec_kwh_m3"] is not None]
         latest = comparable[-1] if comparable else None
         latest_at = object_rows[-1]["timestamp"] if object_rows else None
         change = _comparison(comparable)
         kpi_points = {p["timestamp"]: p for p in points if p["basis"] != "none"}
-        period_start = date.fromisoformat(points[0]["timestamp"][:10]) if points else None
+        period_start = date.fromisoformat(object_rows[0]["timestamp"][:10]) if object_rows else None
         period_end = date.fromisoformat(latest_at[:10]) if latest_at else None
         history_basis = basis
         if history_end is not None:
-            historic, history_basis, _ = _points(history_by_object[plant["code"]])
+            historic, history_basis, _ = _points(history_by_object[plant["code"]], kpi_only=True)
             kpi_points = {stamp: p for stamp, p in historic.items() if p["basis"] != "none"}
             period_start, period_end = history_start, history_end
         history = (

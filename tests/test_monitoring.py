@@ -162,6 +162,31 @@ def test_latest_partial_reading_does_not_show_old_efficiency_as_current(database
     assert item["status"] == "unknown"
 
 
+@pytest.mark.parametrize("history_end", [None, date(2026, 7, 3)])
+def test_portfolio_skips_non_kpi_points_without_losing_freshness(
+    database, monkeypatch, history_end
+):
+    add(database, "A", "2026-07-01T00:00:00", p_in=1)
+    add(database, "A", "2026-07-02T00:00:00", q_day=100, energy=200)
+    add(database, "A", "2026-07-03T00:00:00", power=300, p_out=10)
+    service = monitoring()
+    original = service._totals
+    calls = []
+
+    def totals(scopes, left, right):
+        calls.append((left, right))
+        return original(scopes, left, right)
+
+    monkeypatch.setattr(service, "_totals", totals)
+    result = service.monitoring_objects(database, history_end=history_end)
+    item = next(item for item in result["objects"] if item["code"] == "test")
+    assert item["latest_at"] == "2026-07-03T00:00:00"
+    assert item["kpi_at"] == "2026-07-02T00:00:00"
+    assert item["sec_kwh_m3"] == 2
+    assert any(point["timestamp"] == "2026-07-01T00:00:00" for point in item["history"])
+    assert all(pair == ("energy", "q_day") for pair in calls)
+
+
 def test_zero_or_nonfinite_values_never_produce_infinity(database):
     add(database, "A", "2026-07-01T00:00:00", flow_rate=0, power=float("inf"), p_out=10)
     result = monitoring().object_timeline(database, "test", "A", date(2026, 7, 1), date(2026, 7, 1))
