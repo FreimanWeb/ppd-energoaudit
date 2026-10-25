@@ -1,6 +1,7 @@
 """Изолированный синтетический объект для демонстрации операторского сценария."""
 
-from datetime import datetime, timedelta
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 from math import pi, sin
 from zoneinfo import ZoneInfo
 
@@ -97,7 +98,52 @@ def seed_demo(database: AuditDatabase, now: datetime | None = None) -> int:
             if at >= starts[aggregate]
         )
         at += timedelta(hours=2)
+    _seed_well_history(database, now.date())
     return database.add_measurements(iter(records))
+
+
+def _seed_well_history(database: AuditDatabase, today: date) -> None:
+    wells = database.wells(DEMO_OBJECT_ID)
+    if len(wells) == 6 and all((well["current_at"] or "") >= today.isoformat() for well in wells):
+        return
+    rows = []
+
+    def add(code, at, kind, metrics, study_type=""):
+        for index, (metric, value, unit) in enumerate(metrics, start=1):
+            rows.append({
+                "plant_code": DEMO_OBJECT_ID, "well_code": code,
+                "observed_at": at.isoformat(),
+                "grain": "month" if kind == "monthly_actual" else "day",
+                "record_kind": kind, "metric": metric, "value": round(value, 2), "unit": unit,
+                "study_type": study_type, "source_file": _SOURCE,
+                "source_sheet": "Синтетическая история скважин", "source_row": index,
+                "exported_at": at.isoformat(),
+            })
+
+    for number in range(1, 7):
+        code = str(number)
+        for offset in range(12, 0, -1):
+            year, month = divmod(today.year * 12 + today.month - 1 - offset, 12)
+            at = date(year, month + 1, 1)
+            seasonal = sin(2 * pi * at.month / 12 + number / 3)
+            flow = 820 + number * 15 + 35 * seasonal
+            add(code, at, "monthly_actual", [
+                ("p_well", 72 + number + 3 * seasonal, "атм"),
+                ("p_bg", 96 + 2 * seasonal, "атм"),
+                ("flow_m3_day", flow, "м³/сут"),
+                ("injection_volume_m3", flow * monthrange(year, month + 1)[1], "м³"),
+            ])
+            if offset in (9, 3):
+                add(code, at.replace(day=15), "study", [
+                    ("p_reservoir", 115 + number, "атм"),
+                    ("p_bottomhole", 155 + number + seasonal, "атм"),
+                    ("density_kgm3", 1000, "кг/м³"),
+                ], "КВД")
+        add(code, today, "current", [
+            ("p_well", 72 + number, "атм"), ("p_bg", 96, "атм"),
+            ("flow_m3_day", 820 + number * 15, "м³/сут"),
+        ])
+    database.add_well_measurements(rows)
 
 
 def demo_network() -> dict:

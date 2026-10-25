@@ -269,7 +269,12 @@ def well_history(object_id: str, well_code: str):
     records = database.well_history(object_id, well_code)
     if not records:
         raise HTTPException(404, detail="История скважины не найдена")
+    from ..services.demo import DEMO_OBJECT_ID
+
     return {"well_code": well_code, "records": records, "warnings": [
+        "Демонстрационные данные: давления, закачка и ГДИ синтетические; "
+        "не являются результатами измерений.",
+    ] if object_id == DEMO_OBJECT_ID else [
         "Давления сохранены в исходных «атм». Перевод в МПа требует подтверждения единиц.",
         "Дата текущего режима — дата выгрузки, фактическая дата измерения не подтверждена.",
         "Нулевые значения и повторяющиеся записи сохранены с источниками; "

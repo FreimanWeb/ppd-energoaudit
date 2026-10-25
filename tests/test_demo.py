@@ -7,6 +7,29 @@ from ppd_audit.services.demo import DEMO_OBJECT_ID, demo_network, seed_demo
 from ppd_audit.services.telemetry_audit import run_snapshot_audit, telemetry_snapshots
 
 
+def test_demo_well_history_is_complete_isolated_and_idempotent(tmp_path):
+    db = AuditDatabase(tmp_path / "audit.sqlite")
+    db.migrate()
+    now = datetime(2026, 10, 25, 20)
+    seed_demo(db, now)
+    assert {well["code"] for well in db.wells(DEMO_OBJECT_ID)} == {
+        well["id"] for well in demo_network()["wells"]
+    }
+    histories = {}
+    for well in db.wells(DEMO_OBJECT_ID):
+        rows = db.well_history(DEMO_OBJECT_ID, well["code"])
+        histories[well["code"]] = rows
+        monthly = [row for row in rows if row["record_kind"] == "monthly_actual"]
+        assert len({row["observed_at"] for row in monthly}) == 12
+        assert {row["metric"] for row in monthly} >= {"p_well", "p_bg", "injection_volume_m3"}
+        assert {row["record_kind"] for row in rows} == {"monthly_actual", "current", "study"}
+        assert all(row["source_file"].startswith("synthetic://") for row in rows)
+        assert all(row["value"] > 0 for row in rows)
+    seed_demo(db, now)
+    assert histories == {code: db.well_history(DEMO_OBJECT_ID, code) for code in histories}
+    assert db.wells("kns54an") == []
+
+
 def test_demo_is_append_only_and_isolated(tmp_path):
     db = AuditDatabase(tmp_path / 'audit.sqlite')
     db.migrate()
