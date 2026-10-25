@@ -1,16 +1,26 @@
 import { useRef } from "react";
-import { Button } from "../../shared/ui/Button";
-import { Tooltip } from "../../shared/ui/Tooltip";
+import { Button } from "./Button";
+import { Tooltip } from "./Tooltip";
+import "./timeRangeControl.css";
 
 const formatTime = (value:number) => new Date(value).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-export function TimeRangeControl({domain,viewport,onChange}:{domain:[number,number];viewport:[number,number]|null;onChange:(value:[number,number]|null)=>void}) {
+export function TimeRangeControl({domain,viewport,onChange,granularity="time"}:{domain:[number,number];viewport:[number,number]|null;onChange:(value:[number,number]|null)=>void;granularity?:"time"|"month"}) {
   const drag=useRef<{pointerId:number;x:number;start:number;end:number;width:number}|null>(null);
-  const [min,max]=domain;
-  const [start,end]=viewport??domain;
-  const span=max-min, step=Math.max(1,Math.round(span/1000));
-  const change=(value:[number,number])=>onChange(value[0]===min && value[1]===max ? null : value);
+  const monthly = granularity === "month";
+  const position = (value:number) => {
+    const date = new Date(value);
+    return monthly ? date.getUTCFullYear() * 12 + date.getUTCMonth() : value;
+  };
+  const timestamp = (value:number) => monthly ? Date.UTC(Math.floor(value / 12), value % 12, 1) : value;
+  const label = (value:number) => monthly
+    ? new Date(timestamp(value)).toLocaleDateString("ru-RU", {month:"long",year:"numeric",timeZone:"UTC"})
+    : formatTime(value);
+  const [min,max]=domain.map(position);
+  const [start,end]=(viewport??domain).map(position);
+  const span=max-min, step=monthly ? 1 : Math.max(1,Math.round(span/1000));
+  const change=(value:[number,number])=>onChange(value[0]===min && value[1]===max ? null : [timestamp(value[0]),timestamp(value[1])]);
   const move=(value:number,duration=end-start)=>{
-    const next=Math.max(min,Math.min(max-duration,value));
+    const next=Math.max(min,Math.min(max-duration,monthly ? Math.round(value) : value));
     change([next,next+duration]);
   };
   return <section className="timeline-time-control" aria-label="Управление временем">
@@ -20,7 +30,7 @@ export function TimeRangeControl({domain,viewport,onChange}:{domain:[number,numb
     </div>
     <div className="time-control-track">
       <div className="time-control-selection" style={{left:`${(start-min)/span*100}%`,right:`${(max-end)/span*100}%`}}
-        role="slider" tabIndex={viewport?0:-1} aria-label="Положение видимого периода" aria-valuemin={min} aria-valuemax={max-(end-start)} aria-valuenow={start} aria-valuetext={`${formatTime(start)} — ${formatTime(end)}`}
+        role="slider" tabIndex={viewport?0:-1} aria-label="Положение видимого периода" aria-valuemin={min} aria-valuemax={max-(end-start)} aria-valuenow={start} aria-valuetext={`${label(start)} — ${label(end)}`}
         onPointerDown={event=>{
           if(event.button!==0)return;
           event.preventDefault();
@@ -42,11 +52,11 @@ export function TimeRangeControl({domain,viewport,onChange}:{domain:[number,numb
           event.preventDefault();
           move(event.key==="Home"?min:event.key==="End"?max-(end-start):start+(event.key==="ArrowLeft"?-step:step));
         }} />
-      <input type="range" aria-label="Начало видимого периода" aria-valuetext={formatTime(start)} min={min} max={max} step={step} value={start}
+      <input type="range" aria-label="Начало видимого периода" aria-valuetext={label(start)} min={min} max={max} step={step} value={start}
         onChange={event=>change([Math.min(Number(event.target.value),end-step),end])} />
-      <input type="range" aria-label="Конец видимого периода" aria-valuetext={formatTime(end)} min={min} max={max} step={step} value={end}
+      <input type="range" aria-label="Конец видимого периода" aria-valuetext={label(end)} min={min} max={max} step={step} value={end}
         onChange={event=>change([start,Math.max(Number(event.target.value),start+step)])} />
     </div>
-    <div className="time-control-dates"><time dateTime={new Date(start).toISOString()}>{formatTime(start)}</time><time dateTime={new Date(end).toISOString()}>{formatTime(end)}</time></div>
+    <div className="time-control-dates"><time dateTime={new Date(timestamp(start)).toISOString()}>{label(start)}</time><time dateTime={new Date(timestamp(end)).toISOString()}>{label(end)}</time></div>
   </section>;
 }

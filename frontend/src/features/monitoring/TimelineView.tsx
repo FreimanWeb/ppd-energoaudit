@@ -8,7 +8,7 @@ import { Panel } from "../../shared/ui/Panel";
 import { Range } from "../../shared/ui/Range";
 import { Status } from "../../shared/ui/Status";
 import { recentPeriod, timelineSignal, latestMetricPoint } from "./timeline.mjs";
-import { TimeRangeControl } from "./TimeRangeControl";
+import { TimeRangeControl } from "../../shared/ui/TimeRangeControl";
 import { PeriodComparison } from "./PeriodComparison";
 import "./timeline.css";
 

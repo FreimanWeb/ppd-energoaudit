@@ -11,7 +11,7 @@ const axis = (input,type) => ({type,label:input?.title?.text??'',hidden:input?.v
 
 /** @param {import('./types').Trace[]} traces @param {import('./types').Layout} layout @param {string} title @returns {import('./types').ChartModel} */
 export function buildChartModel(traces,layout={},title='') {
- const base={...(layout.showBrush === false ? {showBrush:false}:{}),title,height:layout.height??360,margin:{top:layout.margin?.t??20,right:layout.margin?.r??24,bottom:layout.margin?.b??40,left:layout.margin?.l??55}};
+ const base={...(layout.timeGranularity ? {timeGranularity:layout.timeGranularity}:{}),...(layout.showBrush === false ? {showBrush:false}:{}),title,height:layout.height??360,margin:{top:layout.margin?.t??20,right:layout.margin?.r??24,bottom:layout.margin?.b??40,left:layout.margin?.l??55}};
  if(!traces.length) return {...base,kind:'empty',message:'Нет данных для графика.'};
  const first=traces[0];
  if(first.type==='sankey') return {...base,kind:'sankey',nodes:(first.node?.label??[]).map((name,i)=>({name:text(name),tooltip:first.node?.tooltip?.[i],color:color(at(first.node?.color,i,chartColors[i%chartColors.length]))})),links:(first.link?.value??[]).map((value,i)=>({source:first.link.source[i],target:first.link.target[i],value,tooltip:first.link.tooltip?.[i],color:color(at(first.link.color,i,'var(--chart-secondary)'))}))};

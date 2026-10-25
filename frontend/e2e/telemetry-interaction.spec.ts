@@ -15,9 +15,9 @@ test('a single power chart spans the row and period controls stay compact', asyn
   await expect(power.locator('svg.visx-chart')).toBeVisible();
   const pressureBox = await pressure.boundingBox(), powerBox = await power.boundingBox();
   expect(powerBox!.width).toBeCloseTo(pressureBox!.width, 1);
-  const track = await pressure.locator('.brush-range-track').boundingBox();
-  expect(track!.height).toBeLessThanOrEqual(20);
-  const handle = await page.getByRole('slider', { name: 'Начало периода', exact: true }).boundingBox();
+  const track = await pressure.locator('.time-control-track').boundingBox();
+  expect(track!.height).toBeLessThanOrEqual(24);
+  const handle = await page.getByRole('slider', { name: 'Начало видимого периода', exact: true }).boundingBox();
   expect(handle!.height).toBeGreaterThanOrEqual(24);
 });
 
@@ -39,9 +39,8 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   const first = charts.first();
   await first.click({ position: { x: 100, y: 10 } });
   expect(await first.evaluate(node => getComputedStyle(node).outlineWidth)).toBe('0px');
-  await expect(page.getByText('Границы видимого периода', { exact: true })).toBeVisible();
-  await expect(page.getByText('Начало:', { exact: false })).toBeVisible();
-  await expect(page.getByText('Конец:', { exact: false })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Управление временем', exact: true })).toBeVisible();
+  await expect(page.locator('.time-control-dates time')).toHaveCount(2);
   await first.focus();
   await first.press('Home');
   expect(await first.evaluate(node => getComputedStyle(node).outlineWidth)).toBe('2px');
@@ -52,12 +51,12 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   await first.press('Enter');
   await expect(page).toHaveURL(/#telemetry$/); // 00:07 is a sample, but not an available calculation snapshot.
 
-  const handle = page.locator('main .visx-brush-handle-right').first();
+  const handle = page.getByRole('slider', { name: 'Конец видимого периода', exact: true });
   const bounds = await handle.boundingBox();
   expect(bounds).toBeTruthy();
-  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await page.mouse.move(bounds!.x + bounds!.width - 6, bounds!.y + bounds!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(bounds!.x - 150, bounds!.y + bounds!.height / 2, { steps: 10 });
+  await page.mouse.move(bounds!.x + bounds!.width - 156, bounds!.y + bounds!.height / 2, { steps: 10 });
   await page.mouse.up();
   await expect(page.getByRole('button', { name: 'Весь период', exact: true })).toBeVisible();
   const zoom = await first.getAttribute('data-time-domain');
@@ -65,17 +64,17 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   expect(zoom).not.toBe(`${new Date(times[0]).getTime()},${new Date(times[3]).getTime()}`);
   await page.getByRole('button', { name: 'Весь период', exact: true }).click();
   for (const chart of await charts.all()) await expect(chart).toHaveAttribute('data-time-domain', `${new Date(times[0]).getTime()},${new Date(times[3]).getTime()}`);
-  const end = page.getByRole('slider', { name: 'Конец периода', exact: true });
+  const end = page.getByRole('slider', { name: 'Конец видимого периода', exact: true });
   await end.focus();
   await end.press('ArrowLeft');
-  expect(Number(await end.getAttribute('aria-valuenow'))).toBeLessThan(new Date(times[3]).getTime());
+  expect(Number(await end.inputValue())).toBeLessThan(new Date(times[3]).getTime());
   const keyboardZoom = await first.getAttribute('data-time-domain');
   for (const chart of await charts.all()) await expect(chart).toHaveAttribute('data-time-domain', keyboardZoom!);
   await end.press('End');
-  const begin = page.getByRole('slider', { name: 'Начало периода', exact: true });
+  const begin = page.getByRole('slider', { name: 'Начало видимого периода', exact: true });
   await begin.focus();
   await begin.press('ArrowRight');
-  expect(Number(await begin.getAttribute('aria-valuenow'))).toBeGreaterThan(new Date(times[0]).getTime());
+  expect(Number(await begin.inputValue())).toBeGreaterThan(new Date(times[0]).getTime());
   await begin.press('Home');
   await expect(page.getByRole('button', { name: 'Весь период', exact: true })).toBeDisabled();
   await first.click({ position: { x: 100, y: 10 } });

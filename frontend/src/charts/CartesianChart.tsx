@@ -14,7 +14,7 @@ import { ParentSize } from "@visx/responsive";
 import { scaleBand, scaleLinear, scaleTime } from "@visx/scale";
 import { LinePath, Area, Bar } from "@visx/shape";
 import { curveLinear, curveStepAfter } from "@visx/curve";
-import { Brush, type BrushProps } from "@visx/brush";
+import { TimeRangeControl } from "../shared/ui/TimeRangeControl";
 import type {
   CartesianModel,
   AxisModel,
@@ -29,7 +29,6 @@ import {
   viewPoints,
 } from "./cartesianGeometry.mjs";
 import { chartTheme } from "./theme";
-import { Tooltip as ExplanationTooltip } from "../shared/ui/Tooltip";
 import { ChartTooltip, type ChartTooltipRow } from "./ChartTooltip";
 import "./charts.css";
 
@@ -170,7 +169,6 @@ export function CartesianPlot({
   fromZero = false,
   hidden = [],
   viewport = null,
-  onViewport,
   onSelect,
   timeInteraction,
 }: {
@@ -180,16 +178,13 @@ export function CartesianPlot({
   fromZero?: boolean;
   hidden?: string[];
   viewport?: [number, number] | null;
-  onViewport?: (value: [number, number] | null) => void;
   onSelect?: (id: string) => void;
   timeInteraction?: TimeInteraction;
 }) {
   const id = useId().replace(/:/g, "");
   const surface = useRef<HTMLDivElement>(null);
-  const brushRef = useRef<NonNullable<BrushProps["innerRef"]>["current"]>(null);
   const [tip, setTip] = useState<Tip | null>(null);
   const [activeBar, setActiveBar] = useState<string | null>(null);
-  const hasBrush = model.xAxis.type === "time" && model.data.length > 2 && model.showBrush !== false && timeInteraction?.showBrush !== false;
   const left = model.yAxis.hidden ? 12 : model.horizontal ? 110 : 66,
     right = 20,
     top = 24;
@@ -213,13 +208,7 @@ export function CartesianPlot({
     ? Math.max(48,categoryLabelHeight+16+(model.categoryGroups?.length ? 42 : 0))
     : model.categoryGroups?.length ? 84 : 48;
   const innerWidth = Math.max(10, width - left - right),
-    innerHeight = Math.max(30, height - top - bottom - (hasBrush ? 56 : 0));
-  useEffect(() => {
-    if (viewport === null && brushRef.current) brushRef.current.updateBrush((state) => ({
-      ...state, start: { x: 0, y: 0 }, end: { x: innerWidth, y: 16 },
-      extent: { x0: 0, x1: innerWidth, y0: 0, y1: 16 },
-    }));
-  }, [viewport === null, innerWidth]);
+    innerHeight = Math.max(30, height - top - bottom);
   const projection = useMemo(() => {
     const visible = model.series.filter((s) => !hidden.includes(s.id));
     const domains = chartDomains(model, hidden, viewport, fromZero);
@@ -342,25 +331,6 @@ export function CartesianPlot({
     }
     showIndex(index, py);
   }
-  const brushDomain = (timeInteraction?.domain ?? chartDomains(model, hidden).x) as [number, number];
-  const visiblePeriod = viewport ?? brushDomain;
-  function moveBoundary(event: React.KeyboardEvent<SVGGElement>, leftBoundary: boolean) {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    brushRef.current?.updateBrush(state => {
-      const min = leftBoundary ? 0 : state.extent.x0 + 1;
-      const max = leftBoundary ? state.extent.x1 - 1 : innerWidth;
-      const current = leftBoundary ? state.extent.x0 : state.extent.x1;
-      const target = event.key === "Home" ? min : event.key === "End" ? max : current + (event.key === "ArrowRight" ? 1 : -1) * innerWidth / 100;
-      const value = Math.max(min, Math.min(max, target));
-      const x0 = leftBoundary ? value : state.extent.x0, x1 = leftBoundary ? state.extent.x1 : value;
-      return { ...state, start: { x: x0, y: 0 }, end: { x: x1, y: 16 }, extent: { x0, x1, y0: 0, y1: 16 } };
-    });
-  }
-  const periodLabel = (value: number) => innerWidth < 360
-    ? new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
-    : axisTick(value, "time");
   const xTickCount = Math.max(2,Math.floor(innerWidth / 110));
   const rawXTicks = "ticks" in xScale ? xScale.ticks(xTickCount) : xScale.domain();
   const xTicks = model.xAxis.type === "time" ? rawXTicks.filter((value,index,values)=>index === 0 || axisTick(value,"time") !== axisTick(values[index-1],"time")) : rawXTicks;
@@ -737,66 +707,7 @@ export function CartesianPlot({
               labelProps={{ fill: chartTheme.text, fontSize: 11 }}
             />
           )}
-          {hasBrush && (
-            <g
-              className="visx-brush"
-              transform={`translate(0,${innerHeight + 44})`}
-              role="group"
-              aria-label="Границы видимого периода"
-            >
-              <text className="brush-range-title" y="-12">Границы видимого периода</text>
-              {innerWidth > 480 && <text className="brush-range-hint" x={innerWidth} y="-12" textAnchor="end">Перетащите левый или правый край ↔</text>}
-              <rect className="brush-range-track" width={innerWidth} height="16" rx="4" />
-              <text className="brush-range-date" y="32">Начало: {periodLabel(visiblePeriod[0])}</text>
-              <text className="brush-range-date" x={innerWidth} y="32" textAnchor="end">Конец: {periodLabel(visiblePeriod[1])}</text>
-              <Brush
-                innerRef={brushRef}
-                xScale={scaleLinear({
-                  domain: timeInteraction?.domain ?? chartDomains(model, hidden).x as [number, number],
-                  range: [0, innerWidth],
-                })}
-                yScale={scaleLinear({ domain: [0, 1], range: [16, 0] })}
-                width={innerWidth}
-                height={16}
-                brushDirection="horizontal"
-                handleSize={24}
-                resizeTriggerAreas={["left", "right"]}
-                initialBrushPosition={{
-                  start: { x: 0, y: 0 },
-                  end: { x: innerWidth, y: 16 },
-                }}
-                renderBrushHandle={({ x: handleX, width: handleWidth, height: handleHeight, className, isBrushActive }) => {
-                  if (!isBrushActive) return null;
-                  const leftBoundary = className.endsWith("-left");
-                  return <g className={`${className} brush-boundary-handle`} transform={`translate(${handleX},0)`}
-                    role="slider" tabIndex={0} aria-label={leftBoundary ? "Начало периода" : "Конец периода"}
-                    aria-orientation="horizontal"
-                    aria-valuemin={leftBoundary ? brushDomain[0] : visiblePeriod[0] + 1}
-                    aria-valuemax={leftBoundary ? visiblePeriod[1] - 1 : brushDomain[1]}
-                    aria-valuenow={visiblePeriod[leftBoundary ? 0 : 1]}
-                    aria-valuetext={axisTick(visiblePeriod[leftBoundary ? 0 : 1], "time")}
-                    onKeyDown={event => moveBoundary(event, leftBoundary)}>
-                    <rect y="-4" width={handleWidth} height={handleHeight + 8} rx="5" />
-                    <path d={`M ${handleWidth / 2 - 2} 4 V ${handleHeight - 4} M ${handleWidth / 2 + 2} 4 V ${handleHeight - 4}`} />
-                  </g>;
-                }}
-                selectedBoxStyle={{
-                  fill: chartTheme.green,
-                  fillOpacity: 0.08,
-                  stroke: chartTheme.green,
-                  strokeOpacity: 0.4,
-                }}
-                onChange={(bounds) => {
-                  if (bounds) {
-                    const domain = timeInteraction?.domain ?? chartDomains(model, hidden).x as [number, number];
-                    const range: [number, number] = [Math.max(Number(domain[0]), Number(bounds.x0)), Math.min(Number(domain[1]), Number(bounds.x1))];
-                    onViewport?.(Math.abs(range[0] - Number(domain[0])) < 1 && Math.abs(range[1] - Number(domain[1])) < 1 ? null : range);
-                  }
-                }}
-                useWindowMoveEvents
-              />
-            </g>
-          )}
+
         </g>
       </svg>
       {tip && surface.current && createPortal(<ChartTooltip title={tip.title} rows={tip.rows} style={{
@@ -833,13 +744,12 @@ export function CartesianChart({
   );
   return (
     <div className="native-chart" style={{overflowX:model.xAxis.type === "category" ? "auto" : undefined}}>
-      {(adjustableScale || hasBrush) && <div className="chart-toolbar">
+      {adjustableScale && <div className="chart-toolbar">
         {adjustableScale && <div className="chart-scale-controls" role="group" aria-label="Масштаб вертикальной оси">
           <button type="button" aria-pressed={fromZero} onClick={()=>setFromZero(true)}>От нуля</button>
           <button type="button" aria-pressed={!fromZero} onClick={()=>setFromZero(false)}>По данным</button>
         </div>}
-        {hasBrush && <ExplanationTooltip label="Масштаб графика" content="Потяните границы полосы снизу, чтобы приблизить временной диапазон." />}
-        {hasBrush && <button type="button" disabled={!viewport} onClick={()=>setViewport(null)}>Весь период</button>}
+
       </div>}
       <div className="native-chart-stage" style={{ height: model.height, minWidth:model.xAxis.type === "category" ? chartDomains(model,hidden).x.length*110+86 : undefined }}>
         <ParentSize debounceTime={30}>
@@ -851,7 +761,6 @@ export function CartesianChart({
                 hidden={hidden}
                 fromZero={fromZero}
                 viewport={viewport}
-                onViewport={setViewport}
                 onSelect={onSelect}
                 timeInteraction={timeInteraction}
               />
@@ -859,6 +768,7 @@ export function CartesianChart({
           }
         </ParentSize>
       </div>
+      {hasBrush && <TimeRangeControl granularity={model.timeGranularity} domain={(timeInteraction?.domain ?? chartDomains(model, hidden).x) as [number, number]} viewport={viewport} onChange={setViewport} />}
       {model.series.some((s) => s.showLegend) && (
         <div className="native-chart-legend" aria-label="Ряды графика">
           {model.series

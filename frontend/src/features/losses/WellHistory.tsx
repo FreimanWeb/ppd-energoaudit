@@ -58,7 +58,7 @@ export function WellHistory({ objectId }: { objectId: string }) {
     const points = monthly.filter(record => record.metric === metric && record.unit === "атм")
       .sort((a, b) => a.observed_at.localeCompare(b.observed_at));
     return {
-      type: "scatter", mode: "markers", name: labels[metric],
+      type: "scatter", mode: "lines+markers", name: labels[metric],
       x: points.map(record => record.observed_at), y: points.map(record => record.value),
       marker: { color: index ? "var(--chart-secondary)" : "var(--chart-primary)" },
     };
@@ -81,8 +81,8 @@ export function WellHistory({ objectId }: { objectId: string }) {
           {history.data.warnings.map((warning, index) => <p key={index} className="notice">{warning}</p>)}
           {pressureSeries.length > 0 ? <section aria-label="Месячные давления скважины">
             <h3>Давление на устье и на БГ по месяцам</h3>
-            <p className="muted">Месячные фактические записи, атм. Дата на оси обозначает месяц; между записями нет интерполяции. Отчётные записи хранятся отдельно в таблице ниже.</p>
-            <Plot title="Месячные давления скважины" data={pressureSeries} layout={{ xaxis: { type: "date" }, yaxis: { title: { text: "атм" } } }} />
+            <p className="muted">Месячные фактические записи, атм. Дата на оси обозначает месяц; линии соединяют фактические записи и показывают динамику. Отчётные записи хранятся отдельно в таблице ниже.</p>
+            <Plot title="Месячные давления скважины" data={pressureSeries} layout={{ timeGranularity: "month", xaxis: { type: "date" }, yaxis: { title: { text: "атм" } } }} />
           </section> : <p className="notice">Месячных фактических давлений для графика нет.</p>}
           <section aria-label="Архивный текущий режим"><h3>Текущий режим по архиву</h3>
             <Table rows={recordRows(current)} columns={columns} />
