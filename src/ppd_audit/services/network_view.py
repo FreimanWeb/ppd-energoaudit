@@ -22,7 +22,9 @@ from ..core.network import (
     Fluid,
     NetworkResult,
     WellMeasurement,
+    WellPath,
     analyze_network,
+    resolve_paths,
     water_viscosity_cst,
 )
 from ..db import AuditDatabase
@@ -195,7 +197,7 @@ def _sections(pipeline: Pipeline) -> str:
     return ", ".join(sizes)
 
 
-def _well_rows(result: NetworkResult, eta: float) -> list[dict]:
+def _well_rows(result: NetworkResult, eta: float, paths: dict[str, WellPath]) -> list[dict]:
     rows = []
     for well in sorted(result.wells, key=lambda item: item.q_m3h, reverse=True):
         energy = sum(
@@ -210,6 +212,9 @@ def _well_rows(result: NetworkResult, eta: float) -> list[dict]:
             "path_length_m": well.path_length_m,
             "path_complete": well.path_complete,
             "has_geometry": well.has_geometry,
+            "path_pipeline_names": [pipe.name for pipe in reversed(paths[well.well].pipelines)]
+            if well.well in paths
+            else [],
             "p_before_choke_mpa": well.p_before_choke_mpa,
             "p_after_choke_mpa": well.p_after_choke_mpa,
             "dp_network_mpa": well.dp_network_mpa,
@@ -327,6 +332,6 @@ def network_view(
                 any(flag in MEASUREMENT_FLAGS for flag in well.flags) for well in wells
             ),
         },
-        "wells": _well_rows(result, eta),
+        "wells": _well_rows(result, eta, resolve_paths(pipes, network.station_nodes)),
         "pipelines": _pipeline_rows(result),
     }

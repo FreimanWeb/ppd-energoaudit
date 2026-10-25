@@ -165,6 +165,7 @@ class NetworkWell(BaseModel):
     path_length_m: float
     path_complete: bool
     has_geometry: bool
+    path_pipeline_names: list[str]
     p_before_choke_mpa: float | None
     p_after_choke_mpa: float | None
     dp_network_mpa: float | None

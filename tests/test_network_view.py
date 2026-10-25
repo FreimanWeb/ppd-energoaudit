@@ -88,6 +88,23 @@ def test_view_combines_telemetry_geometry_and_cards(database):
 
 
 @needs_sources
+def test_network_view_exposes_resolved_paths_for_the_schematic(database):
+    view = network_view.network_view(database, NETWORK_DIR, NETWORK_CONFIG, "kns54an", tariff=5.17)
+    names = {pipeline["name"] for pipeline in view["pipelines"]}
+    assert any(well["path_complete"] for well in view["wells"])
+    for well in view["wells"]:
+        if well["q_m3h"] > 0:
+            assert set(well["path_pipeline_names"]) <= names
+        assert bool(well["path_pipeline_names"]) == well["has_geometry"]
+    complete = next(well for well in view["wells"] if well["path_complete"])
+    first = next(
+        pipe for pipe in view["pipelines"] if pipe["name"] == complete["path_pipeline_names"][0]
+    )
+    network = network_view.plant_network(NETWORK_DIR, NETWORK_CONFIG, "kns54an")
+    assert first["start"] in network.station_nodes
+
+
+@needs_sources
 def test_fact_efficiency_changes_only_annual_energy(database):
     nominal = network_view.network_view(
         database, NETWORK_DIR, NETWORK_CONFIG, "kns54an", tariff=5.17
@@ -128,7 +145,9 @@ def test_network_api_returns_the_shared_view(client):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["object_id"] == "kns54an"
-    assert {"well", "dp_friction_mpa", "dp_choke_mpa", "flags"} <= set(body["wells"][0])
+    assert {"well", "path_pipeline_names", "dp_friction_mpa", "dp_choke_mpa", "flags"} <= set(
+        body["wells"][0]
+    )
 
 
 def test_network_api_rejects_impossible_efficiency(client):

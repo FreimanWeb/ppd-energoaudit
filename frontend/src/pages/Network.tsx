@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { useResource, segment } from "../shared/api";
 import { Plot, type Trace } from "../charts/Plot";
 import { Panel } from "../shared/ui/Panel";
@@ -6,8 +7,12 @@ import { Table } from "../shared/ui/Table";
 import type { PageProps } from "../shared/ui/context";
 import { fmt } from "../shared/ui/format";
 
+const PipelineSchematic = lazy(() => import("../features/network/PipelineSchematic"));
+
 type Well = {
   well: string;
+  path_complete: boolean;
+  path_pipeline_names: string[];
   q_m3h: number;
   path_length_m: number;
   p_after_choke_mpa: number | null;
@@ -23,6 +28,8 @@ type Well = {
 };
 type Pipeline = {
   name: string;
+  start: string;
+  end: string;
   length_m: number;
   sizes: string;
   pipe_types: string;
@@ -138,6 +145,9 @@ export function NetworkPage(p: PageProps) {
               </div>
             ) : null}
           </div>
+          <Suspense fallback={<p role="status" className="muted">Загружаем схему водоводов…</p>}>
+            <PipelineSchematic key={p.objectId} pipelines={view.pipelines} wells={view.wells} />
+          </Suspense>
           {top.length > 0 && (
             <Plot
               title="Потери мощности по скважинам, кВт"
