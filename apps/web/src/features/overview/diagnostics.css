@@ -1,0 +1,12 @@
+.diagnostic-category { margin-top: 16px; }
+.diagnostic-rule { border-top: 1px solid var(--border); padding: 12px 0; min-width: 0; }
+.diagnostic-heading { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.diagnostic-heading h4 { margin: 0; font-size: var(--text-body); }
+.diagnostic-status { color: var(--content-muted); font-size: var(--text-caption); }
+.diagnostic-rule[data-status="triggered"] .diagnostic-status { color: var(--warning); font-weight: var(--weight-semibold); }
+.diagnostic-rule[data-status="triggered"] .diagnostic-heading h4 { color: var(--content-primary); }
+.diagnostic-rule details { margin-top: 8px; }
+.diagnostic-rule summary, .diagnostic-remaining > summary { cursor: pointer; }
+.diagnostic-remaining { margin-top: 16px; }
+.diagnostic-source { overflow-wrap: anywhere; font-size: var(--text-caption); }
+.notice.diagnostic-notice { background: var(--surface-subtle); color: var(--content-primary); border: 1px solid var(--border); }

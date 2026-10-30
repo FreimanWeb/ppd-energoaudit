@@ -2,7 +2,7 @@
   "name": "ppd-energoaudit",
   "private": true,
   "workspaces": [
-    "frontend"
+    "apps/web"
   ],
   "scripts": {
     "dev": "concurrently --kill-others --names api,web \"npm:dev:api\" \"npm:dev:web\"",
