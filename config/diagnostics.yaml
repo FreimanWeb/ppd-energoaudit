@@ -1,0 +1,49 @@
+# Rules transcribed from A-2026-023; no runtime dependency on the external XLSX.
+source:
+  artifact_id: A-2026-023
+  file: 2026-10-22_Таблицы по КНС.xlsx
+  sha256: f5619111b3f67ed87df30370f9a793349f1ceb9053246d53c320e4aab2917026
+
+# The row is the first numbered rule; subsequent 13 rules follow in source order.
+# Flow zones remain pending: they are not the domain of the candidate polynomials.
+profiles:
+  kns54an:
+    НА-1:
+      model: ЦНС 180-1422(-2)
+      sheet: КНС-54 АзН
+      first_row: 5
+      flow_min: 126
+      flow_max: 216
+    НА-2:
+      model: ЦНС 80-1400(-2)
+      sheet: КНС-54 АзН
+      first_row: 25
+      flow_min: 56
+      flow_max: 96
+  knsopu:
+    НА-1:
+      model: ЦНС 63-1400(-3)
+      sheet: КНС-ОПУ ДжН
+      first_row: 5
+      flow_min: 44
+      flow_max: 75
+    НА-2:
+      model: ЦНС 80-1400(-3)
+      sheet: КНС-ОПУ ДжН
+      first_row: 25
+      flow_min: 56
+      flow_max: 96
+    НА-3:
+      model: ЦНС 180-1422(-1)
+      sheet: КНС-ОПУ ДжН
+      first_row: 44
+      flow_min: 126
+      flow_max: 216
+  kns97pren:
+    НА-2 ПР:
+      model: ЦНС 40-1000(-2)
+      sheet: КНС-97-2 ЕН
+      first_row: 5
+      flow_min: 28
+      flow_max: 48
+      binding_note: 'В заголовке источника указан НА-1, в системе эта модель относится к НА-2 ПР. Требуется подтверждение соответствия агрегатов; правила пока не применяются.'

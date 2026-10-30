@@ -24,8 +24,14 @@ def seed(directory: Path) -> None:
     for index in range(93):
         day = start + timedelta(days=index)
         db.add_measurement(
-            "kns54an", None, day, "p_bg", 11, "МПа",
-            source_kind="scada", source_file="e2e-scada.csv",
+            "kns54an",
+            None,
+            day,
+            "p_bg",
+            11,
+            "МПа",
+            source_kind="scada",
+            source_file="e2e-scada.csv",
         )
         for aggregate in ("НА-1", "НА-2"):
             values = [

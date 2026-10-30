@@ -1,0 +1,93 @@
+{
+  "approval": "pending",
+  "source": {
+    "file": "../artifacts/objects/2026-10-15_КНС_10_АзН_Расчет_по_новой_форме_версия_№2.xlsx",
+    "sha256": "4a760fa1642e7ae14f2f5604a87dc1c2d068e96a4d6074ff7d984a5b7bf27251",
+    "sheet": "Уравнения",
+    "cells": "A5:K5",
+    "eta_unit_in_workbook": "percent"
+  },
+  "model": "ЦНС 40-1000-2",
+  "source_range_m3h": [
+    28.0,
+    60.0
+  ],
+  "head_coefficients": [
+    -0.10541667,
+    5.503873,
+    725.8529
+  ],
+  "eta_fraction_coefficients": [
+    -0.0001041667,
+    0.0110049,
+    0.22411765
+  ],
+  "points": [
+    {
+      "flow_m3h": 27.99,
+      "status": "out_of_range",
+      "head_m": null,
+      "eta_fraction": null,
+      "core_head_m": null,
+      "core_eta_fraction": null
+    },
+    {
+      "flow_m3h": 28.0,
+      "status": "within_source_range",
+      "head_m": 797.31467472,
+      "eta_fraction": 0.4505881572,
+      "core_head_m": 797.3146747199999,
+      "core_eta_fraction": 0.45058815719999756
+    },
+    {
+      "flow_m3h": 40.25,
+      "status": "within_source_range",
+      "head_m": 776.6021943081249,
+      "eta_fraction": 0.49830831058125,
+      "core_head_m": 776.602194308125,
+      "core_eta_fraction": 0.4983083105812489
+    },
+    {
+      "flow_m3h": 48.0,
+      "status": "within_source_range",
+      "head_m": 747.15879632,
+      "eta_fraction": 0.5123527732,
+      "core_head_m": 747.1587963200002,
+      "core_eta_fraction": 0.5123527731999997
+    },
+    {
+      "flow_m3h": 60.0,
+      "status": "within_source_range",
+      "head_m": 676.585268,
+      "eta_fraction": 0.50941153,
+      "core_head_m": 676.5852680000006,
+      "core_eta_fraction": 0.5094115300000014
+    },
+    {
+      "flow_m3h": 60.01,
+      "status": "out_of_range",
+      "head_m": null,
+      "eta_fraction": null,
+      "core_head_m": null,
+      "core_eta_fraction": null
+    }
+  ],
+  "current_regime": {
+    "object_id": "kns97pren",
+    "aggregate_id": "НА-2 ПР",
+    "flow_m3h": 40.25,
+    "status": "within_source_range",
+    "measured_head_m": 778.7971457696228,
+    "current_h_due_m": null,
+    "candidate_h_due_m": 776.602194308125,
+    "measured_eta_fraction": 0.48448347848159956,
+    "candidate_eta_fraction": 0.4983083105812489
+  },
+  "limitations": [
+    "Source coefficients are not approved passport data for the installed pump.",
+    "The source range is not necessarily the recommended operating zone (48 vs 60 m³/h).",
+    "Speed and applicability to the installed impeller must be confirmed.",
+    "No extrapolation, passport edits or database writes are performed.",
+    "Q-eta is compared separately; the KNS loss decomposition is not changed."
+  ]
+}

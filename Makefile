@@ -1,69 +1,67 @@
-# Цифровая модель энергоаудита ППД — команды разработки/верификации.
-# Перед первым запуском: uv sync --extra app --extra api --extra dev
-
+# Команды из корня монорепозитория. Требуются uv и Node.js >=22.12.
 UV ?= uv
 
 .DEFAULT_GOAL := help
-
-.PHONY: help format lint fix test verify app api web web-build web-check ingest reports clean-reports
+.PHONY: help setup dev api web build check format lint test test-api test-e2e verify ingest reports clean-reports
 
 help: ## Показать доступные команды
 	@echo "PPD Energoaudit: make <цель>"
-	@echo "  format        форматировать код"
-	@echo "  lint          проверить Ruff"
-	@echo "  fix           исправить Ruff и форматирование"
-	@echo "  test          запустить pytest"
-	@echo "  verify        сверить модель с xlsx и отчётами"
-	@echo "  app           запустить Streamlit-дашборд"
-	@echo "  api           запустить FastAPI"
-	@echo "  web           запустить React frontend"
-	@echo "  web-build     собрать React frontend"
-	@echo "  web-check     проверить TypeScript и frontend tests"
-	@echo "  ingest        legacy ДНС-7с (требует отсутствующие исходные Excel)"
+	@echo "  setup         установить все Python/npm workspace-зависимости"
+	@echo "  dev           запустить API и React, остановить вместе при выходе"
+	@echo "  api / web     запустить только API / React"
+	@echo "  build         собрать React"
+	@echo "  check         Ruff, форматирование и TypeScript"
+	@echo "  test          Python и frontend unit-тесты"
+	@echo "  test-api      тесты API и расчётного ядра"
+	@echo "  test-e2e      Playwright с изолированной БД"
+	@echo "  verify        сверить модель с исходными xlsx и отчётами"
+	@echo "  ingest        legacy ДНС-7с (нужны внешние исходные Excel)"
 	@echo "  reports       пересобрать кэш .docx-отчётов"
-	@echo "  clean-reports удалить кэш конвертированных отчётов"
 
-format: ## Форматировать код
-	$(UV) run ruff format .
+setup:
+	$(UV) sync --frozen --all-packages
+	npm ci
 
-lint: ## Проверить Ruff без изменения файлов
-	$(UV) run ruff check .
-	$(UV) run ruff format --check .
-
-fix: ## Исправить Ruff и форматирование
-	$(UV) run ruff check . --fix
-	$(UV) run ruff format .
-
-# Пересобирает обе таблицы сверки: data/generated/verification_report.* и
-# data/generated/reconciliation_reports.{csv,md}. Конвертирует .doc при необходимости.
-verify:
-	$(UV) run python -m ppd_audit.verify
-
-test:
-	$(UV) run pytest -q
-
-app:
-	$(UV) run streamlit run app/main.py
-
-api:
-	$(UV) run --extra api uvicorn ppd_audit.api.main:app --reload --host 127.0.0.1 --port 8000
-
-web:
+dev:
 	npm run dev
 
-web-build:
+api:
+	npm run dev:api
+
+web:
+	npm run dev:web
+
+build:
 	npm run build
 
-web-check:
+format:
+	$(UV) run --frozen ruff format apps scripts conftest.py
+
+lint:
+	$(UV) run --frozen ruff check apps scripts conftest.py
+	$(UV) run --frozen ruff format --check apps scripts conftest.py
+
+check: lint
 	npm run typecheck
+
+test:
+	$(UV) run --frozen --all-packages pytest -q
 	npm run test:frontend
 
-ingest:
-	$(UV) run python -m ppd_audit.ingest dns7s
+test-api:
+	$(UV) run --frozen --package ppd-audit --group test pytest apps/api/tests -q
 
-# Принудительная пересборка кэша .docx-отчётов из манифеста (config/verification.yaml).
+test-e2e:
+	npm run test:e2e
+
+verify:
+	$(UV) run --frozen --package ppd-audit python -m ppd_audit.verify
+
+ingest:
+	$(UV) run --frozen --package ppd-audit python -m ppd_audit.ingest dns7s
+
 reports:
-	$(UV) run python -c "import yaml; from pathlib import Path; \
+	$(UV) run --frozen --package ppd-audit python -c "import yaml; from pathlib import Path; \
 from ppd_audit.config import project_root; \
 from ppd_audit.ingest.convert import ensure_report_docx; \
 r=project_root(); m=yaml.safe_load((r/'config/verification.yaml').read_text(encoding='utf-8')); \

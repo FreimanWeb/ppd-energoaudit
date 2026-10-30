@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ppd-audit"
+version = "0.1.0"
+description = "Цифровая модель энергоаудита системы ППД (ПАО «Татнефть», Этап 1)"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "openpyxl>=3.1",
+    "xlrd>=2.0", # для парсинга старых форматов Excel (.xls)
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[dependency-groups]
+test = ["pytest>=7.4", "httpx2>=2.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

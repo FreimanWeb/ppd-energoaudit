@@ -5,12 +5,16 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace frontend",
-    "dev:api": "uv run --frozen --extra api uvicorn ppd_audit.api.main:app --reload --host 127.0.0.1 --port 8000",
-    "build": "npm run build --workspace frontend",
-    "typecheck": "npm run typecheck --workspace frontend",
-    "test:frontend": "npm run test --workspace frontend",
-    "test:e2e": "npm run test:e2e --workspace frontend --"
+    "dev": "concurrently --kill-others --names api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "uv run --frozen --package ppd-audit uvicorn ppd_audit.api.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:web": "npm run dev --workspace @ppd/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:frontend": "npm run test --workspace @ppd/frontend",
+    "test:e2e": "npm run test:e2e --workspace @ppd/frontend --"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   },
   "engines": {
     "node": ">=22.12.0"
