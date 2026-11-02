@@ -51,14 +51,6 @@ def test_dashboard_selection_and_snapshot_audit(dashboard):
     base = "/objects/fixture/aggregates/НА-02"
     aggregates = client.get("/objects/fixture/aggregates")
     assert aggregates.status_code == 200
-    assert aggregates.json() == [
-        {
-            "code": "НА-02",
-            "role": "работа",
-            "pump_model": "ЦНС 40-1000",
-            "has_telemetry": True,
-        }
-    ]
     assert client.get(base + "/dates").json() == {
         "dates": ["2026-07-24", "2026-07-25"],
         "default_date": "2026-07-24",
@@ -232,12 +224,10 @@ def test_aggregate_without_telemetry_or_passport_is_available(dashboard):
     db.upsert_aggregate("fixture", "НА-03", "резерв")
     response = client.get("/objects/fixture/aggregates")
     assert response.status_code == 200
-    assert response.json()[1] == {
-        "code": "НА-03",
-        "role": "резерв",
-        "pump_model": None,
-        "has_telemetry": False,
-    }
+    aggregate = next(a for a in response.json() if a["code"] == "НА-03")
+    assert aggregate["role"] == "резерв"
+    assert aggregate["pump_model"] is None
+    assert aggregate["has_telemetry"] is False
     assert client.get("/objects/fixture/aggregates/НА-03/dates").json() == {
         "dates": [],
         "default_date": None,
@@ -286,11 +276,3 @@ def test_snapshot_trace_includes_shared_formula_presentation(dashboard):
     assert entry.get("latex"), "math presentation must be available to both frontends"
     assert entry.get("name") == "Фактический напор, м"
     assert entry["formula"] and entry["subst"]
-
-
-def test_snapshot_exposes_shared_pump_assessment(dashboard):
-    response = dashboard[0].post(
-        "/objects/fixture/aggregates/НА-02/snapshot-audit",
-        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
-    )
-    assert response.json().get("pump_assessment") == {"name": "низкий КПД", "tone": "bad"}

@@ -35,6 +35,8 @@ from .contracts import (
 )
 from .dashboard import router as dashboard_router
 from .data_routes import router as data_router
+from .loss_detail_routes import router as loss_detail_router
+from .manual_routes import router as manual_router
 from .monitoring_routes import router as monitoring_router
 from .station_routes import router as station_router
 
@@ -45,6 +47,8 @@ app.include_router(data_router)
 app.include_router(monitoring_router)
 app.include_router(analysis_router)
 app.include_router(station_router)
+app.include_router(loss_detail_router)
+app.include_router(manual_router)
 app.include_router(auth_router)
 app.add_middleware(AuthenticationMiddleware)
 

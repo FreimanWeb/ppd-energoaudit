@@ -1,15 +1,18 @@
+from datetime import datetime
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from ppd_audit.db import AuditDatabase
+from ppd_audit.services.manual_data import passport_fields_from_equipment
+from ppd_audit.spec import EquipmentData
 
 
 @pytest.fixture
 def analysis_client(tmp_path, monkeypatch):
     from ppd_audit.api import analysis_routes
 
-    assert hasattr(analysis_routes, "router"), "analysis API routes are missing"
     db = AuditDatabase(tmp_path / "audit.sqlite")
     db.migrate()
     db.upsert_plant("kns25", "КНС-25", "НГДУ", "пресная", "кнс")
@@ -17,6 +20,19 @@ def analysis_client(tmp_path, monkeypatch):
 
     agg = load_object_spec("kns25").aggregates[0]
     db.upsert_aggregate("kns25", agg.id, "работа")
+    db.add_passport(
+        "kns25",
+        agg.id,
+        valid_from=datetime(1900, 1, 1),
+        **passport_fields_from_equipment(
+            EquipmentData.model_construct(
+                pump=agg.pump,
+                motor=agg.motor,
+                transmission=agg.transmission,
+                vfd=agg.vfd,
+            )
+        ),
+    )
     monkeypatch.setattr(analysis_routes, "_database", lambda: db)
     app = FastAPI()
     app.include_router(analysis_routes.router)
@@ -83,15 +99,6 @@ def test_field_trip_unfit_preserves_inputs_but_no_economic_outputs(analysis_clie
     assert view["losses"] == []
     assert view["regime"]["rho"] == spec.regime.rho
     assert client.post(base + "/measures", json={"source": "field_trip"}).status_code == 400
-
-
-def test_onboarding_database_passport_without_telemetry(analysis_client):
-    client, agg = analysis_client
-    response = client.get(
-        f"/objects/kns25/aggregates/{agg}/onboarding", params={"at": "2026-07-24"}
-    )
-    # Missing passport gives an honest message, not manufactured telemetry.
-    assert response.status_code == 400
 
 
 def test_onboarding_db_only_object_without_date(tmp_path, monkeypatch):

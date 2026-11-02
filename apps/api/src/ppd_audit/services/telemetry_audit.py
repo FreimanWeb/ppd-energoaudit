@@ -7,17 +7,21 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from itertools import pairwise
 from statistics import mean, median
+from zoneinfo import ZoneInfo
 
 from ..core.audit import AuditResult, audit_aggregate
 from ..db import AuditDatabase
 from ..spec import (
     AggregateSpec,
     Branch,
-    MotorSpec,
+    EquipmentData,
     ObjectSpec,
-    PumpSpec,
     RegimeMeasurement,
-    TransmissionSpec,
+)
+from .manual_data import (
+    apply_equipment_override,
+    equipment_from_passport,
+    manual_measurement,
 )
 from .telemetry_quality import TelemetryQuality, assess_telemetry_quality
 
@@ -214,6 +218,7 @@ def run_snapshot_audit(
     timestamp: datetime,
     *,
     track_clarifications: bool = True,
+    equipment_override: EquipmentData | None = None,
 ) -> SnapshotAudit:
     """Рассчитать выбранный снимок, явно используя доступные суточные итоги."""
     snapshot = next(
@@ -265,16 +270,18 @@ def run_snapshot_audit(
         t=runtime,
         w=energy,
         q_fact=q_fact,
+        power_daily_reported=_single(aggregate_values, "power_daily_reported", required=False),
         p_electric=energy / runtime if uses_daily_power else snapshot.power_kw,
         nu=_median(aggregate_values, "viscosity", required=False) or plant["default_viscosity"],
         p_bg=snapshot.p_bg_mpa,
-        t_year=annual_runtime or 8760.0,
+        t_year=annual_runtime,
     )
     aggregate = database.aggregate(plant_code, aggregate_code)
-    passport = database.active_passport(plant_code, aggregate_code, start)
-    audit = audit_aggregate(
-        _aggregate_spec(aggregate, passport, regime=regime), Branch(plant["branch"])
-    )
+    passport = database.active_passport(plant_code, aggregate_code, timestamp)
+    agg_spec = _aggregate_spec(aggregate, passport, regime=regime)
+    if equipment_override is not None:
+        agg_spec = apply_equipment_override(agg_spec, equipment_override)
+    audit = audit_aggregate(agg_spec, Branch(plant["branch"]))
     integrated_energy, powered_hours = _power_reconciliation(start, end, state_rows)
     integrated_flow = _integrated_flow_rate(start, end, rows)
     quality = assess_telemetry_quality(
@@ -686,9 +693,18 @@ def telemetry_date_statuses(
 
 
 def object_from_database(
-    database: AuditDatabase, plant_code: str, at: datetime, *, aggregate_code: str | None = None
+    database: AuditDatabase,
+    plant_code: str,
+    at: datetime,
+    *,
+    aggregate_code: str | None = None,
+    equipment_override: EquipmentData | None = None,
 ) -> ObjectSpec:
-    """Собрать UI-спеку объекта исключительно из БД."""
+    """Собрать UI-спеку объекта исключительно из БД.
+
+    equipment_override — временный сценарий: заменяет оборудование целевого
+    агрегата только в возвращаемой спеке, в БД ничего не пишет.
+    """
     plant = database.plant(plant_code)
     density = database.plant_density_default(plant_code, at.date())
     if density:
@@ -698,55 +714,95 @@ def object_from_database(
         if aggregate_code is not None
         else database.aggregates(plant_code)
     )
+
+    def _spec(aggregate: dict) -> AggregateSpec:
+        spec = _aggregate_spec(
+            aggregate, database.active_passport(plant_code, aggregate["code"], at)
+        )
+        if equipment_override is not None and (
+            aggregate_code is None or aggregate["code"] == aggregate_code
+        ):
+            spec = apply_equipment_override(spec, equipment_override)
+        return spec
+
     return ObjectSpec(
         id=plant["code"],
         name=plant["name"],
         water_type=plant["water_type"],
         branch=plant["branch"],
         source="SQLite telemetry",
-        aggregates=[
-            _aggregate_spec(aggregate, database.active_passport(plant_code, aggregate["code"], at))
+        technical_places={
+            aggregate["technical_place_code"]: aggregate["technical_place_name"]
             for aggregate in aggregates
-        ],
+        },
+        aggregates=[_spec(aggregate) for aggregate in aggregates],
     )
 
 
 def _aggregate_spec(
     aggregate: dict, passport: dict, *, regime: RegimeMeasurement | None = None
 ) -> AggregateSpec:
+    equipment = equipment_from_passport(passport)
     return AggregateSpec(
         id=aggregate["code"],
+        technical_place_code=aggregate.get("technical_place_code", "main"),
         role=aggregate["role"],
-        pump=PumpSpec(
-            model=passport["pump_model"],
-            kind=passport["pump_kind"],
-            q_nom=passport["pump_q_nom"],
-            h_nom=passport["pump_h_nom"],
-            eta_nom=passport["pump_eta_nom"],
-            power_nom=passport["pump_power_nom"],
-            n_rpm=passport["pump_n_rpm"],
-            curve_qh=json.loads(passport["pump_curve_qh_json"]),
-            curve_qeta=json.loads(passport["pump_curve_qeta_json"]),
-        ),
-        motor=MotorSpec(
-            model=passport["motor_model"],
-            synchronous=bool(passport["motor_synchronous"]),
-            p_nom=passport["motor_p_nom"],
-            eta_nom=passport["motor_eta_nom"],
-            cos_phi=passport["motor_cos_phi"],
-            voltage_kv=passport["motor_voltage_kv"],
-            i_nom=passport["motor_i_nom"],
-            n_rpm=passport["motor_n_rpm"],
-        ),
-        transmission=TransmissionSpec(
-            model=passport["transmission_model"],
-            ratio=passport["transmission_ratio"],
-            efficiency=passport["transmission_eff"],
-        ),
-        vfd=bool(passport["vfd"]),
+        pump=equipment.pump,
+        motor=equipment.motor,
+        transmission=equipment.transmission,
+        vfd=equipment.vfd,
         runtime_total_h=aggregate.get("runtime_total_h"),
         regime=regime,
     )
+
+
+def run_manual_audit(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    measurement_id: int,
+    *,
+    equipment_override: EquipmentData | None = None,
+) -> tuple[AuditResult, dict]:
+    """Аудит по явно выбранному ручному замеру и паспорту на момент замера."""
+    row = manual_measurement(database, plant_code, aggregate_code, measurement_id)
+    measured_at = datetime.fromisoformat(row["measured_at"])
+    regime = RegimeMeasurement(**json.loads(row["regime_json"]))
+    plant = database.plant(plant_code)
+    aggregate = database.aggregate(plant_code, aggregate_code)
+    passport = database.active_passport(plant_code, aggregate_code, measured_at)
+    spec = _aggregate_spec(aggregate, passport, regime=regime)
+    if equipment_override is not None:
+        spec = apply_equipment_override(spec, equipment_override)
+    return audit_aggregate(spec, Branch(plant["branch"])), row
+
+
+def run_field_trip_audit(
+    database: AuditDatabase,
+    plant_code: str,
+    aggregate_code: str,
+    regime: RegimeMeasurement,
+    *,
+    equipment_override: EquipmentData | None = None,
+) -> AuditResult:
+    """Аудит выездного режима с паспортом БД на момент измерения.
+
+    YAML хранит только исходный замер; оборудование собирается из базовых
+    паспортов и журнала на measured_at. Без действующих сведений — KeyError,
+    без подстановки оборудования из YAML.
+    """
+    measured_at = (
+        datetime.combine(regime.measured_at, time.min)
+        if regime.measured_at is not None
+        else datetime.now(ZoneInfo("Europe/Moscow")).replace(tzinfo=None)
+    )
+    plant = database.plant(plant_code)
+    aggregate = database.aggregate(plant_code, aggregate_code)
+    passport = database.active_passport(plant_code, aggregate_code, measured_at)
+    spec = _aggregate_spec(aggregate, passport, regime=regime)
+    if equipment_override is not None:
+        spec = apply_equipment_override(spec, equipment_override)
+    return audit_aggregate(spec, Branch(plant["branch"]))
 
 
 def _median(

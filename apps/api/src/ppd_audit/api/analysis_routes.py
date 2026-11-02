@@ -17,13 +17,18 @@ from ..services.analysis import (
     working_point,
 )
 from ..services.armits_data import load_network, runtime_reading
-from ..services.audit import run_energy_audit
 from ..services.catalog import with_confirmed_density
 from ..services.diagnostics import diagnose_aggregate
 from ..services.forecast_data import injection_profile
+from ..services.manual_data import manual_measurement
 from ..services.network_losses import build_network_analysis
 from ..services.result_scope import result_scope
-from ..services.telemetry_audit import object_from_database, run_snapshot_audit
+from ..services.telemetry_audit import (
+    object_from_database,
+    run_field_trip_audit,
+    run_manual_audit,
+    run_snapshot_audit,
+)
 from ..services.telemetry_quality import QualityIssue, TelemetryQuality
 from ..spec import load_object_spec
 from .analysis_contracts import AnalysisContext, MeasuresRequest, NetworkLossRequest
@@ -39,55 +44,131 @@ def _database():
     return database()
 
 
+def _field_trip_quality(audit, scope, basis: str) -> TelemetryQuality:
+    issues = []
+    rm = audit.spec.regime
+    if audit.regime.eta_unit > 1:
+        issues.append(
+            QualityIssue(
+                "efficiency_above_one",
+                "КПД выше 1: гидравлическая мощность больше электрической.",
+                "error",
+            )
+        )
+    if audit.regime.eta_unit < 0:
+        issues.append(
+            QualityIssue(
+                "negative_pumping_head",
+                "Отрицательный прирост давления: насосный режим не подтверждён.",
+                "error",
+            )
+        )
+    if rm.measured_at is None:
+        issues.append(
+            QualityIssue(
+                "measurement_date_unknown",
+                "Дата выездного замера неизвестна; текущий паспорт применён условно.",
+                "warning",
+            )
+        )
+    if rm.p_bg is not None and rm.p_bg > rm.p_out:
+        issues.append(
+            QualityIssue(
+                "bg_pressure_above_discharge",
+                "Давление БГ выше давления на выкиде: проверьте единицы и датчики.",
+                "error",
+            )
+        )
+    if scope.annual_runtime_is_assumed:
+        issues.append(
+            QualityIssue(
+                "annual_runtime_assumed", "Годовая наработка принята равной 8760 ч.", "warning"
+            )
+        )
+    return TelemetryQuality(
+        "unfit"
+        if any(i.severity == "error" for i in issues)
+        else "assumptions"
+        if issues
+        else "ready",
+        tuple(issues),
+        {"pressure": basis, "flow": basis, "power": basis},
+    )
+
+
+def _manual_context(database, object_id, aggregate_id, request):
+    """Контекст выездного расчёта по явно выбранному ручному замеру из БД."""
+    try:
+        audit, row = run_manual_audit(
+            database,
+            object_id,
+            aggregate_id,
+            request.measurement_id,
+            equipment_override=request.equipment_override,
+        )
+        measured_at = datetime.fromisoformat(row["measured_at"])
+        obj = object_from_database(
+            database,
+            object_id,
+            measured_at,
+            aggregate_code=aggregate_id,
+            equipment_override=request.equipment_override,
+        )
+    except KeyError as exc:
+        raise HTTPException(404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    scope = result_scope(audit)
+    basis = "Ручной замер из БД"
+    quality = _field_trip_quality(audit, scope, basis)
+    origin = f"{row['source']}; {row['measured_at']}; внёс: {row['author']}"
+    sources = {"Ручной замер": origin}
+    for label, key in (
+        ("ρ", "rho"),
+        ("p_вх", "p_in"),
+        ("p_вых", "p_out"),
+        ("p_БГ", "p_bg"),
+        ("Q", "q_fact"),
+        ("P_эл", "p_electric"),
+        ("Q_сут", "q_day"),
+        ("W_сут", "w"),
+        ("T_сут", "t"),
+    ):
+        if getattr(audit.spec.regime, key) is not None:
+            sources[label] = origin
+    return obj, audit, scope, quality, sources
+
+
 def _context(database, object_id, aggregate_id, request):
     _require_ids(database, object_id, aggregate_id)
+    if request.measurement_id is not None and request.source != "field_trip":
+        raise HTTPException(400, detail="measurement_id допустим только для source=field_trip")
     if request.source == "field_trip":
+        if request.measurement_id is not None:
+            return _manual_context(database, object_id, aggregate_id, request)
         try:
             obj = with_confirmed_density(load_object_spec(object_id), database)
-            audit = run_energy_audit(obj, aggregate_id)
+            regime = obj.aggregate(aggregate_id).regime
+            if regime is None:
+                raise ValueError(f"у агрегата {aggregate_id} нет измеренного режима")
+            audit = run_field_trip_audit(
+                database,
+                object_id,
+                aggregate_id,
+                regime,
+                equipment_override=request.equipment_override,
+            )
         except (KeyError, ValueError, FileNotFoundError) as exc:
             raise HTTPException(400, detail=str(exc)) from exc
         rm = audit.spec.regime
-        issues = []
-        if audit.regime.eta_unit > 1:
-            issues.append(
-                QualityIssue(
-                    "efficiency_above_one",
-                    "КПД выше 1: гидравлическая мощность больше электрической.",
-                    "error",
-                )
-            )
-        if rm.p_bg is not None and rm.p_bg > rm.p_out:
-            issues.append(
-                QualityIssue(
-                    "bg_pressure_above_discharge",
-                    "Давление БГ выше давления на выкиде: проверьте единицы и датчики.",
-                    "error",
-                )
-            )
-        scope = result_scope(rm, rm.t_year)
-        if scope.annual_runtime_is_assumed:
-            issues.append(
-                QualityIssue(
-                    "annual_runtime_assumed", "Годовая наработка принята равной 8760 ч.", "warning"
-                )
-            )
-        quality = TelemetryQuality(
-            "unfit"
-            if any(i.severity == "error" for i in issues)
-            else "assumptions"
-            if issues
-            else "ready",
-            tuple(issues),
-            {
-                "pressure": "Выездной замер из YAML",
-                "flow": "Выездной замер из YAML",
-                "power": "Выездной замер из YAML",
-            },
-        )
-        sources = {"YAML": obj.source or f"config/plants/{object_id}.yaml"}
+        scope = result_scope(audit)
+        quality = _field_trip_quality(audit, scope, "Выездной замер из YAML")
+        sources = {
+            "YAML": obj.source or f"config/plants/{object_id}.yaml",
+            "Оборудование": "SQLite: базовый паспорт и журнал характеристик на дату замера",
+        }
         density = database.plant_density_default(
-            object_id, datetime.now(ZoneInfo("Europe/Moscow")).date()
+            object_id, rm.measured_at or datetime.now(ZoneInfo("Europe/Moscow")).date()
         )
         if density:
             sources["ρ"] = density["source"]
@@ -102,14 +183,26 @@ def _context(database, object_id, aggregate_id, request):
         if not start <= stamp < end:
             raise ValueError("снимок должен принадлежать выбранным суткам")
         result = run_snapshot_audit(
-            database, object_id, aggregate_id, start, end, stamp, track_clarifications=False
+            database,
+            object_id,
+            aggregate_id,
+            start,
+            end,
+            stamp,
+            track_clarifications=False,
+            equipment_override=request.equipment_override,
         )
-        obj = object_from_database(database, object_id, start, aggregate_code=aggregate_id)
-        rm = result.audit.spec.regime
+        obj = object_from_database(
+            database,
+            object_id,
+            stamp,
+            aggregate_code=aggregate_id,
+            equipment_override=request.equipment_override,
+        )
         return (
             obj,
             result.audit,
-            result_scope(rm, None if result.annual_runtime_is_assumed else rm.t_year),
+            result_scope(result.audit),
             result.quality,
             result.sources,
         )
@@ -118,12 +211,24 @@ def _context(database, object_id, aggregate_id, request):
 
 
 @router.post("/objects/{object_id}/aggregates/{aggregate_id}/field-trip-audit")
-def field_trip_audit(object_id: str, aggregate_id: str):
+def field_trip_audit(object_id: str, aggregate_id: str, request: AnalysisContext | None = None):
     from .main import _to_response
 
     database = _database()
-    obj, audit, scope, quality, sources = _context(
-        database, object_id, aggregate_id, AnalysisContext(source="field_trip")
+    context = (request or AnalysisContext()).model_copy(update={"source": "field_trip"})
+    obj, audit, scope, quality, sources = _context(database, object_id, aggregate_id, context)
+    if context.measurement_id is not None:
+        measured_at = manual_measurement(database, object_id, aggregate_id, context.measurement_id)[
+            "measured_at"
+        ]
+    else:
+        date_value = audit.spec.regime.measured_at
+        measured_at = f"{date_value.isoformat()}T00:00:00" if date_value is not None else None
+    context = context.model_copy(
+        update={
+            "timestamp": measured_at,
+            "day": measured_at[:10] if measured_at else None,
+        }
     )
     tariff_selection = _tariff(database)
     tariff = tariff_selection["rub_per_kwh"]
@@ -148,6 +253,7 @@ def field_trip_audit(object_id: str, aggregate_id: str):
         "tariff": tariff,
         "tariff_warning": tariff_selection["warning"],
         "target_sec": load_constraints().kpi.get("target_sec_2035"),
+        "analysis_context": context.model_dump(mode="json"),
     }
 
 
@@ -221,7 +327,7 @@ def onboarding_view(
         else:
             basis = {"source": "field_trip", "day": None, "timestamp": None}
             try:
-                obj = with_confirmed_density(load_object_spec(object_id), database)
+                yaml_spec = with_confirmed_density(load_object_spec(object_id), database)
             except FileNotFoundError:
                 dates = database.telemetry_dates(object_id, aggregate_id)
                 stamp = (
@@ -229,6 +335,22 @@ def onboarding_view(
                 )
                 obj = object_from_database(database, object_id, stamp, aggregate_code=aggregate_id)
                 basis = {"source": "passport", "day": stamp.date().isoformat(), "timestamp": None}
+            else:
+                regime = yaml_spec.aggregate(aggregate_id).regime
+                stamp = (
+                    datetime.combine(regime.measured_at, datetime.min.time())
+                    if regime is not None and regime.measured_at is not None
+                    else datetime.now()
+                )
+                obj = object_from_database(database, object_id, stamp, aggregate_code=aggregate_id)
+                if regime is not None:
+                    obj = obj.model_copy(
+                        update={
+                            "aggregates": [
+                                a.model_copy(update={"regime": regime}) for a in obj.aggregates
+                            ]
+                        }
+                    )
         return {**onboarding(obj.aggregate(aggregate_id)), "basis": basis}
     except (KeyError, ValueError, FileNotFoundError) as exc:
         raise HTTPException(400, detail=str(exc)) from exc

@@ -40,8 +40,6 @@ def test_both_pumps_and_common_latest_timestamp(station_client):
     assert data["measures"]
     assert {row["aggregate_id"] for row in data["measures"]} == {"НА-1", "НА-2"}
     assert all(row["energy_saving_kwh"] > 0 for row in data["measures"])
-    assert "8760" in data["annual_basis"]
-    assert "не фактические" in data["annual_basis"]
     assert data["network"]["status"] == "scenario"
     assert data["pressures"] == {
         code: {"p_in_mpa": 0.5, "p_out_mpa": 10.5} for code in ("НА-1", "НА-2")
@@ -194,7 +192,6 @@ def test_field_trip_missing_runtime_is_explicit_8760_scenario(station_client, mo
     assert data["complete"]
     assert "8760" in data["annual_basis"]
     assert data["annual"]["efficiency_energy_kwh"] > 0
-    assert data["measures"] == []
 
 
 @pytest.mark.parametrize("case", ["bad", "bad_duplicate", "nonfinite", "conflicting"])

@@ -198,6 +198,8 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
 
     database = _database()
     _require_ids(database, object_id, aggregate_id)
+    if request.measurement_id is not None:
+        raise HTTPException(400, detail="measurement_id допустим только для source=field_trip")
     start, end = _day_window(request.day)
     try:
         timestamp = datetime.fromisoformat(request.timestamp)
@@ -213,14 +215,20 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
             end,
             timestamp,
             track_clarifications=False,
+            equipment_override=request.equipment_override,
         )
-        obj = object_from_database(database, object_id, start, aggregate_code=aggregate_id)
+        obj = object_from_database(
+            database,
+            object_id,
+            timestamp,
+            aggregate_code=aggregate_id,
+            equipment_override=request.equipment_override,
+        )
     except (ValueError, KeyError) as exc:
         raise HTTPException(400, detail=str(exc)) from exc
     regime = result.audit.spec.regime
     scope = result_scope(
-        regime,
-        None if result.annual_runtime_is_assumed else regime.t_year,
+        result.audit,
         daily_pressure_coverage_is_complete=False,
     )
     constraints = load_constraints()
@@ -250,4 +258,13 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
         "tariff": tariff,
         "tariff_warning": tariff_selection["warning"],
         "target_sec": constraints.kpi.get("target_sec_2035"),
+        "analysis_context": {
+            "source": "telemetry",
+            "day": request.day,
+            "timestamp": request.timestamp,
+            "measurement_id": None,
+            "equipment_override": request.equipment_override.model_dump(mode="json")
+            if request.equipment_override is not None
+            else None,
+        },
     }

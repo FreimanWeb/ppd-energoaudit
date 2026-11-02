@@ -159,6 +159,11 @@ def seed_passports(
                 pump_n_rpm=pump.get("n_rpm"),
                 pump_curve_qh_json=json.dumps(pump.get("curve_qh", [])),
                 pump_curve_qeta_json=json.dumps(pump.get("curve_qeta", [])),
+                pump_curve_source_json=(
+                    json.dumps(pump["curve_source"], ensure_ascii=False)
+                    if pump.get("curve_source") is not None
+                    else None
+                ),
                 motor_synchronous=motor.get("synchronous", False),
                 motor_cos_phi=motor.get("cos_phi"),
                 motor_voltage_kv=motor.get("voltage_kv"),

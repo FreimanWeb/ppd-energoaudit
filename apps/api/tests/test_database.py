@@ -298,11 +298,10 @@ def test_v10_migration_adds_runtime_total_and_keeps_aggregates(tmp_path):
     db.migrate()
     db.migrate()
 
-    assert db.aggregate("kns54", "НА-1") == {
-        "code": "НА-1",
-        "role": "работа",
-        "runtime_total_h": None,
-    }
+    aggregate = db.aggregate("kns54", "НА-1")
+    assert aggregate["code"] == "НА-1"
+    assert aggregate["role"] == "работа"
+    assert aggregate["runtime_total_h"] is None
     db.set_runtime_total("kns54", "НА-1", 13500.0)
     assert db.aggregates("kns54")[0]["runtime_total_h"] == 13500.0
     with db._connection() as connection:

@@ -207,26 +207,11 @@ def _add_reference_points(database, aggregate_id, points, snapshots):
     """Ориентиры по парным давлениям и паспорту, действовавшему в момент измерения."""
     if not snapshots:
         return points
-    with closing(sqlite3.connect(database.path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
-        conn.row_factory = sqlite3.Row
-        passports = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT * FROM aggregate_passports WHERE aggregate_id = ? ORDER BY valid_from DESC",
-                (aggregate_id,),
-            )
-        ]
+    passports = database.passports_at(aggregate_id, [snapshot.timestamp for snapshot in snapshots])
     mapped = {point["timestamp"]: point for point in points}
     for snapshot in snapshots:
         stamp = snapshot.timestamp.isoformat()
-        passport = next(
-            (
-                p
-                for p in passports
-                if p["valid_from"] <= stamp and (p["valid_to"] is None or stamp <= p["valid_to"])
-            ),
-            None,
-        )
+        passport = passports.get(stamp)
         if passport is None:
             continue
         factors = [

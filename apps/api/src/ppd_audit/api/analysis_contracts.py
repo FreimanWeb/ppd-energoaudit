@@ -4,11 +4,23 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from ..spec import EquipmentData
+
 
 class AnalysisContext(BaseModel):
+    """Выбор режима для всех расчётных представлений одним контрактом.
+
+    measurement_id — ручной замер из /manual-measurements, допустим только с
+    source="field_trip". equipment_override — временный сценарий оборудования:
+    применяется к расчёту на запрос, нигде не сохраняется и не подтверждает
+    кривые (curve_source.verified принудительно снимается).
+    """
+
     source: Literal["telemetry", "field_trip"] = "telemetry"
     day: str | None = None
     timestamp: str | None = None
+    measurement_id: int | None = None
+    equipment_override: EquipmentData | None = None
 
 
 class MeasuresRequest(AnalysisContext):
