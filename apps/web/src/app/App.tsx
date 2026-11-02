@@ -28,11 +28,13 @@ import { MeasuresPage } from "../pages/Measures";
 import { NetworkPage } from "../pages/Network";
 import { FormulasPage } from "../pages/Formulas";
 import { OnboardingPage } from "../pages/Onboarding";
+import { EquipmentJournalPage } from "../pages/EquipmentJournal";
 import type { PageProps } from "../shared/ui/context";
 import type {
   Aggregate,
   Audit,
   Dates,
+  EquipmentData,
   Plant,
   Snapshot,
   Topology,
@@ -53,6 +55,7 @@ export function App({ logout }: { logout?: () => void }) {
     day: dayChoice,
     timestamp: timestampChoice,
     mode,
+    measurement: measurementChoice,
   } = selection;
   const [sidebarOpen, setSidebarOpen] = useState(false),
     [rawPage, setPage] = useState(() => initialPage(location.href));
@@ -74,13 +77,13 @@ export function App({ logout }: { logout?: () => void }) {
     source = mode === "field_trip" ? "field_trip" : "telemetry";
   const monitoringPage = page === "portfolio" || page === "timeline" || page === "overview";
   const objectOnlyPage = ["well-history","crm-wells","network"].includes(page);
-  const auditPage = ["snapshot","losses","network-scenario","machine-block","machine-losses","pipelines","wells","sources","formulas","working-point","measures","onboarding"].includes(page);
+  const auditPage = ["snapshot","losses","network-scenario","machine-block","machine-losses","pipelines","wells","sources","formulas","working-point","measures","onboarding","equipment-journal"].includes(page);
   const snapshotPage = auditPage || page === "telemetry" || page === "timeline";
-  const objects = useResource<Plant[]>("/catalog/objects");
+  const objects = useResource<Plant[]>("/catalog/objects", undefined, true);
   const visibleObjects = operatorObjects(objects.data ?? []);
   const object =
     visibleObjects.find((o) => o.code === objectChoice) ??
-    visibleObjects.find((o) => o.code === "kns54an") ??
+    visibleObjects.find((o) => !o.is_example) ??
     visibleObjects[0];
   useEffect(() => {
     if (objects.data && object && ((objectChoice && !visibleObjects.some(item => item.code === objectChoice)) || (page === "timeline" && objectChoice !== object.code))) {
@@ -90,17 +93,28 @@ export function App({ logout }: { logout?: () => void }) {
   const objectPath = object ? `/objects/${segment(object.code)}` : null;
   const aggregates = useResource<Aggregate[]>(
     objectPath && page !== "portfolio" && !objectOnlyPage ? `${objectPath}/aggregates` : null,
+    undefined, true,
   );
   const aggregate = objectOnlyPage || page === "overview" || page === "timeline" && !aggregateChoice ? undefined :
     aggregates.data?.find((a) => a.code === aggregateChoice) ??
     aggregates.data?.find((a) => a.has_telemetry) ??
     aggregates.data?.[0];
+  // Временный сценарий оборудования: только в памяти, привязан к объекту+агрегату,
+  // не записывается в базу и сбрасывается явно или при смене объекта.
+  const [overrideState, setOverrideState] = useState<{ key: string; data: EquipmentData } | null>(null);
+  const equipmentOverride = overrideState?.key === `${object?.code}/${aggregate?.code}` ? overrideState.data : null;
+  useEffect(() => {
+    const scope = `${object?.code}/${aggregate?.code}`;
+    setOverrideState(previous => previous && previous.key !== scope ? null : previous);
+  }, [object?.code, aggregate?.code]);
+  const measurementId = source === "field_trip" && aggregate && measurementChoice ? Number(measurementChoice) || null : null;
   const aggregatePath =
     objectPath && aggregate
       ? `${objectPath}/aggregates/${segment(aggregate.code)}`
       : null;
   const dates = useResource<Dates>(
     aggregatePath && (!monitoringPage || page === "timeline") && mode !== "field_trip" ? `${aggregatePath}/dates` : null,
+    undefined, true,
   );
   const stationTimes = useResource<{latest_at: string | null; points: {timestamp: string; quality: string}[]}>(
     objectPath && page === "timeline" && !aggregateChoice
@@ -111,6 +125,7 @@ export function App({ logout }: { logout?: () => void }) {
     aggregatePath && day && snapshotPage && (!monitoringPage || page === "timeline") && mode === "analysis"
       ? `${aggregatePath}/snapshots?day=${day}`
       : null,
+    undefined, true,
   );
   const snapshot = timestampChoice
     ? snapshots.data?.find((s) => s.timestamp === timestampChoice)
@@ -129,9 +144,13 @@ export function App({ logout }: { logout?: () => void }) {
         ? `${aggregatePath}/snapshot-audit`
         : null,
     source === "field_trip"
-      ? "{}"
+      ? JSON.stringify({
+          source: "field_trip",
+          ...(measurementId ? { measurement_id: measurementId } : {}),
+          ...(equipmentOverride ? { equipment_override: equipmentOverride } : {}),
+        })
       : snapshot
-        ? JSON.stringify({ day, timestamp: snapshot.timestamp })
+        ? JSON.stringify({ day, timestamp: snapshot.timestamp, ...(equipmentOverride ? { equipment_override: equipmentOverride } : {}) })
         : undefined,
   );
   const audit = result.data;
@@ -148,6 +167,9 @@ export function App({ logout }: { logout?: () => void }) {
     day,
     timestamp: snapshot?.timestamp ?? "",
     source,
+    measurementId,
+    equipmentOverride,
+    selectionPending: aggregates.loading || dates.loading || snapshots.loading || result.loading,
     audit,
     inspectionKey: new URL(location.href).searchParams.get("inspect") ?? "",
   };
@@ -175,7 +197,7 @@ export function App({ logout }: { logout?: () => void }) {
         return;
       }
       setTelemetryMessage("");
-      const next = {object: object!.code, aggregate: selectedAggregate, mode, day: selectedDay, timestamp: value};
+      const next = {object: object!.code, aggregate: selectedAggregate, mode, day: selectedDay, timestamp: value, measurement: ""};
       const url = new URL(analysisContextURL(location.href, next));
       url.hash = targetPage;
       history.pushState(null, "", url);
@@ -193,8 +215,11 @@ export function App({ logout }: { logout?: () => void }) {
       day,
       timestamp,
       mode,
+      measurement: measurementChoice,
       ...patch,
     };
+    if ((patch.aggregate !== undefined && patch.aggregate !== aggregate?.code)
+      || (patch.object !== undefined && patch.object !== object?.code)) next.measurement = "";
     const url = new URL(analysisContextURL(location.href, next));
     if (patch.object && patch.object !== object?.code) {
       for (const key of ["well","measure","stage","inspect","network_scenario","start","end","base_start","base_end"]) url.searchParams.delete(key);
@@ -208,7 +233,7 @@ export function App({ logout }: { logout?: () => void }) {
 
   }
   function openObject(code: string) {
-    const next = {object: code, aggregate: "", day: "", timestamp: "", mode: "analysis"};
+    const next = {object: code, aggregate: "", day: "", timestamp: "", mode: "analysis", measurement: ""};
     const url = new URL(analysisContextURL(location.href, next));
     for (const key of ["start", "end", "base_start", "base_end", "inspect", "well", "measure", "stage", "network_scenario"]) url.searchParams.delete(key);
     url.hash = "timeline";
@@ -224,8 +249,20 @@ export function App({ logout }: { logout?: () => void }) {
     changeSelection({day: value, timestamp: ""});
   }
   function chooseMode(value: string) {
-    changeSelection({mode: value, day: "", timestamp: ""});
+    changeSelection({mode: value, day: "", timestamp: "", measurement: ""});
     location.hash = pageForMode(value, rawPage);
+  }
+  function selectMeasurement(id: number | null, navigate = false) {
+    const next = {object: object?.code ?? objectChoice, aggregate: aggregate?.code ?? aggregateChoice, day: "", timestamp: "", mode: "field_trip", measurement: id ? String(id) : ""};
+    const url = new URL(analysisContextURL(location.href, next));
+    url.hash = navigate ? "machine-losses" : pageForMode("field_trip", page);
+    history.pushState(null, "", url);
+    setSelection(next);
+    setPage(pageForMode("field_trip", navigate ? "machine-losses" : page));
+  }
+  function applyEquipmentOverride(data: EquipmentData | null) {
+    if (data && object && aggregate) setOverrideState({key: `${object.code}/${aggregate.code}`, data});
+    else setOverrideState(null);
   }
   useEffect(() => {
     if (monitoringPage || objectOnlyPage || page === "forecast") return;
@@ -242,6 +279,7 @@ export function App({ logout }: { logout?: () => void }) {
       day: mode === "field_trip" ? "" : day,
       timestamp: mode === "analysis" ? timestamp : "",
       mode,
+      measurement: measurementChoice,
     };
     const href = analysisContextURL(location.href, next);
     if (href !== location.href) {
@@ -408,7 +446,13 @@ export function App({ logout }: { logout?: () => void }) {
         {page !== "portfolio" && section && section.pages.length > 1 && <nav className="page-tabs" aria-label={`Вкладки: ${section.label}`}>
           {section.pages.filter(item=>!item.hidden).map(item => <a key={item.id} href={navigationHref(item.id)} aria-current={page === item.id ? "page" : undefined}>{item.label}</a>)}
         </nav>}
-        {page !== "portfolio" && <AnalysisScope page={page} aggregate={page === "timeline" ? aggregateChoice : aggregate?.code ?? ""} source={source} timestamp={timestamp} well={selectedWell} />}
+        {page !== "portfolio" && <AnalysisScope page={page} aggregate={page === "timeline" ? aggregateChoice : aggregate?.code ?? ""} source={source} timestamp={timestamp} well={selectedWell} measurementId={measurementId} scenario={Boolean(equipmentOverride)} />}
+        {equipmentOverride && <div className="notice scenario-banner" role="status">
+          <strong>Временный сценарий оборудования активен.</strong>
+          <span>Расчёты {aggregate?.code} используют несохранённые значения; опубликованный паспорт не изменён.</span>
+          <a className="ds-button ds-button-secondary" href="#equipment-journal">Открыть журнал оборудования</a>
+          <button type="button" className="ds-button ds-button-secondary" onClick={() => setOverrideState(null)}>Сбросить сценарий</button>
+        </div>}
         {page === "portfolio" && (objects.data ? <PortfolioView onOpenObject={openObject} /> : <Notice {...objects} />)}
         {page === "timeline" && object && <TimelineView key={object.code} objectId={object.code} aggregateId={aggregateChoice} timestamp={timestampChoice || (dayChoice ? timestamp : "")}
           onSelectTimestamp={value => changeSelection({day:value.slice(0,10),timestamp:value})} />}
@@ -457,9 +501,9 @@ export function App({ logout }: { logout?: () => void }) {
         )}
         {page === "overview" && object && <StationOverview key={`${object.code}:${source}`} objectId={object.code} source={source} topology={topology.data} />}
         {page === "snapshot" && audit && <SnapshotView audit={audit} />}
-        {audit && ["machine-block","machine-losses","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${page}`} view={page === "machine-losses" ? "map" : "indicators"} stage={page === "machine-block" || page === "machine-losses" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} inspectionKey={context.inspectionKey} />}
+        {audit && ["machine-block","machine-losses","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${audit.analysis_context?.measurement_id ?? ""}:${page}`} view={page === "machine-losses" ? "map" : "indicators"} stage={page === "machine-block" || page === "machine-losses" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} inspectionKey={context.inspectionKey} />}
         {page === "well-history" && object && <WellHistory objectId={object.code} />}
-        {(page === "losses" || page === "network-scenario") && audit && <NetworkLosses key={`${contextKey}:${timestamp}:${page}`} audit={audit} view={page === "losses" ? "map" : "scenario"} />}
+        {(page === "losses" || page === "network-scenario") && audit && <NetworkLosses key={`${contextKey}:${timestamp}:${audit.analysis_context?.measurement_id ?? ""}:${page}`} audit={audit} view={page === "losses" ? "map" : "scenario"} />}
         {(page === "losses" || page === "network-scenario") && !audit && <p className="notice">Для расчёта выберите агрегат и доступный режим.</p>}
         {page === "sources" && audit && <SourcesView audit={audit} inspectionKey={context.inspectionKey} />}
         {page === "formulas" && audit && <FormulasPage {...context} />}
@@ -483,6 +527,11 @@ export function App({ logout }: { logout?: () => void }) {
         {page === "network" && <NetworkPage key={contextKey} {...context} />}
         {page === "onboarding" && (
           <OnboardingPage key={contextKey} {...context} />
+        )}
+        {page === "equipment-journal" && (
+          <EquipmentJournalPage key={`${contextKey}/${measurementId ?? "original"}/${source === "telemetry" ? timestamp : ""}`} {...context}
+            onSelectMeasurement={selectMeasurement}
+            onEquipmentOverride={applyEquipmentOverride} />
         )}
         {needAudit &&
           !audit &&

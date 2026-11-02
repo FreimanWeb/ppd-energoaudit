@@ -16,6 +16,9 @@ type Working = {
   origin: { qh: string; qeta: string; system: string };
   notes: string[];
   pump_kind: string;
+  curve_source: { kind: string; reference: string; model: string | null; speed_rpm: number | null; verified: boolean; note: string } | null;
+  characteristic: { verified: boolean; qh_status: string; qeta_status: string } | null;
+  ranges: { qh: [number, number] | null; qeta: [number, number] | null };
 };
 export function WorkingPointPage(p: PageProps) {
   const valid = Boolean(
@@ -30,8 +33,15 @@ export function WorkingPointPage(p: PageProps) {
     contextBody(p),
   );
   const data = resource.data;
-  const origin = (value: string) =>
-    value === "passport" ? "паспортная" : "оценочная модель";
+  const origins: Record<string, string> = {
+    manufacturer: "данные изготовителя",
+    engineering: "инженерный источник",
+    experimental: "экспериментальные данные",
+    unverified: "источник не подтверждён",
+    model: "оценочная модель",
+    unavailable: "нет данных",
+  };
+  const origin = (value: string) => origins[value] ?? "источник не подтверждён";
   const point = (
     name: string,
     q: number | null,
@@ -63,27 +73,24 @@ export function WorkingPointPage(p: PageProps) {
       )}
       {data && (
         <>
-          {(data.origin.qh !== "passport" ||
-            data.origin.qeta !== "passport" ||
-            data.origin.system !== "passport") && (
-            <p className="notice">
-              {data.pump_kind === "объёмный"
-                ? "Для объёмного насоса показаны фактические точки; оценочные центробежные кривые не применяются."
-                : "Пунктиром показаны оценочные характеристики. Для проверки рабочей точки нужны паспортные кривые оборудования."}
-              {data.notes.length > 0 && (
-                <Tooltip label="Основание характеристик" content={data.notes.join(" ")} />
-              )}
+          {data.pump_kind === "объёмный" && <p className="notice">Для объёмного насоса центробежные характеристики неприменимы.</p>}
+          {data.curve_source && (
+            <p className="muted">
+              Источник: {data.curve_source.reference || "не указан"} · {origin(data.curve_source.kind)}.
+              {" "}Привязка: {data.curve_source.model ?? "не подтверждена"}.
+              {" "}Частота характеристики: {data.curve_source.speed_rpm == null ? "не подтверждена" : `${fmt(data.curve_source.speed_rpm)} об/мин`}.
             </p>
           )}
-          {data.origin.qh === "passport" &&
-            data.origin.qeta === "passport" &&
-            data.origin.system === "passport" &&
-            data.notes.length > 0 && (
-              <p className="muted">
-                Источники характеристик
-                <Tooltip label="Основание характеристик" content={data.notes.join(" ")} />
-              </p>
-            )}
+          {(data.ranges.qh || data.ranges.qeta) && (
+            <p className="muted">
+              Исходные диапазоны: Q–H {data.ranges.qh ? `${fmt(data.ranges.qh[0])}–${fmt(data.ranges.qh[1])}` : "не задан"} м³/ч;
+              {" "}Q–η {data.ranges.qeta ? `${fmt(data.ranges.qeta[0])}–${fmt(data.ranges.qeta[1])}` : "не задан"} м³/ч.
+              {" "}Опорные H и η вычисляются квадратичным МНК, без экстраполяции.
+            </p>
+          )}
+          {data.notes.length > 0 && (
+            <div className="notice" role="status"><ul>{data.notes.map((note, index) => <li key={index}>{note}</li>)}</ul></div>
+          )}
           {data.point.eta_pump == null && (
             <p className="notice">Расчётный КПД насоса недоступен: точка на Q–η не показана.</p>
           )}
@@ -95,13 +102,13 @@ export function WorkingPointPage(p: PageProps) {
                   ? [
                       {
                         type: "scatter",
-                        mode: "lines",
+                        mode: "lines+markers",
                         name: `Насос (${origin(data.origin.qh)})`,
                         x: data.qh.map((x) => x.q),
                         y: data.qh.map((x) => x.h),
                         line: {
                           color: "var(--chart-primary)",
-                          dash: data.origin.qh === "passport" ? "solid" : "dot",
+                          dash: data.characteristic?.verified ? "solid" : "dot",
                         },
                       } as Trace,
                     ]
@@ -130,7 +137,7 @@ export function WorkingPointPage(p: PageProps) {
                   data.nominal.h,
                   "var(--chart-status-success)",
                 ),
-                point("Должный напор", data.point.q, data.due.h, "var(--chart-status-danger)"),
+                point("Опорный напор", data.point.q, data.due.h, "var(--chart-status-danger)"),
               ]}
               layout={{
                 xaxis: { title: { text: "Q, м³/ч" } },
@@ -144,14 +151,14 @@ export function WorkingPointPage(p: PageProps) {
                   ? [
                       {
                         type: "scatter",
-                        mode: "lines",
+                        mode: "lines+markers",
                         name: `КПД насоса (${origin(data.origin.qeta)})`,
                         x: data.qeta.map((x) => x.q),
                         y: data.qeta.map((x) => x.eta * 100),
                         line: {
                           color: "var(--chart-primary)",
                           dash:
-                            data.origin.qeta === "passport" ? "solid" : "dot",
+                            data.characteristic?.verified ? "solid" : "dot",
                         },
                       } as Trace,
                     ]
@@ -169,7 +176,7 @@ export function WorkingPointPage(p: PageProps) {
                   "var(--chart-status-success)",
                 ),
                 point(
-                  "Должный КПД",
+                  "Опорный КПД",
                   data.point.q,
                   data.due.eta == null ? null : data.due.eta * 100,
                   "var(--chart-status-danger)",

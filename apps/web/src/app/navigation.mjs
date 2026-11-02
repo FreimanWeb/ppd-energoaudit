@@ -32,6 +32,7 @@ export const navigationSections = [
     {id:"telemetry",label:"Телеметрия",icon:"telemetry-data"},
     {id:"snapshot",label:"Режимный расчёт",icon:"snapshot"},
     {id:"formulas",label:"Формулы",icon:"formulas"},
+    {id:"equipment-journal",label:"Журнал оборудования",icon:"sources"},
     {id:"onboarding",label:"Готовность данных",icon:"onboarding"},
   ]},
 ];
@@ -46,10 +47,13 @@ const fieldPages = new Set([
   "losses",
   "network-scenario",
   "network",
+  "equipment-journal",
+  "onboarding",
   "working-point",
   "measures",
   "formulas",
   "sources",
+  "snapshot",
 ]);
 /** @param {string} mode @param {string} page */
 export function pageForMode(mode, page) {
@@ -100,6 +104,7 @@ export function readAnalysisContext(href) {
     aggregate: params.get("aggregate") ?? "",
     day: params.get("day") ?? "",
     timestamp: params.get("timestamp") ?? "",
+    measurement: params.get("measurement") ?? "",
     mode: ["analysis", "field_trip", "telemetry_view"].includes(mode) ? mode : "analysis",
   };
 }
@@ -107,6 +112,8 @@ export function readAnalysisContext(href) {
 export function analysisContextURL(href, context) {
   const url = new URL(href);
   for (const [key, value] of Object.entries(context)) {
+    const manual = key !== "measurement" || context.mode === "field_trip";
+    if (!manual) { url.searchParams.delete(key); continue; }
     const relevant = key !== "day" || context.mode !== "field_trip";
     const measured = key !== "timestamp" || context.mode === "analysis";
     if (value && relevant && measured) url.searchParams.set(key, value);

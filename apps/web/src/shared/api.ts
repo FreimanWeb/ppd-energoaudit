@@ -1,11 +1,26 @@
 import { useEffect, useState } from "react";
 
-type Resource<T> = { key: string; data?: T; error?: string };
+type Resource<T> = { key: string; resourceKey: string; data?: T; error?: string };
 export const segment = encodeURIComponent;
 
-export function useResource<T>(url: string | null, body?: string) {
+const INVALIDATE_EVENT = "ppd:invalidate";
+
+/** Сбросить выборку всех useResource после изменения данных на сервере
+ *  (сохранение паспорта, ручной замер): каждый вид перезапросит свои данные. */
+export function invalidateResources() {
+  window.dispatchEvent(new Event(INVALIDATE_EVENT));
+}
+
+export function useResource<T>(url: string | null, body?: string, retainOnRefresh = false) {
   const key = url ? `${url}:${body ?? ""}` : "";
-  const [result, setResult] = useState<Resource<T>>({ key: "" });
+  const [nonce, setNonce] = useState(0);
+  useEffect(() => {
+    const bump = () => setNonce((value) => value + 1);
+    window.addEventListener(INVALIDATE_EVENT, bump);
+    return () => window.removeEventListener(INVALIDATE_EVENT, bump);
+  }, []);
+  const requestKey = `${key}#${nonce}`;
+  const [result, setResult] = useState<Resource<T>>({ key: "", resourceKey: "" });
   useEffect(() => {
     if (!url) return;
     const controller = new AbortController();
@@ -33,16 +48,19 @@ export function useResource<T>(url: string | null, body?: string) {
         return response.json() as Promise<T>;
       })
       .then((data) => {
-        if (!controller.signal.aborted) setResult({ key, data });
+        if (!controller.signal.aborted) setResult({ key: requestKey, resourceKey: key, data });
       })
       .catch((error) => {
         if (!controller.signal.aborted)
-          setResult({ key, error: error.message });
+          setResult(previous => ({ key: requestKey, resourceKey: key, error: error.message,
+            data: retainOnRefresh && previous.resourceKey === key ? previous.data : undefined }));
       });
     return () => controller.abort();
-  }, [url, body, key]);
-  // Ключ не даёт показать результат предыдущего выбора до запуска нового effect.
-  const current = result.key === key ? result : { key };
+  }, [url, body, requestKey, key, retainOnRefresh]);
+  // Смена выбора никогда не показывает прежние данные. Справочники могут
+  // удерживать текущий выбор при обновлении; результаты расчётов — нет.
+  const current: Pick<Resource<T>, "data" | "error"> = result.key === requestKey ? result
+    : retainOnRefresh && result.resourceKey === key ? {data: result.data} : {};
   return {
     data: current.data,
     error: current.error,
