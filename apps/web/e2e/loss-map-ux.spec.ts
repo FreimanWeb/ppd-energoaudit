@@ -12,7 +12,10 @@ async function fixture(page: import('@playwright/test').Page) {
     ];
     await route.fulfill({response,json:audit});
   });
+  // Итог цепочки приходит отдельным запросом и сдвигает график: ждём его до наведения.
+  const network=page.waitForResponse(r=>r.url().endsWith('/network-losses'));
   await page.goto('/?object=kns54an&aggregate=НА-1&day=2026-09-29&timestamp=2026-09-29T12:00:00#machine-losses');
+  await network;
   await expect(page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Декомпозиция мощности',exact:true})).toBeVisible();
 }
 
@@ -44,13 +47,17 @@ test('loss tooltips show original power and share once in both modes',async({pag
 test('clicking a loss shows concrete proposed actions with calculated effect',async({page})=>{
   await fixture(page);
   await page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Декомпозиция мощности',exact:true}).getByRole('button',{name:/^Потери из-за снижения КПД/}).click();
+  await expect.poll(()=>new URL(page.url()).hash).toBe('#loss-detail');
   const proposals=page.getByLabel('Предлагаемые мероприятия');
   await expect(proposals).toContainText('восстановление КПД');
   await expect(proposals).toContainText('Расчётный эффект');
   await expect(proposals).toContainText('CAPEX требует оценки');
   await expect(page.locator('main')).not.toContainText('связи этой составляющей');
+  await page.goBack();
+  await expect(page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Декомпозиция мощности',exact:true})).toBeVisible();
   await page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('button',{name:'Структура, %',exact:true}).click();
-  await page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Структура мощности, %',exact:true}).getByRole('button',{name:/^Потери из-за снижения КПД/}).press('Enter');
+  await page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Структура мощности, %',exact:true}).getByRole('button',{name:/^Потери из-за снижения КПД[^:]*:/}).press('Enter');
+  await expect.poll(()=>new URL(page.url()).hash).toBe('#loss-detail');
   await expect(proposals).toContainText('восстановление КПД');
 });
 

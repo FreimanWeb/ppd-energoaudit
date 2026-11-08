@@ -1,0 +1,14 @@
+.formula-line {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--text-caption);
+  background: var(--surface-subtle);
+  border-radius: 6px;
+  padding: var(--space-2-5) var(--space-3);
+  overflow-x: auto;
+}
+.reference-section > summary { font-weight: var(--weight-semibold); cursor: pointer; padding: var(--space-3) 0; }
+.reference-section { border-bottom: 1px solid var(--border-subtle); }
+.reference-sources { font-size: var(--text-caption); color: var(--content-muted); }
+@media (max-width: 720px) {
+  .check-list li { grid-template-columns: 1fr; }
+}

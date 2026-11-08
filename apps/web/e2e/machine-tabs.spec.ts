@@ -8,7 +8,7 @@ test('machine tabs separate indicators and the loss map and preserve analysis co
   page.on('request',request=>{if(request.url().endsWith('/network-losses')) networkRequests.push(request.url());});
   await page.goto(context+'#machine-block');
   const tabs=page.getByRole('navigation',{name:'Вкладки: Машинный блок',exact:true});
-  await expect(tabs.getByRole('link')).toHaveText(['Показатели','Карта потерь','Рабочая точка']);
+  await expect(tabs.getByRole('link')).toHaveText(['Показатели','Карта потерь','Рабочая точка','Рекомендации']);
   await expect(tabs.getByRole('link',{name:'Показатели',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.locator('.machine-kpi-panels')).toBeVisible();
   await expect(page.getByRole('heading',{name:/^Годовая оценка/})).toBeVisible();

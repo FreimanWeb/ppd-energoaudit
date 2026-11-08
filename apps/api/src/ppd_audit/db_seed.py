@@ -19,8 +19,9 @@ from .db_import import (
     import_excel_telemetry,
     import_scada_exports,
     is_example_file,
+    scada_source_names,
 )
-from .ingest.scada_txt import ScadaMapping, scada_files
+from .ingest.scada_txt import SOURCE_SEPARATOR, ScadaMapping, scada_files
 
 
 DEFAULT_TELEMETRY_DIRNAME = "telemetry"
@@ -256,9 +257,17 @@ class ScadaSeedResult:
 
 
 def seed_telemetry_from_scada(
-    database: AuditDatabase, scada_dir: Path, tags_config: Path
+    database: AuditDatabase,
+    scada_dir: Path,
+    tags_config: Path,
+    exports_dir: Path | None = None,
 ) -> ScadaSeedResult:
-    """Однократно загрузить выгрузки ТИ/ТС в БД, если их там ещё нет."""
+    """Загрузить выгрузки ТИ/ТС и годовые «Измерения», если их ещё нет в БД.
+
+    Набор файлов сверяется с источниками строк в БД: появился новый файл —
+    SCADA-телеметрия пересобирается целиком (ряды разных файлов сводятся
+    вместе, частичная догрузка дала бы дубли на стыке периодов).
+    """
     if not scada_dir.is_dir():
         return ScadaSeedResult(scada_dir, 0, 0, reason="каталог не найден")
     files = scada_files(scada_dir)
@@ -268,9 +277,17 @@ def seed_telemetry_from_scada(
         return ScadaSeedResult(
             scada_dir, len(files), 0, reason=f"нет карты тегов {tags_config.name}"
         )
+    expected = scada_source_names(scada_dir, exports_dir)
     if database.has_measurements(SCADA_SOURCE_KIND):
-        return ScadaSeedResult(scada_dir, len(files), 0, reason="выгрузки уже загружены")
+        present = {
+            part
+            for name in database.telemetry_source_files()
+            for part in name.split(SOURCE_SEPARATOR)
+        }
+        if set(expected) <= present:
+            return ScadaSeedResult(scada_dir, len(expected), 0, reason="выгрузки уже загружены")
+        database.delete_measurements(SCADA_SOURCE_KIND)
 
     mapping = ScadaMapping.from_yaml(tags_config)
-    stats = import_scada_exports(database, scada_dir, mapping)
-    return ScadaSeedResult(scada_dir, len(files), stats.stored, stats.unreadable)
+    stats = import_scada_exports(database, scada_dir, mapping, exports_dir)
+    return ScadaSeedResult(scada_dir, len(expected), stats.stored, stats.unreadable)

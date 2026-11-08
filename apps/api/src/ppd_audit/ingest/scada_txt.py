@@ -43,6 +43,7 @@ PRESSURE_UNITS = {"МПа": 1.0, "кгс/см²": KGF_PER_CM2_TO_MPA, "атм": 
 INTEGRAL_SUFFIX = "I3"
 MEASUREMENT_HEADER = "ЗНАЧЕНИЕ_ИЗМЕРЕНИЯ"
 SIGNAL_HEADER = "ЗНАЧЕНИЕ_СИГНАЛА"
+SOURCE_SEPARATOR = " + "
 _TIMESTAMP_FORMATS = ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y")
 
 
@@ -63,6 +64,7 @@ class ScadaPoint:
     tag: ScadaTag
     timestamp: datetime
     value: float
+    source: str = ""  # файл выгрузки, из которого пришла точка
 
 
 @dataclass
@@ -77,6 +79,7 @@ class ScadaMapping:
     interval_sums: dict[str, dict[str, Any]]
     runtime: dict[str, str]
     states: dict[str, dict[str, str]]
+    measurement_exports: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     @classmethod
     def from_yaml(cls, path: Path) -> ScadaMapping:
@@ -90,6 +93,10 @@ class ScadaMapping:
             interval_sums=raw.get("interval_sums") or {},
             runtime=raw.get("runtime") or {},
             states=raw.get("states") or {},
+            measurement_exports={
+                " ".join(str(title).split()): (str(spec["object"]), str(spec["unit"]))
+                for title, spec in (raw.get("measurement_exports") or {}).items()
+            },
         )
 
     def target(self, tag: ScadaTag) -> tuple[str, str] | None:
@@ -127,6 +134,7 @@ class DailyTotals:
     sums: dict[str, float] = field(default_factory=dict)
     runtime_intervals: set[datetime] = field(default_factory=set)
     intervals: set[datetime] = field(default_factory=set)
+    sources: set[str] = field(default_factory=set)
 
 
 def parse_tag(raw: str) -> ScadaTag | None:
@@ -226,10 +234,12 @@ def read_points(path: Path) -> Iterator[ScadaPoint]:
                 stream = io.TextIOWrapper(
                     io.BytesIO(archive.read(info)), encoding=ENCODING, errors="replace"
                 )
-                yield from iter_points(stream)
+                for point in iter_points(stream):
+                    yield ScadaPoint(point.tag, point.timestamp, point.value, path.name)
     else:
         with path.open("r", encoding=ENCODING, errors="replace") as stream:
-            yield from iter_points(stream)
+            for point in iter_points(stream):
+                yield ScadaPoint(point.tag, point.timestamp, point.value, path.name)
 
 
 @dataclass(frozen=True)
@@ -244,6 +254,7 @@ class CanonicalRow:
     value: float
     unit: str
     source_tag: str
+    source_file: str = ""
 
 
 def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[CanonicalRow]:
@@ -252,8 +263,8 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
     last_value: dict[tuple, float] = {}
     daily: dict[tuple, DailyTotals] = defaultdict(DailyTotals)
     direct_power: set[tuple] = set()
-    derived_power: dict[tuple, list[tuple[datetime, float, ScadaTag]]] = defaultdict(list)
-    station_flow: dict[tuple, float] = {}
+    derived_power: dict[tuple, list[tuple[datetime, float, ScadaTag, str]]] = defaultdict(list)
+    station_flow: dict[tuple, tuple[float, str]] = {}
     shares: dict[tuple, dict[str, float]] = defaultdict(dict)
 
     for point in points:
@@ -267,7 +278,7 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
         flow_spec = mapping.station_flow(point.tag)
         if flow_spec is not None:
             if not flow_spec.get("integral") or point.tag.integral:
-                station_flow[(plant, place, point.timestamp)] = point.value
+                station_flow[(plant, place, point.timestamp)] = (point.value, point.source)
             continue
 
         spec = mapping.interval_sums.get(code)
@@ -279,6 +290,8 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
             metric = spec["metric"]
             totals.sums[metric] = totals.sums.get(metric, 0.0) + point.value
             totals.intervals.add(point.timestamp)
+            if point.source:
+                totals.sources.add(point.source)
             shares[(plant, place, point.timestamp)][f"{aggregate}|{metric}"] = point.value
             if code in mapping.runtime_codes and point.value > 0:
                 totals.runtime_intervals.add(point.timestamp)
@@ -288,6 +301,7 @@ def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[Cano
                     point.timestamp,
                     point.value / mapping.interval_hours,
                     point.tag,
+                    point.source,
                 ))
             continue
 
@@ -340,13 +354,14 @@ def _step_row(
             value=value,
             unit=spec.get("unit", ""),
             source_tag=f"{tag.object_code}#{tag.unit}#{tag.code}",
+            source_file=point.source,
         )
     ]
 
 
 def _allocate_station_flow(
     daily: dict[tuple, DailyTotals],
-    station_flow: dict[tuple, float],
+    station_flow: dict[tuple, tuple[float, str]],
     shares: dict[tuple, dict[str, float]],
     mapping: ScadaMapping,
 ) -> None:
@@ -375,7 +390,7 @@ def _allocate_station_flow(
         ),
         "energy",
     )
-    for (plant, place, timestamp), volume in station_flow.items():
+    for (plant, place, timestamp), (volume, source) in station_flow.items():
         by_aggregate = {
             key.split("|", 1)[0]: value
             for key, value in shares.get((plant, place, timestamp), {}).items()
@@ -389,10 +404,12 @@ def _allocate_station_flow(
             totals = daily[(plant, place, aggregate, timestamp.date())]
             totals.sums[flow_metric] = totals.sums.get(flow_metric, 0.0) + portion
             totals.intervals.add(timestamp)
+            if source:
+                totals.sources.add(source)
 
 
 def _derived_power_rows(
-    derived: dict[tuple, list[tuple[datetime, float, ScadaTag]]],
+    derived: dict[tuple, list[tuple[datetime, float, ScadaTag, str]]],
     direct: set[tuple],
     last_value: dict[tuple, float],
     mapping: ScadaMapping,
@@ -419,7 +436,7 @@ def _derived_power_rows(
         if unit in direct:
             continue
         plant, place, aggregate = unit
-        for timestamp, value, tag in sorted(samples, key=lambda item: item[0]):
+        for timestamp, value, tag, source in sorted(samples, key=lambda item: item[0]):
             key = (plant, place, aggregate, spec["metric"])
             rounded = round(value, 3)
             if last_value.get(key) == rounded:
@@ -435,6 +452,7 @@ def _derived_power_rows(
                     value=rounded,
                     unit=spec.get("unit", "кВт"),
                     source_tag=f"{tag.code} / {mapping.interval_hours} ч",
+                    source_file=source,
                 )
             )
     return rows
@@ -501,6 +519,7 @@ def _daily_rows(daily: dict[tuple, DailyTotals], mapping: ScadaMapping) -> list[
                     value=round(totals.sums[metric], 3),
                     unit=spec.get("unit", ""),
                     source_tag=f"{code} (сумма за сутки)",
+                    source_file=SOURCE_SEPARATOR.join(sorted(totals.sources)),
                 )
             )
         if runtime_spec and totals.runtime_intervals:
@@ -515,6 +534,7 @@ def _daily_rows(daily: dict[tuple, DailyTotals], mapping: ScadaMapping) -> list[
                     value=round(hours, 3),
                     unit=runtime_spec.get("unit", "ч"),
                     source_tag="интервалы с ненулевым расходом",
+                    source_file=SOURCE_SEPARATOR.join(sorted(totals.sources)),
                 )
             )
     return rows

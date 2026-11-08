@@ -9,7 +9,7 @@ export function networkMeasures(status, measures, selectedName = "") {
 }
 
 export const scenarioParameters=[
-  {key:'roughness_mm',label:'Шероховатость труб, мм',value:0.1,min:0,max:5,step:0.01},
+  {key:'roughness_factor',label:'Множитель к справочной шероховатости труб и НКТ',value:1,min:0,max:10,step:0.1},
   {key:'well_depth_m',label:'Длина ствола скважины, м',value:1800,min:1,max:10000,step:1},
   {key:'well_diameter_mm',label:'Внутренний диаметр НКТ, мм',value:62,min:10,max:500,step:1},
   {key:'local_resistance_k',label:'Коэффициент местных сопротивлений',value:2,min:0,max:1000,step:0.1},

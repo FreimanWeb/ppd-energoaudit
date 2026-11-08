@@ -22,20 +22,23 @@ from ..spec import ObjectSpec, load_object_spec
 from ..verify.runner import run_verification
 
 
-def bootstrap_app_data(root: Path, telemetry_dir: Path, scada_dir: Path, scada_tags: Path):
-    """Разовая подготовка БД. Возвращает путь, а не объект базы.
+def prepare_database(root: Path, path: Path | None = None):
+    """Подготовить БД приложения: справочники, выгрузки АСУ ТП, примеры.
 
-    Объект здесь кэшировать нельзя: ``st.cache_resource`` переживает
-    обновление кода, и после деплоя в кэше остаётся экземпляр, собранный по
-    прежней версии класса — новые методы у него отсутствуют, и приложение
-    падает с AttributeError до перезапуска. Путь же переживает обновление
-    безболезненно, а собрать ``AuditDatabase`` заново стоит один вызов
-    конструктора: соединение открывается на каждую операцию отдельно.
+    Повторный вызов дешёвый: справочники пишутся только при расхождении,
+    выгрузки — только если в каталоге появились новые файлы. Импорт можно
+    отключить переменными ``PPD_SKIP_SCADA_TELEMETRY`` и
+    ``PPD_SKIP_EXAMPLE_TELEMETRY`` (изолированные тесты).
     """
-    path = default_database_path()
+    from ..db_seed import DEFAULT_SCADA_DIRNAME, DEFAULT_TELEMETRY_DIRNAME
+
+    path = path or default_database_path()
+    sources = source_paths(root)
+    telemetry_dir = root / "data" / DEFAULT_TELEMETRY_DIRNAME
+    scada_dir = Path(os.getenv("PPD_SCADA_DIR", telemetry_dir / DEFAULT_SCADA_DIRNAME))
     db = bootstrap_database(path, root / "config" / "plants", include_demo=True)
     scada = (
-        seed_telemetry_from_scada(db, scada_dir, scada_tags)
+        seed_telemetry_from_scada(db, scada_dir, sources["scada_tags"], sources["exports"])
         if os.getenv("PPD_SKIP_SCADA_TELEMETRY") != "1"
         else ScadaSeedResult(scada_dir, 0, 0, reason="импорт выгрузок отключён")
     )
@@ -179,5 +182,6 @@ def source_paths(root: Path) -> dict[str, Path]:
         "downtime": Path(os.getenv("PPD_DOWNTIME_DIR", root / "data" / DOWNTIME_DIRNAME)),
         "scada_tags": Path(os.getenv("PPD_SCADA_TAGS_PATH", root / "config" / SCADA_TAGS_CONFIG)),
         "network": Path(os.getenv("PPD_NETWORK_DIR", root / "data" / "network")),
+        "exports": Path(os.getenv("PPD_EXPORTS_DIR", root / "data" / "telemetry" / "exports")),
         "network_config": Path(os.getenv("PPD_NETWORK_CONFIG", root / "config" / "network.yaml")),
     }

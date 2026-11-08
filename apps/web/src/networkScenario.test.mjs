@@ -43,7 +43,7 @@ test("hydraulic map starts at BG, rebases shares and preserves the physical bala
 
 test('scenario handoff accepts only complete finite parameters inside model bounds',()=>{
   const scenario=Object.fromEntries(scenarioParameters.map(p=>[p.key,p.value]));
-  scenario.roughness_mm=.2;
+  scenario.roughness_factor=.5;
   assert.deepEqual(readNetworkScenario(JSON.stringify(scenario)),scenario);
-  for(const invalid of [null,'oops','[]','null',JSON.stringify({...scenario,roughness_mm:'0.2'}),JSON.stringify({...scenario,roughness_mm:6}),JSON.stringify({...scenario,extra:1}),JSON.stringify({roughness_mm:.2})]) assert.equal(readNetworkScenario(invalid),null);
+  for(const invalid of [null,'oops','[]','null',JSON.stringify({...scenario,roughness_factor:'0.5'}),JSON.stringify({...scenario,roughness_factor:11}),JSON.stringify({...scenario,extra:1}),JSON.stringify({roughness_factor:.5})]) assert.equal(readNetworkScenario(invalid),null);
 });

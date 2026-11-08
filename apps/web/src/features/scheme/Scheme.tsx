@@ -4,7 +4,7 @@ import { type CSSProperties } from "react";
 import type {OperatorBalance} from "./LossFlow";
 import {fmt} from "../../shared/ui/format";
 import symbols from "../../../../../shared/ppd-symbols.svg?raw";
-import { layoutTopology } from "./scheme.mjs";
+import { layoutTopology } from "./schemeLayout.mjs";
 import type { Audit, Topology } from "../../shared/types";
 
 export function Scheme({

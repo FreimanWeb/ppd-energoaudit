@@ -1102,6 +1102,14 @@ class AuditDatabase:
             row = connection.execute(f"{query} LIMIT 1", params).fetchone()
         return row is not None
 
+    def delete_measurements(self, source_kind: str) -> int:
+        """Удалить телеметрию одного вида источника (перед полной пересборкой)."""
+        with self._connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM telemetry_measurements WHERE source_kind = ?", (source_kind,)
+            )
+            return cursor.rowcount
+
     def telemetry_source_files(self) -> list[str]:
         with self._connection() as connection:
             return [

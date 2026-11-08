@@ -422,3 +422,34 @@ def diagnose_aggregate(
         ),
         tuple(results),
     )
+
+
+def rule_catalog() -> dict:
+    """Правила и привязки к агрегатам для справочника — без расчёта режима."""
+    catalog = _catalog()
+    flow = {"flow_low": "Q < Q_мин рабочей области", "flow_high": "Q > Q_макс рабочей области"}
+    rules = [
+        {
+            "id": rule.id,
+            "title": rule.title,
+            "category": rule.category,
+            "condition": flow.get(rule.id, rule.condition),
+            "action": rule.action,
+            "confirmation": rule.confirmation,
+        }
+        for rule in _definitions({"flow_min": 0.0, "flow_max": 0.0})
+    ]
+    bindings = [
+        {
+            "object_id": object_id,
+            "aggregate_id": aggregate_id,
+            "model": profile["model"],
+            "sheet": profile["sheet"],
+            "flow_min": profile["flow_min"],
+            "flow_max": profile["flow_max"],
+            "note": profile.get("binding_note", ""),
+        }
+        for object_id, aggregates in catalog["profiles"].items()
+        for aggregate_id, profile in aggregates.items()
+    ]
+    return {"source": catalog["source"], "rules": rules, "bindings": bindings}

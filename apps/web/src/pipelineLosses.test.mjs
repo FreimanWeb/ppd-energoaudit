@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const {pipelineLosses}=await import('./features/losses/pipelineLosses.mjs');
+const {pipelineLosses}=await import('./features/losses/pipelineLossData.mjs');
 const segment=(pipeline_id,power_kw,length_m=100)=>({id:pipeline_id,pipeline_id,name:pipeline_id,power_kw,length_m,flow_m3h:10,pressure_loss_mpa:power_kw/10});
 const well=(id,path_pipeline_ids,armature_loss_kw,choke_loss_kw)=>({id,path_pipeline_ids,armature_loss_kw,choke_loss_kw});
 

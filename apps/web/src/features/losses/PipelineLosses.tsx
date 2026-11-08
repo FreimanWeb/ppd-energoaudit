@@ -3,7 +3,7 @@ import {Table} from '../../shared/ui/Table';
 import {fmt} from '../../shared/ui/format';
 import {WellLinks} from '../../shared/wellSelection';
 import {useHorizontalOverflow} from '../../shared/ui/useHorizontalOverflow';
-import {pipelineLosses} from './pipelineLosses.mjs';
+import {pipelineLosses} from './pipelineLossData.mjs';
 
 export type PipelineSegment={
   id:string;pipeline_id:string;name:string;length_m:number;inner_diameter_mm:number;

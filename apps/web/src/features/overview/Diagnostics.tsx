@@ -71,3 +71,4 @@ export function Diagnostics({ report }: { report: DiagnosticReport }) {
     </>}
   </Panel>;
 }
+export { Rule as DiagnosticRuleCard };

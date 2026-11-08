@@ -71,17 +71,18 @@ test("operator list keeps three real objects and one explicit demo", async () =>
 
 test('overview stays station-wide and injection forecasting belongs to wells',async()=>{
  const {navigationSections,pageForMode}=await import('./app/navigation.mjs');
- assert.deepEqual(navigationSections.find(section=>section.root==='timeline').pages.map(page=>page.id),['timeline','overview','losses']);
+ assert.deepEqual(navigationSections.find(section=>section.root==='timeline').pages.map(page=>page.id),['timeline','overview','losses','loss-detail']);
+ assert.ok(navigationSections.find(section=>section.root==='timeline').pages.find(page=>page.id==='loss-detail').hidden);
  assert.deepEqual(navigationSections.find(section=>section.root==='pipelines').pages.map(page=>page.id),['pipelines','network','network-scenario']);
  assert.equal(pageForMode('field_trip','network-scenario'),'network-scenario');
  assert.ok(navigationSections.find(section=>section.root==='wells').pages.some(page=>page.id==='forecast'));
 });
 
 
-test('machine block separates indicators, loss map and working point',async()=>{
+test('machine block separates indicators, loss map, working point and recommendations',async()=>{
  const {navigationSections,pageForMode}=await import('./app/navigation.mjs');
  assert.deepEqual(navigationSections.find(section=>section.root==='machine-block').pages.map(page=>[page.id,page.label]),[
-  ['machine-block','Показатели'],['machine-losses','Карта потерь'],['working-point','Рабочая точка'],
+  ['machine-block','Показатели'],['machine-losses','Карта потерь'],['working-point','Рабочая точка'],['recommendations','Рекомендации'],
  ]);
  assert.equal(pageForMode('analysis','machine-losses'),'machine-losses');
  assert.equal(pageForMode('field_trip','machine-losses'),'machine-losses');

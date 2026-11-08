@@ -31,7 +31,8 @@ def test_station_balance_uses_total_flow_once_without_mutating_audits(audits):
     assert sum(w["flow_m3h"] for w in result["wells"]) == pytest.approx(flow)
     main = next(segment for segment in result["segments"] if segment["id"] == "main")
     assert main["flow_m3h"] == pytest.approx(flow)
-    expected = darcy_weisbach_dp(flow, 1000, 0.19, 0.0001, 1000, 1) * flow / 3.6
+    roughness = main["roughness_mm"] / 1000  # справочная, по материалу и покрытию участка
+    expected = darcy_weisbach_dp(flow, 1000, 0.19, roughness, 1000, 1) * flow / 3.6
     assert main["power_kw"] == pytest.approx(expected)
     parts = {part["name"]: part["power_kw"] for part in result["items"]}
     assert parts["Потери ЭД"] == pytest.approx(

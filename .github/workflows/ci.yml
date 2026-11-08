@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Зависимости
+        run: uv sync --frozen --all-packages
+      - name: Ruff
+        run: |
+          uv run --frozen ruff check apps scripts conftest.py
+          uv run --frozen ruff format --check apps scripts conftest.py
+      - name: Сборка БД из файлов проекта
+        run: uv run --frozen --package ppd-audit python -m ppd_audit.build_db --path "$RUNNER_TEMP/audit.sqlite"
+      - name: pytest
+        run: uv run --frozen --all-packages pytest -q -p no:warnings
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:frontend
+      - run: npm run build
