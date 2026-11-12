@@ -1,20 +1,24 @@
-import {lossLabel,lossLabels} from "../../shared/lossLabels";
+import {lossLabels} from "../../shared/lossLabels";
 import {PipelineLosses,type PipelineSegment,type PipelineWell} from "./PipelineLosses";
-import { LossesView } from "./LossesView";
+import { MachineLossMap } from "./MachineLossMap";
+import { LossDetailPanel, lossDetailKey } from "./LossDetailPanel";
+import { readNetworkScenario } from "./networkScenario.mjs";
 import { OverviewView } from "../overview/OverviewView";
 import { LinkButton } from "../../shared/ui/Button";
+import { inspectionFor } from "../inspection/inspection.mjs";
 import type { Audit } from "../../shared/types";
+import type { PageProps } from "../../shared/ui/context";
+import { contextBody } from "../../shared/ui/context";
+import type { OperatorBalance } from "../scheme/LossFlow";
 import { useEffect } from "react";
 import { Plot } from "../../charts/Plot";
 import { timelineSignal } from "../monitoring/timeline.mjs";
 import { segment, useResource } from "../../shared/api";
 import { Panel } from "../../shared/ui/Panel";
 import { Status } from "../../shared/ui/Status";
-import { Tooltip } from "../../shared/ui/Tooltip";
 import { Table } from "../../shared/ui/Table";
-import { fmt } from "../../shared/ui/format";
 import { useWellSelection, WellLinks } from "../../shared/wellSelection";
-import { networkStages, stageDefinitions } from "./networkStages.mjs";
+import { stageDefinitions } from "./networkStages.mjs";
 import {catalogMeasures,measureHref} from "./measureCatalog.mjs";
 import {MeasureCards} from "./MeasureCards";
 import "./networkLosses.css";
@@ -31,55 +35,44 @@ type Network = {
   measures?: { id: string; name: string; loss_name: string; description: string; saving_kw: number; saving_pct: number }[];
   assumptions?: { label: string; value: number | string | null; unit: string; provenance: string; basis: string }[];
   network?: { source_file: string; exported_at: string };
+  operator_balance?: OperatorBalance | null;
 };
 const origins: Record<string, string> = { measured: "Измерено", calculated: "Рассчитано", synthetic: "Синтетика" };
 
-export function StageLosses({ stage, audit, inspectionKey, view="indicators" }: { stage: Stage; audit: Audit; inspectionKey?:string; view?:"indicators"|"map" }) {
+export function StageLosses({ stage, audit, context, inspectionKey, view="indicators", hasNetwork=false, isExample=false }: { stage: Stage; audit: Audit; context: PageProps; inspectionKey?:string; view?:"indicators"|"map"; hasNetwork?:boolean; isExample?:boolean }) {
   useEffect(() => { window.scrollTo({top:0,behavior:"instant"}); }, [stage]);
   const selectedWell = useWellSelection();
   const definition = stageDefinitions.find(item => item.id === stage)!;
-  const needsNetwork=stage!=="hall" || view==="map";
   const objectId = audit.audit.object_id;
-  const demo = objectId === "demo-ppd";
-  const supported = objectId === "kns54an" || demo;
+  const supported = hasNetwork;
   const timestamp = audit.snapshot?.timestamp;
+  // Физический разбор участка не требует сценария всей сети; сетевые таблицы ниже БГ — требуют.
+  const needsNetwork=stage!=="hall";
+  const rawScenario = needsNetwork ? new URL(location.href).searchParams.get("network_scenario") : null;
+  const scenario = rawScenario ? readNetworkScenario(rawScenario) : null;
+  const invalidScenario = Boolean(rawScenario && !scenario);
   const resource = useResource<Network>(
-    needsNetwork && supported && (audit.source === "field_trip" || timestamp)
+    needsNetwork && !invalidScenario && supported && (audit.source === "field_trip" || timestamp)
       ? `/objects/${segment(objectId)}/aggregates/${segment(audit.audit.aggregate_id)}/network-losses` : null,
-    JSON.stringify({ source: audit.source, ...(audit.source === "telemetry" && timestamp ? { day: timestamp.slice(0, 10), timestamp } : {}) }),
+    contextBody(context, scenario ? {scenario} : {}),
   );
   const data = resource.data;
-  const summary = networkStages(data).find(item => item.id === stage);
-  const components = summary ? (data?.items ?? []).filter(item => item.category === "потеря" && definition.names.includes(item.name)) : [];
-  const annual=useResource<{annual:Parameters<typeof catalogMeasures>[0]}>(
-    needsNetwork && stage === "hall" && audit.quality.status !== "unfit" && (audit.source === "field_trip" || timestamp)
-      ? `/objects/${segment(objectId)}/aggregates/${segment(audit.audit.aggregate_id)}/measures` : null,
-    JSON.stringify({source:audit.source,...(audit.source === "telemetry" && timestamp ? {day:timestamp.slice(0,10),timestamp} : {})}),
-  );
-  const actions=catalogMeasures(annual.data?.annual ?? [],data).filter(action=>action.stage === stage).slice(0,3);
+  const actions=catalogMeasures([],data).filter(action=>action.stage === stage).slice(0,3);
   const actionContext={objectId,aggregateId:audit.audit.aggregate_id,source:audit.source,timestamp:timestamp ?? ""};
-  const chainSummary=summary ? <dl className="network-balance-totals" aria-label="Итог выбранного участка">
-            <div><dt>Потери участка</dt><dd>{fmt(summary.power_kw)} кВт</dd></div>
-            <div><dt>Доля от всех потерь цепочки <Tooltip label="Доля потерь" content="Потери участка / сумма потерь всей цепочки. Полезная мощность в знаменатель не входит." /></dt><dd>{fmt(summary.share_pct, 1)} %</dd></div>
-            <div><dt>Все потери цепочки</dt><dd>{fmt(data?.total_loss_kw)} кВт</dd></div>
-          </dl> : null;
+  const chainInspection=inspectionFor(inspectionKey);
+  const foreignStage=chainInspection?.stage ?? (chainInspection?.loss ? "hall" : undefined);
+  const foreign=foreignStage && foreignStage!==stage ? stageDefinitions.find(item=>item.id===foreignStage) : undefined;
+  const foreignNotice=foreign ? <p className="notice">Запрошенная составляющая относится к участку «{foreign.label}». Разбор открыт на её странице.</p> : null;
+  const mappedKey=lossDetailKey(inspectionKey);
+  const detailKey=foreign ? stage : (mappedKey ?? stage);
   const stageActions=<section aria-label="Мероприятия участка">
           <div className="network-section-heading"><h3>Мероприятия участка</h3><LinkButton href={measureHref(null,stage)}>Перейти к мероприятиям</LinkButton></div>
-          {stage === "hall"&&<Status {...annual}/>}
           <MeasureCards actions={actions} context={actionContext}/>
-          {!actions.length&&!annual.loading&&!resource.loading&&<p className="muted">Для этого участка применимые мероприятия не рассчитаны.</p>}
+          {!actions.length&&<p className="muted">Для этого участка применимые мероприятия не рассчитаны.</p>}
         </section>;
-  const stageContent=<div className="network-losses stage-losses">
+  const downstreamContent=needsNetwork ? <>
         {supported ? <Status {...resource} empty="Выберите режим агрегата для расчёта потерь." />
-          : <p className="notice">Расчёт трубопроводов и скважин этого объекта ещё не подключён. Доли от потерь всей цепочки недоступны.</p>}
-        {summary ? <>
-          {stage!=="hall" && chainSummary}
-          <Table rows={components.map(item => ({ ...item, name:lossLabel(item.name), percent: item.power_kw / data!.total_loss_kw! * 100, origin: origins[item.provenance] ?? item.provenance }))} columns={[
-            { key: "name", label: "Составляющая" }, { key: "power_kw", label: "Потери, кВт" }, { key: "percent", label: "От всех потерь, %", digits: 1 }, { key: "origin", label: "Происхождение" }, { key: "basis", label: "Основание расчёта" },
-          ]} />
-        </> : data && <p className="notice" role="status">{data.status === "infeasible"
-          ? "Доступного давления недостаточно: сбалансированная карта и доли потерь не построены."
-          : "Баланс всей цепочки для выбранного режима недоступен. Доли потерь не рассчитаны."}</p>}
+          : <p className="notice">Расчёт трубопроводов и скважин этого объекта ещё не подключён. Сводка участка ниже показана по доступным данным.</p>}
         {stage === "pipes" && data && data.status !== "unavailable" && Boolean(data.segments?.length || data.wells?.length) && <PipelineLosses segments={data.segments ?? []} wells={data.wells ?? []}/>}
         {stage === "wells" && data?.wells?.length ? <section aria-label="Потери по скважинам"><h3>Скважины</h3>
           {selectedWell && !data.wells.some(well=>well.id===selectedWell) && <p className="notice">Скважина {selectedWell} отсутствует в этом сценарии. Показаны все скважины сценария; выбор сохранён для архива и CRM.</p>}
@@ -87,34 +80,36 @@ export function StageLosses({ stage, audit, inspectionKey, view="indicators" }: 
             { key: "id", label: "Скважина" }, {key:"inspect",label:"Подробнее",render:row=><WellLinks code={String(row.id)}/>}, { key: "flow_m3h", label: "Расход, м³/ч" }, { key: "well_loss_kw", label: `${lossLabels.bore}, кВт` }, { key: "armature_loss_kw", label: `${lossLabels.local}, кВт` }, { key: "choke_loss_kw", label: `${lossLabels.choke}, кВт` }, { key: "required_pressure_mpa", label: "Требуется, МПа" }, { key: "available_pressure_mpa", label: "Доступно, МПа" }, { key: "deficit_mpa", label: "Дефицит, МПа" },
           ]} />
         </section> : null}
-        {stage!=="hall" && stageActions}
-        {data && <details className="stage-assumptions"><summary>Исходные данные и допущения</summary>
-          {supported && <p className="muted">{demo ? "Режимы и потери демонстрационного объекта синтетические." : "Сценарная оценка выбранного агрегата. Геометрия — реестр АРМИТС, расход по скважинам — по фактической закачке, шероховатость — справочная; параметры НКТ сценарные."}</p>}
+        {data && <details className="stage-assumptions"><summary>Исходные данные и допущения сценария</summary>
+          {supported && <p className="muted">{isExample ? "Режимы и потери демонстрационного объекта синтетические." : "Сценарная оценка выбранного агрегата. Геометрия из АРМИТС; единицы требуют подтверждения. Недостающие параметры и распределение расхода заменены синтетикой."}</p>}
           {data.warnings.length > 0 && <ul>{data.warnings.map((warning,index) => <li key={index}>{warning}</li>)}</ul>}
           {Boolean(data.assumptions?.length) && <Table rows={data.assumptions!.map(item => ({ ...item, origin: origins[item.provenance] ?? item.provenance }))} columns={[
           { key: "label", label: "Параметр" }, { key: "value", label: "Значение" }, { key: "unit", label: "Единица" }, { key: "origin", label: "Происхождение" }, { key: "basis", label: "Основание" },
         ]} />}
           {data.network && <p className="muted">Источник сети: {data.network.source_file} · выгрузка {data.network.exported_at}.</p>}
         </details>}
+      </> : null;
+  const stageContent=<div className="network-losses stage-losses">
+        {foreignNotice}
+        <LossDetailPanel context={context} focus={detailKey}/>
+        {downstreamContent}
       </div>;
   if(stage==="hall"){
     if(view==="indicators") return <>
-      <OverviewView audit={audit}/>
       <Panel title="Режим машинного блока"><Table rows={[
         {name:"Напор",value:audit.audit.metrics.h_fact_m,unit:"м"},
         {name:"Подача",value:audit.audit.metrics.flow_m3h,unit:"м³/ч"},
         {name:"Электрическая мощность",value:audit.audit.metrics.p_electric_kw,unit:"кВт"},
         {name:"Гидравлическая мощность",value:audit.audit.metrics.p_hydraulic_kw,unit:"кВт"},
       ]} columns={[{key:"name",label:"Показатель"},{key:"value",label:"Значение"},{key:"unit",label:"Единица"}]} /></Panel>
-      <EfficiencyHistory audit={audit} />
+      <OverviewView audit={audit}/>
+      {audit.source==="telemetry" && <EfficiencyHistory audit={audit}/>}
     </>;
-    return <LossesView audit={audit} inspectionKey={inspectionKey} summary={summary ? <><p className="stage-basis">Сценарная оценка положения машинного блока в потерях всей цепочки.</p>{chainSummary}</> : null}>
-      <details className="metric-disclosure"><summary>Детализация по оборудованию и основания расчёта</summary>{stageContent}</details>
-      {stageActions}
-    </LossesView>;
+    return <MachineLossMap context={context} inspectionKey={inspectionKey} unfit={audit.quality.status==="unfit"} issues={audit.quality.issues.map(issue=>issue.message)}/>;
   }
-  return <Panel title={definition.label} action={supported ? <span className="stage-basis">Сценарная оценка</span> : undefined}>
+  return <Panel title={definition.label} action={supported ? <span className="stage-basis">Сценарная оценка сети ниже БГ</span> : undefined}>
       {stageContent}
+      {stageActions}
     </Panel>;
 }
 

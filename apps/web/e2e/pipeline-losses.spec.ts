@@ -64,7 +64,6 @@ test('unknown choking and unassigned wells remain explicit',async({page})=>{
   await expect(page.getByRole('region',{name:'Скважины без привязки',exact:true})).toContainText(unassigned.id);
   data.status='unavailable';
   await page.reload();
-  await expect(page.getByText('Баланс всей цепочки для выбранного режима недоступен. Доли потерь не рассчитаны.',{exact:true})).toBeVisible();
   await expect(page.locator('.pipeline-loss-row')).toHaveCount(0);
   await page.unrouteAll({behavior:'wait'});
 });

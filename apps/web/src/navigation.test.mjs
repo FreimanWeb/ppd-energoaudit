@@ -64,9 +64,9 @@ test("source modes omit irrelevant measurement parameters and unknown modes fall
 });
 
 
-test("operator list keeps three real objects and one explicit demo", async () => {
-  const {operatorObjects,pageForMode} = await import("./app/navigation.mjs");
-  assert.deepEqual(operatorObjects(["knsopu","kns54an","kns97pren","demo-ppd","kns10bn","dns7"].map(code => ({code}))).map(o => o.code),["knsopu","kns54an","kns97pren","demo-ppd"]);
+
+test("field-trip mode keeps machine, pipeline and well pages", async () => {
+  const {pageForMode} = await import("./app/navigation.mjs");
   for (const page of ["machine-block","machine-losses","pipelines","wells"]) assert.equal(pageForMode("field_trip",page),page);
 });
 

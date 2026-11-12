@@ -105,6 +105,7 @@ def test_plant_list_includes_ngdu(tmp_path):
             "water_type": "пресная",
             "branch": "кнс",
             "is_example": False,
+            "operator_visible": True,
         }
     ]
 

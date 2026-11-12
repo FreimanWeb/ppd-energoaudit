@@ -123,3 +123,10 @@ def test_incompatible_vfd_and_invalid_efficiencies_are_unavailable(audits):
     audits[1].spec.vfd = True
     audits[1].eta_motor_real = 1.1
     assert build_station_network(audits, demo_network())["status"] == "unavailable"
+
+
+def test_equal_pressures_do_not_connect_different_hydraulic_groups(audits):
+    audits[1].spec.technical_place_code = "separate"
+    result = build_station_network(audits, demo_network())
+    assert result["status"] == "unavailable"
+    assert result["operator_balance"] is None

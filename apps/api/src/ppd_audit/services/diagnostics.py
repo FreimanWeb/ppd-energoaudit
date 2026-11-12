@@ -350,11 +350,11 @@ def diagnose_aggregate(
     blocked_quality = quality is not None and not quality.allows_economic_conclusions
     matches = {
         "pressure_order": bad_pressure,
-        "specific_energy_low": audit.sec_fact < audit.sec_calc,
-        "motor_underload": audit.load_factor < 0.5,
-        "motor_overload": audit.load_factor > 1,
+        "specific_energy_low": audit.sec_calc is not None and audit.sec_fact < audit.sec_calc,
+        "motor_underload": audit.load_factor is not None and audit.load_factor < 0.5,
+        "motor_overload": audit.load_factor is not None and audit.load_factor > 1,
         "annual_throttle_loss": (audit.dw_throttle or 0) > 0,
-        "annual_efficiency_loss": audit.dw_efficiency > 0,
+        "annual_efficiency_loss": audit.dw_efficiency is not None and audit.dw_efficiency > 0,
     }
     results = []
     for number, rule in enumerate(_definitions(profile)):

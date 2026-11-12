@@ -35,6 +35,13 @@ def build_station_network(audits: list[AuditResult], network: dict) -> dict:
     if not audits or len({audit.aggregate_id for audit in audits}) != len(audits):
         warnings.append("Нет полного списка уникальных работающих агрегатов станции.")
         return unavailable
+    groups = {audit.spec.technical_place_code for audit in audits if audit.spec is not None}
+    if len(groups) > 1:
+        warnings.append(
+            "Разные гидравлические группы не объединяются в общий коллектор "
+            "даже при совпадающих давлениях."
+        )
+        return unavailable
     stages = []
     common = None
     for audit in audits:

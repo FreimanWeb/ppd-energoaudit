@@ -128,7 +128,3 @@ export function analysisContextURL(href, context) {
   return url.href;
 }
 
-/** @template {{code:string}} T @param {T[]} objects */
-export function operatorObjects(objects) {
-  return objects.filter(object => ["knsopu","kns54an","kns97pren","demo-ppd"].includes(object.code));
-}

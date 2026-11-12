@@ -1,5 +1,6 @@
 """Consumer boundaries: scoped detail, provenance, history and no telemetry overwrite."""
 
+import json
 from datetime import datetime
 from importlib import import_module
 
@@ -51,6 +52,172 @@ BASE = "/objects/workflow/aggregates/A"
 CONTEXT = {"source": "telemetry", "day": "2026-01-02", "timestamp": "2026-01-02T12:00:00"}
 
 
+def test_hall_breakdown_balances_without_downstream_network(workflow):
+    client, _ = workflow
+    response = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "hall"})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["total_kw"] == pytest.approx(100)
+    assert data["input_kw"] == pytest.approx(180)
+    assert data["output_kw"] == pytest.approx(80)
+    assert sum(c["power_kw"] for c in data["components"]) == pytest.approx(100)
+    hydraulic = next(c for c in data["components"] if c["key"] == "hydraulic_bg_loss")
+    assert hydraulic["power_kw"] == pytest.approx(10)
+    assert hydraulic["origin"] == "calculated"
+    assert data["annual_kwh"] == pytest.approx(100 * data["annual_runtime_hours"])
+
+
+def test_causal_overview_balances_without_counting_efficiency_factors_twice(workflow):
+    client, _ = workflow
+    response = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "hall_causal"})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["input_kw"] == pytest.approx(180)
+    assert data["output_kw"] == pytest.approx(80)
+    assert data["total_kw"] == pytest.approx(100)
+    assert sum(c["power_kw"] for c in data["components"]) == pytest.approx(100)
+    assert {c["key"] for c in data["components"]} == {
+        "nominal_loss",
+        "efficiency_loss",
+        "throttle_loss",
+        "hydraulic_bg_loss",
+    }
+    factors = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "efficiency_causes"})
+    assert factors.status_code == 200, factors.text
+    detail = factors.json()
+    deviation = next(c["power_kw"] for c in data["components"] if c["key"] == "efficiency_loss")
+    assert detail["total_kw"] == pytest.approx(deviation)
+    assert all(c["power_kw"] is None for c in detail["components"])
+    assert detail["unallocated_kw"] == pytest.approx(deviation)
+
+
+def test_causal_overview_retains_known_balance_when_nominal_efficiency_is_cleared(workflow):
+    client, _ = workflow
+    revision = client.get(BASE + "/equipment-journal").json()["revision"]
+    saved = client.post(
+        BASE + "/equipment-journal",
+        json={
+            "component": "pump",
+            "effective_at": "2026-01-02T10:00:00",
+            "expected_revision": revision,
+            "changes": {"pump.eta_nom": None},
+            "reason": "passport",
+            "evidence": "documented",
+            "source": "КПД не указан в паспорте",
+            "author": "Инженер",
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    response = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "hall_causal"})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["total_kw"] == pytest.approx(100)
+    assert data["status"] == "partial"
+    assert data["unallocated_kw"] == pytest.approx(90)
+    parts = {c["key"]: c["power_kw"] for c in data["components"]}
+    assert parts["hydraulic_bg_loss"] == pytest.approx(10)
+    assert all(parts[key] is None for key in ("nominal_loss", "efficiency_loss", "throttle_loss"))
+
+
+def test_pumping_causal_boundary_stops_at_pump_and_preserves_factor_balance():
+    from ppd_audit.core.audit import audit_aggregate
+    from ppd_audit.services.loss_details import build_loss_detail
+    from ppd_audit.spec import AggregateSpec, Branch, MotorSpec, PumpSpec, RegimeMeasurement
+
+    audit = audit_aggregate(
+        AggregateSpec(
+            id="A",
+            pump=PumpSpec(eta_nom=0.8),
+            motor=MotorSpec(p_nom=200, eta_nom=0.9),
+            regime=RegimeMeasurement(rho=1000, p_in=1, p_out=10, q_fact=36, p_electric=180),
+        ),
+        branch=Branch("перекачка"),
+    )
+    overview = build_loss_detail(audit, "hall_causal", tariff=5)
+    assert overview["output_kw"] == pytest.approx(90)
+    assert overview["total_kw"] == pytest.approx(90)
+    assert {c["key"] for c in overview["components"]} == {"nominal_loss", "efficiency_loss"}
+    assert sum(c["power_kw"] for c in overview["components"]) == pytest.approx(90)
+    factors = build_loss_detail(audit, "efficiency_causes", tariff=5)
+    assert factors["total_kw"] == pytest.approx(audit.decomposition.dp_efficiency)
+    assert sum(c["power_kw"] for c in factors["components"]) == pytest.approx(factors["total_kw"])
+    assert factors["balance_residual_kw"] == pytest.approx(0, abs=1e-9)
+
+
+def test_equipment_journal_rejects_stale_edit_and_recalculates_only_its_period(workflow):
+    client, _ = workflow
+    initial = client.get(BASE + "/equipment-journal").json()
+    payload = {
+        "component": "transmission",
+        "effective_at": "2026-01-02T00:00:00",
+        "expected_revision": initial["revision"],
+        "changes": {"transmission.efficiency": 0.96},
+        "reason": "passport",
+        "evidence": "documented",
+        "source": "Паспорт передачи №123",
+        "author": "Инженер",
+    }
+    saved = client.post(BASE + "/equipment-journal", json=payload)
+    assert saved.status_code == 200, saved.text
+    historical = client.get(BASE + "/equipment", params={"at": "2026-01-01T12:00:00"}).json()
+    assert historical["equipment"]["transmission"]["efficiency"] == 0.98
+    assert client.post(BASE + "/equipment-journal", json=payload).status_code == 409
+    detail = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "hall"}).json()
+    transmission = next(c for c in detail["components"] if c["key"] == "transmission_loss")
+    assert transmission["power_kw"] == pytest.approx(180 * 0.97 * 0.9 * 0.04)
+
+
+def _seed_archived_measurement(db, measured_at, regime):
+    with db._connection() as connection:
+        aggregate_id = db._aggregate_id(connection, "workflow", "A", None)
+        cursor = connection.execute(
+            """INSERT INTO manual_measurements
+               (aggregate_id, measured_at, regime_json, source, comment, author, recorded_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                aggregate_id,
+                measured_at,
+                json.dumps({"measured_at": measured_at[:10], **regime}),
+                "Архивный протокол",
+                "Существовавшая запись",
+                "Инженер",
+                "2026-01-10T12:00:00+00:00",
+            ),
+        )
+        return cursor.lastrowid
+
+
+def test_archived_measurement_remains_explicit_scoped_and_separate_from_telemetry(workflow):
+    client, db = workflow
+    original = db.measurements("workflow", "A")
+    measurement_id = _seed_archived_measurement(
+        db,
+        "2026-01-03T10:30:00",
+        {
+            "rho": 1000,
+            "p_in": 1,
+            "p_out": 10,
+            "p_bg": 8,
+            "q_fact": 36,
+            "p_electric": 150,
+            "t_year": 4800,
+        },
+    )
+    archive = client.get(BASE + "/manual-measurements").json()["items"]
+    assert (
+        next(row for row in archive if row["id"] == measurement_id)["regime"]["p_electric"] == 150
+    )
+    context = {"source": "field_trip", "measurement_id": measurement_id, "key": "hall"}
+    detail = client.post(BASE + "/loss-detail", json=context)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["input_kw"] == pytest.approx(150)
+    assert detail.json()["output_kw"] == pytest.approx(70)
+    assert detail.json()["annual_kwh"] == pytest.approx(80 * 4800)
+    foreign = client.post("/objects/workflow/aggregates/B/loss-detail", json=context)
+    assert foreign.status_code in (400, 404)
+    assert db.measurements("workflow", "A") == original
+
+
 def test_requirements_available_without_telemetry_and_no_zero_as_missing(workflow):
     client, _ = workflow
     response = client.get(
@@ -61,6 +228,150 @@ def test_requirements_available_without_telemetry_and_no_zero_as_missing(workflo
     assert requirements["regime.p_bg"]["status"] == "missing"
     assert requirements["pump.curve_qh"]["status"] == "missing"
     assert requirements["transmission.efficiency"]["status"] == "pending_confirmation"
+
+
+def test_missing_motor_efficiency_keeps_total_and_explicit_unallocated_part(workflow):
+    client, _ = workflow
+    response = client.get(BASE + "/equipment", params={"at": CONTEXT["timestamp"]})
+    assert response.status_code == 200, response.text
+    equipment = response.json()["equipment"]
+    equipment["motor"]["eta_nom"] = None
+    response = client.post(
+        BASE + "/loss-detail",
+        json={
+            **CONTEXT,
+            "key": "hall",
+            "equipment_override": equipment,
+        },
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["status"] == "partial"
+    assert data["total_kw"] == pytest.approx(100)
+    unknown = {c["key"] for c in data["components"] if c["power_kw"] is None}
+    assert unknown == {"motor_chain_loss", "transmission_loss", "pump_loss"}
+    assert data["unallocated_kw"] == pytest.approx(84.6)
+    assert sum(c["power_kw"] or 0 for c in data["components"]) + data[
+        "unallocated_kw"
+    ] == pytest.approx(100)
+
+
+def test_temporary_equipment_changes_recalculate_without_publishing(workflow):
+    client, _ = workflow
+    initial = client.get(BASE + "/equipment", params={"at": CONTEXT["timestamp"]})
+    assert initial.status_code == 200, initial.text
+    initial = initial.json()
+    equipment = initial["equipment"]
+    equipment["transmission"]["efficiency"] = 0.95
+    result = client.post(
+        BASE + "/loss-detail",
+        json={
+            **CONTEXT,
+            "key": "transmission_loss",
+            "equipment_override": equipment,
+        },
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["total_kw"] == pytest.approx(180 * 0.97 * 0.9 * 0.05)
+    unchanged = client.get(BASE + "/equipment", params={"at": CONTEXT["timestamp"]}).json()
+    assert unchanged["revision"] == initial["revision"]
+    assert unchanged["equipment"]["transmission"]["efficiency"] == 0.98
+
+
+def test_zero_pressure_and_zero_annual_runtime_in_archive_are_not_missing(workflow):
+    client, db = workflow
+    measurement_id = _seed_archived_measurement(
+        db,
+        "2026-01-03T12:00:00",
+        {
+            "rho": 1000,
+            "p_in": 0,
+            "p_out": 9,
+            "p_bg": 8,
+            "q_fact": 36,
+            "p_electric": 180,
+            "t_year": 0,
+        },
+    )
+    request = {"source": "field_trip", "measurement_id": measurement_id}
+    rows = client.post(BASE + "/data-requirements", json=request)
+    assert rows.status_code == 200, rows.text
+    rows = {r["key"]: r for r in rows.json()["requirements"]}
+    assert rows["regime.p_in"]["status"] == "ready"
+    assert rows["regime.p_in"]["value"] == 0
+    assert rows["regime.t_year"]["status"] == "ready"
+    assert rows["regime.t_year"]["value"] == 0
+    detail = client.post(BASE + "/loss-detail", json={**request, "key": "hall"}).json()
+    assert detail["total_kw"] == pytest.approx(100)
+    assert detail["annual_kwh"] == 0
+
+
+def test_incompatible_equipment_allocation_does_not_hide_measured_total_or_signed_deviation():
+    from ppd_audit.core.audit import audit_aggregate
+    from ppd_audit.services.loss_details import build_loss_detail
+    from ppd_audit.spec import AggregateSpec, MotorSpec, PumpSpec, RegimeMeasurement
+
+    audit = audit_aggregate(
+        AggregateSpec(
+            id="A",
+            pump=PumpSpec(eta_nom=0.8),
+            motor=MotorSpec(p_nom=200, eta_nom=0.4),
+            regime=RegimeMeasurement(rho=1000, p_in=1, p_out=10, p_bg=9, q_fact=36, p_electric=180),
+        )
+    )
+    physical = build_loss_detail(audit, "hall", tariff=5)
+    assert physical["total_kw"] == pytest.approx(100)
+    assert physical["status"] == "partial"
+    assert physical["unallocated_kw"] == pytest.approx(90)
+    causal = build_loss_detail(audit, "efficiency_loss", tariff=5)
+    assert causal["total_kw"] == pytest.approx(audit.decomposition.dp_efficiency)
+    assert causal["total_kw"] < 0
+    overview = build_loss_detail(audit, "hall_causal", tariff=5)
+    assert overview["total_kw"] == pytest.approx(100)
+    assert sum(c["power_kw"] for c in overview["components"]) == pytest.approx(100)
+    deviation = next(c for c in overview["components"] if c["key"] == "efficiency_loss")
+    assert deviation["power_kw"] == pytest.approx(causal["total_kw"])
+    assert deviation["share_pct"] < 0
+
+
+@pytest.mark.parametrize(
+    "group,field,value",
+    [
+        ("pump", "eta_nom", 90),
+        ("motor", "eta_nom", 0),
+        ("transmission", "efficiency", 1.1),
+        ("motor", "p_nom", -100),
+    ],
+)
+def test_equipment_domain_validation_applies_to_publish_and_scenario(workflow, group, field, value):
+    client, _ = workflow
+    initial = client.get(BASE + "/equipment", params={"at": CONTEXT["timestamp"]}).json()
+    equipment = initial["equipment"]
+    equipment[group][field] = value
+    publish = client.post(
+        BASE + "/equipment-journal",
+        json={
+            "component": group,
+            "effective_at": CONTEXT["timestamp"],
+            "expected_revision": initial["revision"],
+            "changes": {f"{group}.{field}": value},
+            "reason": "passport",
+            "evidence": "documented",
+            "source": "Паспорт",
+            "author": "Инженер",
+        },
+    )
+    assert publish.status_code == 422, publish.text
+    scenario = client.post(
+        BASE + "/loss-detail",
+        json={
+            **CONTEXT,
+            "key": "hall",
+            "equipment_override": equipment,
+        },
+    )
+    assert scenario.status_code == 422, scenario.text
+    assert client.get(BASE + "/equipment").json()["revision"] == initial["revision"]
 
 
 def test_removed_full_write_endpoints_cannot_create_manual_records(workflow):
@@ -90,6 +401,27 @@ def test_inherited_equipment_parameter_keeps_its_own_source(workflow):
     origins = view["provenance"]["field_sources"]
     assert origins["motor.eta_nom"]["source"] == "Паспорт электродвигателя"
     assert origins["transmission.efficiency"]["source"] == "Паспорт передачи"
+
+
+def test_unknown_transmission_efficiency_is_saved_as_unknown_not_unity(workflow):
+    client, _ = workflow
+    _journal_change(
+        client,
+        "transmission",
+        "2026-01-02T00:00:00",
+        {"transmission.efficiency": None},
+        source="Проверка комплектности паспорта",
+    )
+    saved = client.get(BASE + "/equipment", params={"at": CONTEXT["timestamp"]}).json()
+    assert saved["equipment"]["transmission"]["efficiency"] is None
+    detail = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "hall"})
+    assert detail.status_code == 200, detail.text
+    detail = detail.json()
+    assert detail["total_kw"] == pytest.approx(100)
+    assert detail["status"] == "partial"
+    assert detail["unallocated_kw"] == pytest.approx(67.14)
+    unknown = {c["key"] for c in detail["components"] if c["power_kw"] is None}
+    assert unknown == {"transmission_loss", "pump_loss"}
 
 
 def _journal_change(client, component, at, changes, **extra):
@@ -207,6 +539,23 @@ def test_monitoring_history_uses_each_components_effective_characteristics(workf
         0.82 * 0.94 * 0.98 * 0.97
     )
     assert db.measurements("workflow", "A") == original
+
+
+def test_snapshot_and_loss_provenance_use_repair_time_not_day_start(workflow):
+    client, _ = workflow
+    _journal_change(
+        client, "motor", "2026-01-02T09:00:00", {"motor.eta_nom": 0.94}, source="Ремонт утром"
+    )
+    snapshot = client.post(BASE + "/snapshot-audit", json=CONTEXT)
+    assert snapshot.status_code == 200, snapshot.text
+    assert snapshot.json()["audit"]["metrics"]["eta_nom"] == pytest.approx(0.8 * 0.94 * 0.98 * 0.97)
+    detail = client.post(BASE + "/loss-detail", json={**CONTEXT, "key": "nominal_loss"})
+    assert detail.status_code == 200, detail.text
+    motor = next(
+        item for item in detail.json()["components"][0]["inputs"] if item["key"] == "motor_eta_nom"
+    )
+    assert motor["value"] == 0.94
+    assert "Ремонт утром" in motor["source"]
 
 
 def test_later_legacy_passport_does_not_reintroduce_unchanged_old_pump_efficiency(workflow):

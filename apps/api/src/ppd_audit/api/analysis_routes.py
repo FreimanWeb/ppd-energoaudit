@@ -20,8 +20,8 @@ from ..services.armits_data import load_network, runtime_reading
 from ..services.catalog import with_confirmed_density
 from ..services.diagnostics import diagnose_aggregate
 from ..services.forecast_data import injection_profile
+from ..services.loss_article_details import build_loss_detail
 from ..services.manual_data import manual_measurement
-from ..services.loss_details import build_loss_detail
 from ..services.network_losses import build_network_analysis
 from ..services.pump_recommendations import recommendations
 from ..services.result_scope import result_scope
@@ -393,7 +393,23 @@ def network_losses_view(object_id: str, aggregate_id: str, request: NetworkLossR
             "status": "unavailable",
             "measures": [],
             "comparison": None,
-            "warnings": ["Сеть АРМИТС пока подключена только для КНС-54."],
+            "warnings": ["Сеть АРМИТС для этого объекта не подключена."],
+        }
+    binding_error = None
+    if network.get("object_id") != object_id:
+        binding_error = "Снимок сети относится к другому объекту."
+    elif (
+        network.get("technical_place_code") is None
+        and len({aggregate["technical_place_code"] for aggregate in database.aggregates(object_id)})
+        > 1
+    ):
+        binding_error = "У объекта несколько гидравлических групп; укажите группу сети."
+    if binding_error:
+        return {
+            "status": "unavailable",
+            "measures": [],
+            "comparison": None,
+            "warnings": [binding_error],
         }
     _, audit, _, quality, sources = _context(database, object_id, aggregate_id, request)
     if quality.status == "unfit":
@@ -419,7 +435,7 @@ def network_losses_view(object_id: str, aggregate_id: str, request: NetworkLossR
     return result
 
 
-@router.post("/objects/{object_id}/aggregates/{aggregate_id}/loss-detail")
+@router.post("/objects/{object_id}/aggregates/{aggregate_id}/loss-article-detail")
 def loss_detail_view(object_id: str, aggregate_id: str, request: LossDetailRequest):
     """Подробности статьи карты потерь (переход по клику на столбец)."""
     from ..config import project_root

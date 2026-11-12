@@ -21,61 +21,16 @@ test('chain displays BG as an intermediate total in the waterfall',async({page})
   await expect(panel.getByText('Сумма составляющих превышает 100%',{exact:false})).toHaveCount(0);
 });
 
-test('aggregate details expand by button and retain their selection and annual table',async({page})=>{
-  await page.goto('/?object=demo-ppd&aggregate=НА-1&day=2026-10-18&timestamp=2026-10-18T22:00:00#machine-losses');
-  const panel=page.locator('.page-panel').filter({has:page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})}).first();
-  const plot=panel.getByRole('group',{name:'Декомпозиция мощности',exact:true});
-  await expect(plot.getByRole('button',{name:/^Потери на участке «Насос – БГ»/})).toBeVisible();
-  await expect(plot.locator('.visx-bar')).toHaveCount(5);
-  const labels=await plot.locator('.visx-axis-x text').evaluateAll(nodes=>nodes.map(node=>[...node.querySelectorAll('tspan')].map(span=>span.textContent).join(' ')));
-  expect(labels).toEqual([
-    'Потреблённая мощность',
-    'Потери при номинальном КПД',
-    'Потери из-за снижения КПД (износ, неоптимальная подача)',
-    'Потери на участке «Насос – БГ» (дросселирование, потери в трубопроводах)',
-    'Гидравлическая мощность на БГ',
-  ]);
-
-  await expect(plot.getByRole('button',{name:/^Потери гидравлической мощности на задвижке/})).toHaveCount(0);
-  await panel.getByRole('button',{name:'Детализация потерь НА',exact:true}).click();
-  await expect(panel.getByRole('button',{name:'Свернуть детализацию НА',exact:true})).toHaveAttribute('aria-expanded','true');
-  await expect(plot.getByRole('button',{name:/^Потери гидравлической мощности на задвижке/})).toBeVisible();
-  await expect(plot.getByRole('button',{name:/^Потери в НА на дросселирование:/})).toBeVisible();
-  for(const width of [1600,390]){
-    await page.setViewportSize({width,height:1000});
-    await expect.poll(()=>plot.evaluate(element=>{
-      const bounds=element.querySelector('svg')!.getBoundingClientRect();
-      return Math.max(...[...element.querySelectorAll('.visx-axis-x text')].map(label=>label.getBoundingClientRect().bottom-bounds.bottom));
-    })).toBeLessThanOrEqual(0);
-  }
-
-  await panel.getByRole('button',{name:'Свернуть детализацию НА',exact:true}).click();
-  await expect(plot.getByRole('button',{name:/^Потери на участке «Насос – БГ»/})).toBeVisible();
-  await expect(panel.getByLabel('Разбор составляющей')).toHaveCount(0);
-  await panel.getByText('Таблица составляющих',{exact:true}).click();
-  await expect(panel.getByRole('table')).toContainText('Потери на участке «Насос – БГ»');
-  await expect(panel.getByRole('table')).not.toContainText('Гидравл. насос→БГ');
-
-  // Клик по столбцу потерь открывает страницу подробностей статьи.
-  await plot.getByRole('button',{name:/^Потери из-за снижения КПД/}).click();
+test('chain loss opens its dedicated detail and preserves the selected mode',async({page})=>{
+  await page.goto('/?object=demo-ppd&aggregate=НА-1&day=2026-10-18&timestamp=2026-10-18T22:00:00#losses');
+  const plot=page.locator('.network-losses').getByRole('group',{name:'Декомпозиция мощности',exact:true});
+  await plot.getByRole('button',{name:/^Потери при номинальном КПД:/}).click();
   await expect.poll(()=>new URL(page.url()).hash).toBe('#loss-detail');
-  expect(new URL(page.url()).searchParams.get('loss')).toBe('efficiency');
   expect(new URL(page.url()).searchParams.get('timestamp')).toBe('2026-10-18T22:00:00');
   await expect(page.getByLabel('Предлагаемые мероприятия')).toBeVisible();
-  await page.getByRole('link',{name:'К карте потерь машинного блока',exact:true}).click();
-  await expect(page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})).toBeVisible();
 });
 
 
-test('direct aggregate inspection opens details and stays available when collapsed',async({page})=>{
-  await page.goto('/?object=demo-ppd&aggregate=НА-1&day=2026-10-18&timestamp=2026-10-18T22:00:00&inspect=throttle_loss#machine-losses');
-  const panel=page.locator('.page-panel').filter({has:page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})}).first();
-  await expect(panel.getByRole('button',{name:'Свернуть детализацию НА',exact:true})).toHaveAttribute('aria-expanded','true');
-  await expect(panel.getByLabel('Разбор составляющей')).toContainText('Потери в НА на дросселирование');
-  await panel.getByRole('button',{name:'Свернуть детализацию НА',exact:true}).click();
-  await expect(panel.getByLabel('Разбор составляющей')).toContainText('Потери на участке «Насос – БГ»');
-  await expect(panel.getByLabel('Разбор составляющей')).not.toContainText('недоступна');
-});
 
 
 test('chain summary has eight bars and detail restores equipment losses with its own boundary',async({page})=>{

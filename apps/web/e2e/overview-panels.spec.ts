@@ -23,7 +23,7 @@ for(const width of [1800,1280]){
       boundaries.push(box.y);
     }
     expect(Math.abs(boundaries[0]-boundaries[1])).toBeLessThan(2);
-    const actual=panels.first().getByRole('button',{name:'Пояснение: Факт',exact:true});
-    expect(await actual.locator('strong').evaluate(element=>getComputedStyle(element).color)).not.toBe(await secondary.first().evaluate(element=>getComputedStyle(element).color));
+    const primary=panels.first().locator('.machine-ure > .metric-values strong').first();
+    expect(await primary.evaluate(element=>getComputedStyle(element).color)).not.toBe(await secondary.first().evaluate(element=>getComputedStyle(element).color));
   });
 }

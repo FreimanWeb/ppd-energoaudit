@@ -3,6 +3,7 @@ import { useCallback, useState, type FormEvent } from "react";
 import type { OperatorBalance } from "../scheme/LossFlow";
 import { chainLossGroups } from "../../pages/lossChartData.mjs";
 import type { Audit } from "../../shared/types";
+import { contextBody, type PageProps } from "../../shared/ui/context";
 import { segment, useResource } from "../../shared/api";
 import { Button, LinkButton } from "../../shared/ui/Button";
 import { Panel } from "../../shared/ui/Panel";
@@ -35,26 +36,26 @@ type NetworkResponse = {
   wells: { id: string; flow_m3h: number; pipe_loss_kw: number; well_loss_kw: number; armature_loss_kw: number; choke_loss_kw: number | null; useful_kw: number; required_pressure_mpa: number; available_pressure_mpa: number; deficit_mpa: number; deficit_kw: number; synthetic_connection: boolean }[];
   assumptions: { parameter: string; label: string; value: number | string | null; unit: string; provenance: Provenance; basis: string }[];
   warnings: string[];
-  network: { pipeline_count: number; segment_count: number; well_count: number; total_length_m?: number; source_file: string; exported_at: string };
+  network: { is_synthetic: boolean; pipeline_count: number; segment_count: number; well_count: number; total_length_m?: number; source_file: string; exported_at: string };
   runtime_reading?: { hours: number; as_of: string; basis: string } | null;
   measures?: NetworkMeasure[];
 
 } | { status: "unavailable"; warnings: string[]; measures?: NetworkMeasure[]; runtime_reading?: { hours: number; as_of: string; basis: string } | null };
 
-export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "map" | "scenario" }) {
+export function NetworkLosses({ audit, context, view = "map" }: { audit: Audit; context: PageProps; view?: "map" | "scenario" }) {
   const editable = view === "scenario";
   const [scenario, setScenario] = useState<Scenario>(() => readNetworkScenario(new URL(location.href).searchParams.get("network_scenario")) ?? Object.fromEntries(parameters.map(p => [p.key, p.value])));
   const [mode, setMode] = useState<"decomposition" | "percentage">("decomposition");
   const [detailed,setDetailed]=useState(false);
   const [selectedName, setSelectedName] = useState("");
-  const demo = audit.audit.object_id === "demo-ppd";
   const timestamp = audit.snapshot?.timestamp;
   const resource = useResource<NetworkResponse>(
     audit.source === "field_trip" || timestamp
       ? `/objects/${segment(audit.audit.object_id)}/aggregates/${segment(audit.audit.aggregate_id)}/network-losses` : null,
-    JSON.stringify({ source: audit.source, ...(audit.source === "telemetry" && timestamp ? { day: timestamp.slice(0, 10), timestamp } : {}), ...(editable ? {scenario} : {}) }),
+    contextBody(context, editable ? {scenario} : {}),
   );
   const data = resource.data;
+  const syntheticGeometry = data && data.status !== "unavailable" && data.network.is_synthetic;
   const bgPower=data?.status === "scenario" ? data.operator_balance?.bg_kw : undefined;
   const physicalItems=data && data.status !== "unavailable" ? data.items.flatMap(item=>
     item.name === "Гидравлика насос→БГ" && typeof bgPower === "number" && Number.isFinite(bgPower)
@@ -94,7 +95,7 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
   };
   return <Panel title={editable ? "Гидравлический сценарий" : "Карта потерь по цепочке"} action={!editable ? <LinkButton href="#network-scenario">Гидравлический сценарий</LinkButton> : undefined}>
     <div className="network-losses">
-      {editable && <p className="notice">{demo ? "Демонстрационный объект: геометрия, режимы и потери синтетические. Не производственные данные." : "Геометрия — реестр АРМИТС, расход по скважинам — по фактической закачке, шероховатость — справочная. Параметры НКТ и требуемое давление — сценарные. Это оценка, а не измеренные потери."}</p>}
+      {editable && <p className="notice">{syntheticGeometry ? "Геометрия сети синтетическая. Расходы ветвей и недостающие параметры заданы сценарно; это не измеренный баланс." : "Геометрия — из снимка сети; единицы выгрузки ещё требуют подтверждения. Недостающие параметры и распределение потока заменены синтетикой. Это сценарная оценка, а не измеренные потери или достигнутая экономия."}</p>}
       {editable && <details className="network-scenario">
         <summary>Параметры сценария</summary>
         <form onSubmit={submit}>
@@ -111,7 +112,7 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
       {data && <>
         {data.status !== "unavailable" && <>
           <p className="muted">{editable ? "Сценарный баланс внешней сети от блока гребёнок." : data.title}</p>
-          <p className="network-metadata">{data.network.well_count} скважин · {fmt((data.network.total_length_m ?? [...new Map(data.segments.map(item => [item.id, item])).values()].reduce((sum, item) => sum + item.length_m, 0)) / 1000, 1)} км учтённых участков · перепад высот {fmt(scenario.elevation_change_m, 0)} м (синтетика). {demo ? "Геометрия синтетическая, длины в метрах и диаметры в миллиметрах." : "Геометрия по реестру АРМИТС."}</p>
+          <p className="network-metadata">{data.network.well_count} скважин · {fmt((data.network.total_length_m ?? [...new Map(data.segments.map(item => [item.id, item])).values()].reduce((sum, item) => sum + item.length_m, 0)) / 1000, 1)} км учтённых участков · перепад высот {fmt(scenario.elevation_change_m, 0)} м (синтетика). {syntheticGeometry ? "Геометрия синтетическая, длины в метрах и диаметры в миллиметрах." : "Геометрия из снимка сети, единицы не подтверждены."}</p>
         </>}
         {data.warnings.length > 0 && (data.status === "unavailable"
           ? <div className="notice" role="status"><ul>{data.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>

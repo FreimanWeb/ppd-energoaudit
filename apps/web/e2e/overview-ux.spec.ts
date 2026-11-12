@@ -1,7 +1,7 @@
 import { goToSection } from "./helpers";
 import { test, expect } from "@playwright/test";
 
-test("overview has compact KPI cards, explicit comparisons and keyboard help", async ({ page }) => {
+test("daily measurements stay neutral while regime deviations retain comparisons and keyboard help", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route("**/snapshot-audit", async route => {
     const response = await route.fetch();
@@ -13,21 +13,21 @@ test("overview has compact KPI cards, explicit comparisons and keyboard help", a
     await route.fulfill({response, json: audit});
   });
   await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#machine-block");
-  const ure = page.locator('.overview-metric-values-ure .metric-segment').filter({ has: page.getByText("Факт", { exact: true }) });
-  await expect(ure).toHaveAttribute("data-tone", "bad");
+  const ure = page.locator('.station-kpis .metric-card').filter({ has: page.getByText("УРЭ за сутки", { exact: true }) });
+  await expect(ure).toHaveAttribute("data-tone", "neutral");
   await expect(ure.locator(".metric-caption")).toHaveCount(0);
   await ure.locator("strong").hover();
-  await expect(page.getByRole("tooltip")).toContainText("Превышение требует внимания");
+  await expect(page.getByRole("tooltip")).not.toContainText("Превышение требует внимания");
   await page.keyboard.press("Escape");
   const box = await ure.boundingBox();
   expect(box!.width).toBeLessThanOrEqual(400);
-  await ure.getByRole("button", {name: "Пояснение: Факт"}).focus();
+  await ure.getByRole("button", {name: "Пояснение: УРЭ за сутки", exact: true}).focus();
   await expect(page.getByRole("tooltip")).toContainText("W / Q_сут");
   const ureColor = await ure.locator('strong').evaluate(element => getComputedStyle(element).color);
   await goToSection(page, "machine-block");
   await expect(page.locator('.metric-segment').filter({has: page.getByText("КПД агрегата", {exact: true})})).toHaveAttribute("data-tone", "bad");
   const badEfficiency = page.locator('.metric-segment').filter({ has: page.getByText('КПД агрегата', { exact: true }) }).locator('strong');
-  expect(ureColor).toBe(await badEfficiency.evaluate(element => getComputedStyle(element).color));
+  expect(ureColor).not.toBe(await badEfficiency.evaluate(element => getComputedStyle(element).color));
   await expect(page.getByRole("heading", {name: "Режим машинного блока", exact: true})).toBeVisible();
   for (const label of ["КПД ЭД расчётный", "КПД насоса расчётный", "Коэф. загрузки ЭД"])
     await expect(page.locator(".metric-card").filter({has: page.getByText(label, {exact: true})})).toHaveAttribute("data-tone", "bad");

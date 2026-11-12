@@ -163,3 +163,19 @@ def test_network_api_explains_missing_sources(client):
 
     assert response.status_code == 200
     assert "error" in response.json()
+
+
+@needs_sources
+def test_mixed_date_network_cannot_be_a_measured_balance(database):
+    view = network_view.network_view(database, NETWORK_DIR, NETWORK_CONFIG, "kns54an", tariff=5.17)
+    assert view.get("status") == "scenario"
+    assert view["temporal_alignment"] == "mixed_or_unknown"
+    assert view["flow_months"] != [view["p_bg_source"]["start"][:7]]
+
+
+@needs_sources
+def test_network_without_group_binding_cannot_join_registered_circuits(database):
+    database.upsert_technical_place("kns54an", "separate", "Отдельный контур")
+    view = network_view.network_view(database, NETWORK_DIR, NETWORK_CONFIG, "kns54an", tariff=5.17)
+    assert "error" in view
+    assert "totals" not in view

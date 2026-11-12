@@ -276,3 +276,18 @@ def test_snapshot_trace_includes_shared_formula_presentation(dashboard):
     assert entry.get("latex"), "math presentation must be available to both frontends"
     assert entry.get("name") == "Фактический напор, м"
     assert entry["formula"] and entry["subst"]
+
+
+def test_typical_topology_does_not_join_distinct_hydraulic_groups(dashboard):
+    client, database = dashboard
+    database.upsert_technical_place("fixture", "second", "Вторая группа")
+    database.upsert_aggregate("fixture", "НА-03", "работа", technical_place_code="second")
+    response = client.get("/objects/fixture/topology")
+    assert response.status_code == 200
+    graph = response.json()
+    pumps = {node["agg"]: node["id"] for node in graph["nodes"] if node["type"] == "pump"}
+    destinations = {
+        code: {edge["to"] for edge in graph["edges"] if edge["from"] == node}
+        for code, node in pumps.items()
+    }
+    assert destinations["НА-02"].isdisjoint(destinations["НА-03"])

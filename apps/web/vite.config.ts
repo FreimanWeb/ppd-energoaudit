@@ -3,6 +3,16 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 export default defineConfig({
+  plugins: [{
+    name: "isolated-dev-dependency-cache",
+    apply: "serve",
+    config(config) {
+      // Concurrent review servers must not replace the running app's React chunks.
+      return { cacheDir: fileURLToPath(new URL(
+        `./node_modules/.vite-${config.server?.port ?? 5173}/`, import.meta.url,
+      )) };
+    },
+  }],
   server: {
     fs: {
       // src imports shared JSON/SVG from the repository root.

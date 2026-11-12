@@ -110,11 +110,20 @@ class ScadaMapping:
         obj = self.objects.get(tag.object_code) or {}
         return (obj.get("aggregates") or {}).get(tag.unit)
 
-    def pressure_scale(self, tag: ScadaTag) -> float:
-        """Множитель к МПа для давлений этого объекта."""
+    def pressure_scale(self, tag: ScadaTag) -> float | None:
+        """Множитель к МПа для давлений этого объекта.
+
+        None — единица не подтверждена: значение пишется как в выгрузке.
+        """
         obj = self.objects.get(tag.object_code) or {}
-        unit = str(obj.get("pressure_unit") or self.pressure_unit)
-        return PRESSURE_UNITS.get(unit, 1.0)
+        pressure_units = obj.get("pressure_units") or {}
+        if tag.code in pressure_units:
+            unit = pressure_units[tag.code]
+        elif "pressure_unit" in obj:
+            unit = obj["pressure_unit"]
+        else:
+            unit = self.pressure_unit
+        return PRESSURE_UNITS.get(unit)
 
     def station_flow(self, tag: ScadaTag) -> dict[str, Any] | None:
         """Описание станционного расходомера объекта, если он задан."""
@@ -255,6 +264,7 @@ class CanonicalRow:
     unit: str
     source_tag: str
     source_file: str = ""
+    quality: str | None = None
 
 
 def build_rows(points: Iterator[ScadaPoint], mapping: ScadaMapping) -> list[CanonicalRow]:
@@ -338,8 +348,15 @@ def _step_row(
     """Ступенчатый сигнал: строка пишется только при изменении значения."""
     metric = spec["metric"]
     value = point.value
+    unit = spec.get("unit", "")
+    quality: str | None = None
     if metric.startswith("p_"):
-        value = round(value * mapping.pressure_scale(tag), 4)
+        scale = mapping.pressure_scale(tag)
+        if scale is None:
+            unit = "не подтверждена"
+            quality = "unit_unconfirmed"
+        else:
+            value = round(value * scale, 4)
     key = (plant, place, aggregate, metric)
     if last_value.get(key) == value:
         return []
@@ -352,9 +369,10 @@ def _step_row(
             timestamp=point.timestamp,
             metric=metric,
             value=value,
-            unit=spec.get("unit", ""),
+            unit=unit,
             source_tag=f"{tag.object_code}#{tag.unit}#{tag.code}",
             source_file=point.source,
+            quality=quality,
         )
     ]
 

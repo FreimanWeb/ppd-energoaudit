@@ -1,12 +1,13 @@
 id: kns14an
 name: КНС-14
 ngdu: Альметьевнефть
+operator_visible: false  # Исторический справочный объект: паспорт сохранён, в каталоге оператора скрыт.
 water_type: пресная
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
   вода/КНС 14 АН/КНС 14 АН расчет.xlsx
 aggregates:
-- id: НА-1
+- id: НА-2
   role: работа
   pump:
     model: ГНУ REDA 1000-1300
@@ -52,7 +53,7 @@ aggregates:
     p_hydraulic: 75.93387569444444
     dw_efficiency: 29491.981510576265
     t_year: 489.0
-- id: НА-2
+- id: НА-1
   role: работа
   pump:
     model: СИН61.02.100

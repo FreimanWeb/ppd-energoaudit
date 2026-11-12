@@ -1463,7 +1463,7 @@ class AuditDatabase:
             row = connection.execute(
                 """
                 SELECT p.code, p.name, p.water_type, p.branch, p.default_density,
-                       p.default_viscosity, ngdu.name AS ngdu_name
+                       p.default_viscosity, p.operator_visible, ngdu.name AS ngdu_name
                 FROM plants p JOIN ngdu ON ngdu.id = p.ngdu_id
                 WHERE p.code = ?
                 """,
@@ -1471,7 +1471,7 @@ class AuditDatabase:
             ).fetchone()
             if row is None:
                 raise KeyError(plant_code)
-            return dict(row)
+            return {**dict(row), "operator_visible": bool(row["operator_visible"])}
 
     def aggregate(self, plant_code: str, aggregate_code: str) -> dict[str, Any]:
         with self._connection() as connection:
@@ -1575,7 +1575,8 @@ class AuditDatabase:
     def plants(self, *, include_examples: bool = False) -> list[dict[str, Any]]:
         with self._connection() as connection:
             query = """
-                SELECT p.code, p.name, ngdu.name AS ngdu_name, p.water_type, p.branch, p.is_example
+                SELECT p.code, p.name, ngdu.name AS ngdu_name, p.water_type, p.branch,
+                       p.is_example, p.operator_visible
                 FROM plants p JOIN ngdu ON ngdu.id = p.ngdu_id
             """
             conditions = []
@@ -1585,7 +1586,11 @@ class AuditDatabase:
                 query += f" WHERE {' AND '.join(conditions)}"
             query += " ORDER BY ngdu.name, p.name"
             return [
-                {**dict(row), "is_example": bool(row["is_example"])}
+                {
+                    **dict(row),
+                    "is_example": bool(row["is_example"]),
+                    "operator_visible": bool(row["operator_visible"]),
+                }
                 for row in connection.execute(query)
             ]
 

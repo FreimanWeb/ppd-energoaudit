@@ -198,14 +198,81 @@ def test_elevation_validation(audit, network, value):
         network_losses.build_network_analysis(audit, network, {"elevation_change_m": value})
 
 
-def test_unavailable_network_and_zero_flow(audit, network, options):
-    network["object_id"] = "other"
+@pytest.mark.parametrize("metadata", [{"root_node": "КНС-54"}, {"station_nodes": ["КНС 54"]}])
+def test_unregistered_object_with_valid_network_calculates(audit, network, options, metadata):
+    network["object_id"] = "unregistered-object"
+    network.update(metadata)
     result = network_losses.build_network_analysis(audit, network, options)
-    assert result["measures"] == []
-    assert result["comparison"] is None
-    network["object_id"] = "kns54an"
+    assert result["status"] == "scenario", result["warnings"]
+    assert result["balance_error_kw"] == pytest.approx(0, abs=1e-8)
+    assert not any(well["synthetic_connection"] for well in result["wells"])
     audit.regime.q = 0
     assert network_losses.build_network_analysis(audit, network, options)["status"] == "unavailable"
+
+
+@pytest.mark.parametrize("metadata", [{"root_node": "КНС-42"}, {"station_nodes": ["КНС 42"]}])
+def test_renamed_station_network_calculates_and_models_intervention(
+    audit, network, options, metadata
+):
+    for section in network["segments"]:
+        section["from_node"] = section["from_node"].replace("КНС-54", "КНС-42")
+        section["to_node"] = section["to_node"].replace("КНС-54", "КНС-42")
+    network["object_id"] = "kns42xx"
+    network.update(metadata)
+    baseline = network_losses.build_network_loss_map(audit, network, options)
+    assert baseline["status"] == "scenario", baseline["warnings"]
+    assert baseline["balance_error_kw"] == pytest.approx(0, abs=1e-8)
+    assert not any(well["synthetic_connection"] for well in baseline["wells"])
+    comparison = network_losses.build_network_analysis(audit, network, options, "reduce_head")[
+        "comparison"
+    ]
+    assert comparison["saving_kw"] > 0
+    assert comparison["after"]["balance_error_kw"] == pytest.approx(0, abs=1e-8)
+    assert comparison["before"]["useful_kw"] == comparison["after"]["useful_kw"]
+
+
+def test_undeclared_station_roots_stay_synthetic(audit, network, options):
+    network["object_id"] = "unregistered-object"
+    result = network_losses.build_network_loss_map(audit, network, options)
+    assert result["status"] == "scenario", result["warnings"]
+    assert all(well["synthetic_connection"] for well in result["wells"])
+    assert result["network"]["synthetic_connection_count"] >= 1
+
+
+def test_unsupported_inputs_refuse_instead_of_faking(audit, network, options):
+    transfer = audit_aggregate(audit.spec, Branch.transfer)
+    refused = network_losses.build_network_loss_map(transfer, network, options)
+    assert refused["status"] == "unavailable"
+    for broken in (
+        {"object_id": "x", "wells": []},
+        {"object_id": "x", "segments": []},
+    ):
+        result = network_losses.build_network_loss_map(audit, broken, options)
+        assert result["status"] == "unavailable"
+
+
+def test_cyclic_geometry_is_rejected(audit, network, options):
+    segment = network["segments"][0]
+    network["segments"] = [
+        {
+            **segment,
+            "id": "x",
+            "pipeline_id": "x",
+            "pipeline_name": "x",
+            "from_node": "y",
+            "to_node": "z",
+        },
+        {
+            **segment,
+            "id": "y",
+            "pipeline_id": "y",
+            "pipeline_name": "y",
+            "from_node": "x",
+            "to_node": "w",
+        },
+    ]
+    result = network_losses.build_network_loss_map(audit, network, options)
+    assert result["status"] == "unavailable"
 
 
 def test_real_registry_geometry_supports_model_comparison(audit):
@@ -251,3 +318,11 @@ def test_well_flows_follow_measured_injection_and_reference_roughness():
     equal.pop("well_rates")
     split = network_losses.build_network_loss_map(audit, equal)
     assert len({round(well["flow_m3h"], 9) for well in split["wells"]}) == 1
+
+
+def test_network_bound_to_other_hydraulic_group_is_not_calculated(audit, network, options):
+    network["technical_place_code"] = "other-circuit"
+    result = network_losses.build_network_analysis(audit, network, options)
+    assert result["status"] == "unavailable"
+    assert result["items"] == []
+    assert result["comparison"] is None

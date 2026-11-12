@@ -12,7 +12,6 @@ import { StageLosses } from "../features/losses/StageLosses";
 import { PortfolioView } from "../features/monitoring/PortfolioView";
 import { TimelineView } from "../features/monitoring/TimelineView";
 import {
-  operatorObjects,
   navigationSections,
   pageForMode,
   readAnalysisContext,
@@ -84,7 +83,7 @@ export function App({ logout }: { logout?: () => void }) {
   const auditPage = ["snapshot","losses","network-scenario","machine-block","machine-losses","pipelines","wells","sources","formulas","working-point","measures","onboarding","equipment-journal","loss-detail","recommendations"].includes(page);
   const snapshotPage = auditPage || page === "telemetry" || page === "timeline";
   const objects = useResource<Plant[]>("/catalog/objects", undefined, true);
-  const visibleObjects = operatorObjects(objects.data ?? []);
+  const visibleObjects = objects.data ?? [];
   const object =
     visibleObjects.find((o) => o.code === objectChoice) ??
     visibleObjects.find((o) => !o.is_example) ??
@@ -176,6 +175,8 @@ export function App({ logout }: { logout?: () => void }) {
     selectionPending: aggregates.loading || dates.loading || snapshots.loading || result.loading,
     audit,
     inspectionKey: new URL(location.href).searchParams.get("inspect") ?? "",
+    hasNetwork: object?.has_network ?? false,
+    isExample: object?.is_example ?? false,
   };
   const contextKey = `${object?.code}/${aggregate?.code}/${mode}`;
   const telemetryRequest = useRef(0);
@@ -395,6 +396,7 @@ export function App({ logout }: { logout?: () => void }) {
                   {aggregates.data?.map((a) => (
                     <option key={a.code} value={a.code}>
                       {a.code}
+                      {a.technical_place_code !== "main" ? ` · ${a.technical_place_name}` : ""}
                       {a.pump_model ? ` · ${a.pump_model}` : ""}
                     </option>
                   ))}
@@ -492,8 +494,8 @@ export function App({ logout }: { logout?: () => void }) {
           На выбранное время нет пригодного снимка этого агрегата. Дата и время сохранены;
           выберите другое время или другой агрегат для расчёта.
         </p>}
-        {audit?.tariff_warning && <p className="notice" role="status">{audit.tariff_warning}</p>}
-        {auditPage && audit && audit.quality.status !== "ready" && page !== "snapshot" && page !== "machine-block" && (
+        {audit?.tariff_warning && page !== "machine-losses" && <p className="notice" role="status">{audit.tariff_warning}</p>}
+        {auditPage && audit && audit.quality.status !== "ready" && page !== "snapshot" && page !== "machine-block" && page !== "machine-losses" && (
           <div className={`quality ${audit.quality.status}`}>
             <strong>
               {audit.quality.status === "unfit"
@@ -507,12 +509,12 @@ export function App({ logout }: { logout?: () => void }) {
         )}
         {page === "overview" && object && <StationOverview key={`${object.code}:${source}`} objectId={object.code} source={source} topology={topology.data} />}
         {page === "snapshot" && audit && <SnapshotView audit={audit} />}
-        {audit && ["machine-block","machine-losses","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${audit.analysis_context?.measurement_id ?? ""}:${page}`} view={page === "machine-losses" ? "map" : "indicators"} stage={page === "machine-block" || page === "machine-losses" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} inspectionKey={context.inspectionKey} />}
+        {audit && ["machine-block","machine-losses","pipelines","wells"].includes(page) && <StageLosses key={`${audit.audit.object_id}:${audit.audit.aggregate_id}:${audit.snapshot?.timestamp ?? audit.source}:${audit.analysis_context?.measurement_id ?? ""}:${page}`} view={page === "machine-losses" ? "map" : "indicators"} stage={page === "machine-block" || page === "machine-losses" ? "hall" : page === "pipelines" ? "pipes" : "wells"} audit={audit} context={context} inspectionKey={context.inspectionKey} hasNetwork={context.hasNetwork} isExample={context.isExample} />}
         {page === "well-history" && object && <WellHistory objectId={object.code} />}
-        {(page === "losses" || page === "network-scenario") && audit && <NetworkLosses key={`${contextKey}:${timestamp}:${audit.analysis_context?.measurement_id ?? ""}:${page}`} audit={audit} view={page === "losses" ? "map" : "scenario"} />}
+        {(page === "losses" || page === "network-scenario") && audit && <NetworkLosses key={`${contextKey}:${timestamp}:${audit.analysis_context?.measurement_id ?? ""}:${page}`} audit={audit} context={context} view={page === "losses" ? "map" : "scenario"} />}
         {(page === "losses" || page === "network-scenario") && !audit && <p className="notice">Для расчёта выберите агрегат и доступный режим.</p>}
         {page === "sources" && audit && <SourcesView audit={audit} inspectionKey={context.inspectionKey} />}
-        {page === "formulas" && audit && <FormulasPage {...context} />}
+        {page === "formulas" && audit && <FormulasPage {...context} audit={audit} />}
         {page === "telemetry" && telemetryMessage && <p className="notice" role="status">{telemetryMessage}</p>}
         {page === "telemetry" && (
           <TelemetryPage

@@ -1,3 +1,4 @@
+import "katex/dist/katex.min.css";
 import { useEffect, useState } from "react";
 import { useHorizontalOverflow } from "../shared/ui/useHorizontalOverflow";
 import { renderEquation } from "./mathRenderer.mjs";

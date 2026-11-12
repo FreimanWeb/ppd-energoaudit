@@ -6,6 +6,7 @@ import { dashboardData } from "./dashboardData.mjs";
 import { Panel } from "../../shared/ui/Panel";
 import { Table } from "../../shared/ui/Table";
 import { Dictionary } from "./Dictionary";
+import { Passport } from "./Passport";
 
 const inputs: {
   key: keyof Audit["regime"];
@@ -22,6 +23,7 @@ const inputs: {
   { key: "t", parameter: "Суточная наработка · T_сут", unit: "ч", source: "T_сут" },
   { key: "w", parameter: "Суточная энергия · W_сут", unit: "кВт·ч", source: "W_сут" },
   { key: "p_electric", parameter: "Мощность для расчёта · P_эл", unit: "кВт", source: "P_эл", basis: "power" },
+  { key: "power_daily_reported", parameter: "Мощность суточного отчёта · база неизвестна", unit: "кВт", source: "P_сут_отч" },
   { key: "rho", parameter: "Плотность · ρ", unit: "кг/м³", source: "ρ" },
   { key: "nu", parameter: "Вязкость · ν", unit: "сСт", source: "ν" },
   { key: "t_year", parameter: "Годовая наработка · T_год", unit: "ч", source: "T_год" },
@@ -76,12 +78,12 @@ export function SourcesView({ audit, inspectionKey }: { audit: Audit; inspection
     ),
   );
   return (
-    <Panel title="Источники расчётных входов" caption={view.source}>
+    <><Panel title="Источники расчётных входов" caption={view.source}>
       {!Object.keys(audit.sources).length && (
         <p className="notice">Источники не сохранены у ранее загруженной телеметрии.</p>
       )}
       <InspectionLinks metric={inspectionKey} />
-      {inspectionFor(inspectionKey)?.sources.length === 0 && <p className="muted">Основание — паспортные данные агрегата; они доступны на обзоре в паспорте оборудования.</p>}
+      {inspectionFor(inspectionKey)?.sources.length === 0 && <p className="muted">Основание — паспортные данные агрегата; полный паспорт приведён ниже.</p>}
       <Table
         rowHighlighted={row => sourceKeys(inspectionKey, audit).includes(String(row.key))}
         rows={rows}
@@ -115,6 +117,6 @@ export function SourcesView({ audit, inspectionKey }: { audit: Audit; inspection
           {Object.keys(additionalBasis).length > 0 && <Dictionary values={additionalBasis} />}
         </details>
       )}
-    </Panel>
+    </Panel><Passport audit={audit}/></>
   );
 }

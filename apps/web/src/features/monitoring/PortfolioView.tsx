@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { ParentSize } from "@visx/responsive";
 import { ChartTooltip } from "../../charts/ChartTooltip";
 import "../../charts/charts.css";
-import { operatorObjects } from "../../app/navigation.mjs";
 import { Filters } from "../../app/components/Filters";
 import { Notice } from "../../app/components/Notice";
 import { Calendar } from "../analysis-context/Calendar";
@@ -107,7 +106,7 @@ export function PortfolioView({ onOpenObject }: { onOpenObject: (code: string) =
   const historyResource = useResource<{ objects: Pick<MonitoringObject, "code" | "history">[] }>(
     resource.data ? `/monitoring/history?history_days=${historyDays}&history_end=${endDate}` : null,
   );
-  const objects = operatorObjects(resource.data?.objects ?? []);
+  const objects = resource.data?.objects ?? [];
   const visible = visibleObjects(objects, query, ngdu, water, status);
   return <div className="portfolio-page">
     <header className="portfolio-heading">

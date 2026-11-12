@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from ..core.audit import AuditResult, audit_aggregate
 from ..db import AuditDatabase
+from ..measurement_quality import usable_measurement
 from ..spec import (
     AggregateSpec,
     Branch,
@@ -54,7 +55,6 @@ class SnapshotAudit:
     snapshot: TelemetrySnapshot
     uses_daily_flow: bool
     uses_daily_power: bool
-    annual_runtime_is_assumed: bool
     quality: TelemetryQuality
     sources: dict[str, str]
 
@@ -75,6 +75,8 @@ def build_regime(
     aggregate_values: dict[str, list[float]] = {}
     station_values: dict[str, list[float]] = {}
     for row in rows:
+        if not usable_measurement(row):
+            continue
         target = station_values if row["is_station"] else aggregate_values
         target.setdefault(row["metric"], []).append(float(row["value"]))
 
@@ -105,16 +107,17 @@ def build_regime(
         t=runtime,
         w=energy,
         q_fact=_median(aggregate_values, "flow_rate", required=False),
+        power_daily_reported=_single(aggregate_values, "power_daily_reported", required=False),
         p_electric=(
-            energy / runtime
-            if energy is not None and runtime
-            else float(median(power_values))
+            float(median(power_values))
             if power_values
+            else energy / runtime
+            if energy is not None and runtime
             else None
         ),
         nu=_median(aggregate_values, "viscosity", required=False) or plant["default_viscosity"],
         p_bg=p_bg,
-        t_year=database.annual_runtime(plant_code, aggregate_code, end) or 8760.0,
+        t_year=database.annual_runtime(plant_code, aggregate_code, end),
     )
 
 
@@ -154,10 +157,24 @@ def _snapshot_candidates(
     start: datetime,
     end: datetime,
 ) -> list[TelemetrySnapshot]:
-    """Вернуть все пары p_вх/p_вых; фильтры пригодности применяет публичная функция."""
+    """Вернуть пары давлений на измеренных точках Q, если есть канал расхода."""
     state_rows = database.state_measurements_in_window(plant_code, aggregate_code, start, end)
     pressure_rows = [row for row in state_rows if row["metric"] != "power"]
-    power_points = _power_states(start, end, state_rows)
+    flow_rows = [
+        row
+        for row in database.measurements_in_window(plant_code, aggregate_code, start, end)
+        if not row["is_station"] and row["metric"] == "flow_rate"
+    ]
+    sample_times = (
+        sorted({
+            datetime.fromisoformat(row["timestamp"])
+            for row in flow_rows
+            if usable_measurement(row) and float(row["value"]) > 0
+        })
+        if flow_rows
+        else None
+    )
+    power_points = _power_states(start, end, state_rows, sample_times=sample_times)
 
     snapshots = []
     unstable_changes = _unstable_pressure_change_times(pressure_rows)
@@ -239,6 +256,8 @@ def run_snapshot_audit(
     aggregate_values: dict[str, list[float]] = {}
     station_values: dict[str, list[float]] = {}
     for row in rows:
+        if not usable_measurement(row):
+            continue
         target = station_values if row["is_station"] else aggregate_values
         target.setdefault(row["metric"], []).append(float(row["value"]))
     if any(metric in station_values for metric in ("q_day", "runtime", "energy")):
@@ -251,9 +270,21 @@ def run_snapshot_audit(
     q_day = _single(aggregate_values, "q_day", required=False)
     runtime = _single(aggregate_values, "runtime", required=False)
     energy = _single(aggregate_values, "energy", required=False)
-    q_fact = _median(aggregate_values, "flow_rate", required=False)
+    q_fact = next(
+        (
+            float(row["value"])
+            for row in rows
+            if not row["is_station"]
+            and row["metric"] == "flow_rate"
+            and datetime.fromisoformat(row["timestamp"]) == timestamp
+            and usable_measurement(row)
+        ),
+        None,
+    )
+    if q_fact is not None and q_fact <= 0:
+        raise ValueError("Для режимного УРЭ нужна положительная подача в выбранный момент")
     uses_daily_flow = q_fact is None and q_day is not None and runtime is not None
-    uses_daily_power = energy is not None and runtime is not None
+    uses_daily_power = snapshot.power_kw is None and energy is not None and runtime is not None
     annual_runtime = _annual_runtime(
         database,
         plant_code,
@@ -295,7 +326,13 @@ def run_snapshot_audit(
         q_day_m3=q_day,
         integrated_flow_m3=integrated_flow,
     )
-    sources = _regime_sources(rows, state_rows, timestamp, uses_daily_flow, uses_daily_power)
+    sources = _regime_sources(
+        [row for row in rows if usable_measurement(row)],
+        state_rows,
+        timestamp,
+        uses_daily_flow,
+        uses_daily_power,
+    )
     if density and not aggregate_values.get("density"):
         sources["ρ"] = f"{density['source']}; доступно с {density['available_from']}"
     return SnapshotAudit(
@@ -303,7 +340,6 @@ def run_snapshot_audit(
         snapshot=snapshot,
         uses_daily_flow=uses_daily_flow,
         uses_daily_power=uses_daily_power,
-        annual_runtime_is_assumed=annual_runtime is None,
         quality=quality,
         sources=sources,
     )
@@ -360,12 +396,19 @@ def _operating_pressures(
 
 
 def _power_states(
-    start: datetime, end: datetime, state_rows: list[dict]
+    start: datetime,
+    end: datetime,
+    state_rows: list[dict],
+    *,
+    sample_times: list[datetime] | None = None,
 ) -> list[tuple[datetime, float, timedelta]]:
-    """Восстановить 30-минутные значения P_эл удержанием предыдущего значения."""
+    """Удерживать предыдущее P_эл на заданных точках или на 30-минутной сетке."""
     updates = sorted(
         [
-            (datetime.fromisoformat(row["timestamp"]), float(row["value"]))
+            (
+                datetime.fromisoformat(row["timestamp"]),
+                float(row["value"]) if usable_measurement(row) else None,
+            )
             for row in state_rows
             if not row["is_station"] and row["metric"] == "power"
         ],
@@ -373,11 +416,12 @@ def _power_states(
     )
     if not updates:
         return []
-    window_updates = [timestamp for timestamp, _ in updates if start <= timestamp < end]
-    if not _is_fixed_power_series(updates):
-        sample_times = window_updates
-    else:
-        sample_times = list(_power_slots(start, end, updates[0][0]))
+    if sample_times is None:
+        window_updates = [timestamp for timestamp, _ in updates if start <= timestamp < end]
+        if not _is_fixed_power_series(updates):
+            sample_times = window_updates
+        else:
+            sample_times = list(_power_slots(start, end, updates[0][0]))
 
     states = []
     update_index = 0
@@ -416,13 +460,21 @@ def _power_reconciliation(
 
 def _integrated_flow_rate(start: datetime, end: datetime, rows: list[dict]) -> float | None:
     """Интегрировать Q только для полного равномерного ряда с началом в окне."""
+    flow_rows = [
+        row
+        for row in rows
+        if not row["is_station"]
+        and row["metric"] == "flow_rate"
+        and start <= datetime.fromisoformat(row["timestamp"]) < end
+    ]
+    if not all(usable_measurement(row) for row in flow_rows):
+        return None
     points = sorted(
         (
             datetime.fromisoformat(row["timestamp"]),
             float(row["value"]),
         )
-        for row in rows
-        if not row["is_station"] and row["metric"] == "flow_rate"
+        for row in flow_rows
     )
     if len(points) < 2 or points[0][0] != start:
         return None
@@ -443,22 +495,21 @@ def _regime_sources(
     uses_daily_flow: bool,
     uses_daily_power: bool,
 ) -> dict[str, str]:
-    """Собрать provenance только для входов, реально использованных в расчёте."""
+    """Источники раздельных суточных показателей и входов выбранного снимка."""
     sources = {
         "p_вх": _latest_source(state_rows, "p_in", timestamp),
         "p_вых": _latest_source(state_rows, "p_out", timestamp),
+        "P_сут_отч": _measurement_source(rows, "power_daily_reported"),
         "p_БГ": _latest_source(state_rows, "p_bg", timestamp),
         "ρ": _measurement_source(rows, "density"),
+        "Q_сут": _measurement_source(rows, "q_day"),
+        "W_сут": _measurement_source(rows, "energy"),
+        "T_сут": _measurement_source(rows, "runtime"),
     }
-    if uses_daily_flow:
-        sources["Q_сут"] = _measurement_source(rows, "q_day")
-    else:
-        sources["Q"] = _measurement_source(rows, "flow_rate")
-    if uses_daily_power:
-        sources["W_сут"] = _measurement_source(rows, "energy")
-        sources["T_сут"] = _measurement_source(rows, "runtime")
-    else:
-        sources["P_эл"] = _measurement_source(rows, "power")
+    if not uses_daily_flow:
+        sources["Q"] = _measurement_source(rows, "flow_rate", timestamp=timestamp)
+    if not uses_daily_power:
+        sources["P_эл"] = _latest_source(state_rows, "power", timestamp)
     return {metric: source for metric, source in sources.items() if source is not None}
 
 
@@ -471,8 +522,19 @@ def _latest_source(rows: list[dict], metric: str, timestamp: datetime) -> str | 
     return _source_reference(candidates[-1]) if candidates else None
 
 
-def _measurement_source(rows: list[dict], metric: str) -> str | None:
-    candidates = [row for row in rows if not row["is_station"] and row["metric"] == metric]
+def _measurement_source(
+    rows: list[dict],
+    metric: str,
+    *,
+    timestamp: datetime | None = None,
+) -> str | None:
+    candidates = [
+        row
+        for row in rows
+        if not row["is_station"]
+        and row["metric"] == metric
+        and (timestamp is None or datetime.fromisoformat(row["timestamp"]) == timestamp)
+    ]
     return _source_reference(candidates[-1]) if candidates else None
 
 
@@ -514,7 +576,7 @@ def _pressure_states_at(
             (
                 datetime.fromisoformat(row["timestamp"]),
                 row["metric"],
-                float(row["value"]),
+                float(row["value"]) if usable_measurement(row) else None,
                 bool(row["is_station"]),
             )
             for row in pressure_rows
@@ -530,6 +592,12 @@ def _pressure_states_at(
         power_age = point[2] if len(point) == 3 else None
         while update_index < len(updates) and updates[update_index][0] <= timestamp:
             update_timestamp, metric, value, is_station = updates[update_index]
+            if value is None:
+                state.pop(metric, None)
+                if metric == "p_bg":
+                    p_bg_timestamp = None
+                update_index += 1
+                continue
             if is_station:
                 if metric == "p_bg":
                     state[metric] = value
@@ -562,7 +630,9 @@ def _unstable_pressure_change_times(pressure_rows: list[dict]) -> list[datetime]
                 float(row["value"]),
             )
             for row in pressure_rows
-            if not row["is_station"] and row["metric"] in {"p_in", "p_out"}
+            if not row["is_station"]
+            and row["metric"] in {"p_in", "p_out"}
+            and usable_measurement(row)
         ],
         key=lambda update: update[0],
     )

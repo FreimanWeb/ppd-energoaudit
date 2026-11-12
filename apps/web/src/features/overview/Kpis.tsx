@@ -7,8 +7,9 @@ import { metricAssessment } from "../../shared/metrics/metricAssessment.mjs";
 import { MetricCard } from "../../shared/ui/MetricCard";
 
 export const metricHelp: Record<string, string> = {
-  "УРЭ факт": "Фактический удельный расход электроэнергии: W / Q_сут.\n\nПри отсутствии суточного факта используется расчётный режим.",
-  "УРЭ расчётный": "По фактическому напору и номинальному КПД.\n\nРазница с фактом характеризует потери КПД.",
+  "УРЭ факт": "Суточный удельный расход электроэнергии: W / Q_сут за одни и те же сутки.\n\nБез обоих суточных итогов показатель отсутствует. Расчёт по режиму не подставляется вместо факта.",
+  "УРЭ по режиму": "Отношение электрической мощности к подаче из исходного режима.\n\nЭто расчёт по доступным входным данным, а не измеренная суточная энергия на объём закачки.",
+  "УРЭ расчётный": "По напору исходного режима и номинальному КПД.\n\nСуточный УРЭ и расчёт по отдельному замеру давления имеют разную временную базу; их разница сама по себе не доказывает потери.",
   "УРЭ оптимальный": "По оптимальному давлению; для КНС p_опт = p_БГ.\n\nБез подтверждённого оптимального режима показатель отсутствует.",
   "Цель ППД-2035": "Целевой удельный расход энергии системы ППД к 2035 году из конфигурации ТЗ.",
   "КПД агрегата": "Фактический КПД установки: гидравлическая мощность / электрическая мощность.\n\nСравнение с номинальным КПД.",
@@ -45,9 +46,9 @@ export function Kpis({
   heading?: boolean;
   children?: ReactNode;
 }) {
-  const m = audit.audit.metrics, usable = dashboardData(audit).usable;
+  const m = audit.audit.metrics, view = dashboardData(audit), usable = view.usable;
   const comparisons: Record<string, [unknown, "higher" | "lower", string, boolean?]> = {
-    "УРЭ факт": [m.sec_calc_kwh_m3, "higher", "расчётного"],
+    "УРЭ по режиму": [m.sec_calc_kwh_m3, "higher", "при паспортном КПД"],
     "КПД агрегата": [m.eta_nom, "lower", "номинального", true],
     "КПД на выбранный момент": [m.eta_nom, "lower", "номинального", true],
     "КПД ЭД расчётный": [audit.passport?.motor?.eta_nom, "lower", "паспортного", true],
@@ -60,7 +61,8 @@ export function Kpis({
     <section className="metric-group" aria-label={label}>
       {heading && <h3>{label}</h3>}
       <div className="kpis">
-        {rows.map(([name, value, unit]) => {
+        {rows.map(([name, inputValue, unit]) => {
+          const value = name === "УРЭ факт" ? view.dailySec : name === "УРЭ по режиму" ? view.regimeSec : inputValue;
           const comparison = comparisons[name];
           const annual = name.startsWith("Потери");
           const efficiency = comparison?.[3] ?? name === "КПД номинальный";

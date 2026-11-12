@@ -1,20 +1,28 @@
-"""Equipment readiness before and after a usable audit."""
+"""Scoped loss explanation and the same requirements before/after a usable audit."""
 
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
+from pydantic import Field
 
 from ..services.armits_data import load_network
+from ..services.loss_details import DOWNSTREAM, SUPPORTED_KEYS, build_loss_detail
 from ..services.loss_requirements import data_requirements
 from ..services.manual_data import apply_equipment_override, equipment_view, manual_measurement
+from ..services.network_losses import build_network_analysis
 from ..spec import AggregateSpec
-from .analysis_contracts import AnalysisContext
+from .analysis_contracts import AnalysisContext, NetworkLossScenario
 from .analysis_routes import _context
-from .dashboard import _require_ids
+from .dashboard import _require_ids, _tariff
 
 
 router = APIRouter()
+
+
+class LossDetailRequest(AnalysisContext):
+    key: str = Field(min_length=1)
+    scenario: NetworkLossScenario = Field(default_factory=NetworkLossScenario)
 
 
 class RequirementsRequest(AnalysisContext):
@@ -77,6 +85,36 @@ def _passport_requirements(database, object_id, aggregate_id, selected, override
             "наличие его измерений не подтверждается."
         ],
     }
+
+
+@router.post("/objects/{object_id}/aggregates/{aggregate_id}/loss-detail")
+def loss_detail(object_id: str, aggregate_id: str, request: LossDetailRequest):
+    database = _database()
+    if request.key not in SUPPORTED_KEYS:
+        raise HTTPException(400, detail="Неизвестная составляющая потерь")
+    _, audit, _, quality, sources = _context(database, object_id, aggregate_id, request)
+    at = _at(database, object_id, aggregate_id, request, audit)
+    equipment = _equipment_for_audit(database, object_id, aggregate_id, at, request, audit)
+    network = load_network(object_id) if request.key in DOWNSTREAM else None
+    network_result = (
+        build_network_analysis(audit, network, options=request.scenario.model_dump())
+        if network is not None
+        else None
+    )
+    tariff = _tariff(database, at.date() if request.source == "telemetry" else None)["rub_per_kwh"]
+    result = build_loss_detail(
+        audit,
+        request.key,
+        tariff=tariff,
+        provenance=equipment["provenance"],
+        sources=sources,
+        scenario=request.equipment_override is not None,
+        network=network,
+        network_analysis=network_result,
+    )
+    result["notes"].extend(issue.message for issue in quality.issues)
+    result["analysis_context"] = request.model_dump(mode="json", exclude={"key", "scenario"})
+    return result
 
 
 @router.get("/objects/{object_id}/aggregates/{aggregate_id}/data-requirements")

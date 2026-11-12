@@ -313,10 +313,15 @@ def evaluate_horizon(
         discounted_payback_years=payback_from_cumulative(
             [y.cumulative_discounted_krub for y in years], capex
         ),
-        note=(
-            "Годовой эффект масштабирован прогнозным объёмом закачки "
-            f"(показатель {exponent:g}); профиль — {profile.method}, "
-            "статистическая экстраполяция, не гидродинамическая модель пласта."
+        note=" ".join(
+            part
+            for part in (
+                base.note,
+                "Годовой эффект масштабирован прогнозным объёмом закачки "
+                f"(показатель {exponent:g}); профиль — {profile.method}, "
+                "статистическая экстраполяция, не гидродинамическая модель пласта.",
+            )
+            if part
         ),
     )
 

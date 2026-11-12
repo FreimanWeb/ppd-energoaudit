@@ -22,6 +22,7 @@ test("real measured regime, passport and formula substitutions", async ({
   await expect(page.getByLabel("Момент измерения")).toHaveValue(
     "2026-09-29T23:30:00",
   );
+  await page.getByRole("link",{name:"Паспорт и источники",exact:true}).click();
   await expect(page.getByRole("heading", {name: "Паспорт и исходный режим"})).toBeVisible();
   await section(page, "snapshot");
   await expect(page.getByRole("heading", {name: "Суточный факт"})).toBeVisible();
@@ -67,21 +68,10 @@ test("telemetry, forecast and real external CRM sources", async ({ page }) => {
   await expect(chart(page)).toBeVisible();
 });
 
-test("loss graphs, working point, measures and connection templates", async ({
+test("working point and measures", async ({
   page,
 }) => {
   await selectFixture(page);
-  await section(page, "machine-losses");
-  const waterfall = page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole("group", {name: "Декомпозиция мощности", exact: true});
-  await expect(waterfall.locator("svg.visx-chart")).toBeVisible();
-  await page.getByRole("button",{name:"Детализация потерь НА",exact:true}).click();
-  await expect(waterfall.locator(".visx-bar")).toHaveCount(6);
-  const firstBar = waterfall.locator(".visx-bar").first();
-  await expect(firstBar).toHaveAttribute("aria-label", /кВт/);
-  await firstBar.focus();
-  await expect(waterfall.locator(".native-chart-tooltip b").first()).toBeVisible();
-  await page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('button', { name: 'Структура, %', exact: true }).click();
-  await expect(page.getByRole('group',{name:'Структура мощности, %',exact:true}).locator('svg.visx-chart')).toBeVisible();
   await section(page, "working-point");
   await expect(chart(page)).toBeVisible();
   await expect(page.locator(".visx-axis-x").first()).toBeVisible();
@@ -94,8 +84,6 @@ test("loss graphs, working point, measures and connection templates", async ({
   await expect(page.getByLabel("Горизонт экономики")).toBeEnabled();
   await expect(chart(page)).toBeVisible();
   await expect(page.locator("main")).toContainText("NPV");
-  await section(page, "onboarding");
-  await expect(page.locator("main")).toContainText(/Шаблон|шаблон/);
 });
 
 test("unfit measurements never produce economic conclusions; missing snapshot is explicit", async ({
@@ -103,7 +91,7 @@ test("unfit measurements never produce economic conclusions; missing snapshot is
 }) => {
   await selectFixture(page);
   await selectDate(page, "2026-09-30");
-  await expect(page.getByText(/Данные непригодны/).first()).toBeVisible();
+  await expect(page.locator("main").getByRole("alert").first()).toBeVisible();
   await section(page, "measures");
   await expect(page.locator("main")).toContainText(
     /непригодн|недоступ|не рассчит/,

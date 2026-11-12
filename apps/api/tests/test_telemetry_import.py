@@ -6,75 +6,104 @@ import pytest
 
 from ppd_audit.db import AuditDatabase
 from ppd_audit.db_import import import_excel_telemetry, import_test_telemetry
+from ppd_audit.services.telemetry_audit import telemetry_snapshots
 
 
-def test_importer_converts_kns10_pressure_from_kgf_per_cm2(tmp_path):
+@pytest.mark.parametrize(
+    ("plant_code", "plant_name", "ngdu", "water_type", "filename", "outlet"),
+    [
+        (
+            "kns10bn",
+            "КНС-10 БН",
+            "Бавлынефть",
+            "пластовая",
+            "КНС-10 БН давления НА-1 из вомбат.xls.json",
+            7.0,
+        ),
+        (
+            "kns10bn",
+            "КНС-10 БН",
+            "Бавлынефть",
+            "пластовая",
+            "КНС-10 БН давления НА-1 из вомбат.xls.json",
+            100.0,
+        ),
+        (
+            "kns97pren",
+            "КНС-97",
+            "Елховнефть",
+            "пресная",
+            "КНС-97 ЕН давления НА-1 из вомбат.xls.json",
+            7.0,
+        ),
+        (
+            "kns97pren",
+            "КНС-97",
+            "Елховнефть",
+            "пресная",
+            "КНС-97 ЕН давления НА-1 из вомбат.xls.json",
+            100.0,
+        ),
+    ],
+)
+def test_importer_preserves_ambiguous_pressure_without_guessing_unit(
+    tmp_path, plant_code, plant_name, ngdu, water_type, filename, outlet
+):
     database = AuditDatabase(tmp_path / "audit.sqlite")
     database.migrate()
-    database.upsert_plant("kns10bn", "КНС-10 БН", "Бавлынефть", "пластовая", "кнс")
-    database.upsert_aggregate("kns10bn", "НА-1", "работа")
+    database.upsert_plant(plant_code, plant_name, ngdu, water_type, "кнс")
     draft = {
         "telemetry": [
             {
                 "timestamp": "2026-07-24T00:00:00",
                 "metric": "pressure",
                 "label": "Давление на приёме",
-                "value": 10.0,
-                "quality": 0,
+                "value": 2.0,
             },
             {
                 "timestamp": "2026-07-24T00:00:00",
                 "metric": "pressure",
                 "label": "Давление на выкиде",
-                "value": 130.0,
-                "quality": 0,
+                "value": outlet,
+            },
+            {
+                "timestamp": "2026-07-24T00:00:00",
+                "metric": "power_kw",
+                "label": "Активная мощность",
+                "value": 200.0,
             },
         ]
     }
-    path = tmp_path / "КНС-10 БН давления НА-1 из вомбат.xls.json"
+    path = tmp_path / filename
     path.write_text(json.dumps(draft), encoding="utf-8")
 
     stats = import_test_telemetry(database, tmp_path)
-    records = database.measurements("kns10bn", "НА-1")
+    records = database.measurements(plant_code, "НА-1")
 
-    assert stats.stored == 2
-    assert [row["metric"] for row in records] == ["p_in", "p_out"]
-    assert records[0]["value"] == pytest.approx(10.0 * 0.0980665)
-    assert records[0]["unit"] == "МПа"
-    assert records[0]["source_kind"] == "json_draft"
-    assert records[0]["source_file"] == path.name
-    assert records[0]["source_label"] == "Давление на приёме"
+    assert stats.stored == 3
+    pressures = {row["metric"]: row for row in records if row["metric"].startswith("p_")}
+    assert pressures["p_in"]["value"] == pytest.approx(2.0)
+    assert pressures["p_out"]["value"] == pytest.approx(outlet)
+    for row in pressures.values():
+        assert row["unit"] == "не подтверждена"
+        assert row["quality"].startswith("unit_unconfirmed")
+        assert row["source_file"] == path.name
 
-
-def test_importer_converts_kns97_pressure_from_kgf_per_cm2(tmp_path):
-    database = AuditDatabase(tmp_path / "audit.sqlite")
-    database.migrate()
-    database.upsert_plant("kns97pren", "КНС-97", "Елховнефть", "пресная", "кнс")
-    database.upsert_aggregate("kns97pren", "НА-1", "работа")
-    (tmp_path / "КНС-97 ЕН давления НА-1 из вомбат.xls.json").write_text(
-        json.dumps({
-            "telemetry": [
-                {
-                    "timestamp": "2026-07-24T00:00:00",
-                    "metric": "pressure",
-                    "label": "Давление на выкиде",
-                    "value": 100.0,
-                }
-            ]
-        }),
-        encoding="utf-8",
+    assert (
+        telemetry_snapshots(
+            database, plant_code, "НА-1", datetime(2026, 7, 24), datetime(2026, 7, 25)
+        )
+        == []
     )
 
-    import_test_telemetry(database, tmp_path)
 
-    assert database.measurements("kns97pren", "НА-1")[0]["value"] == pytest.approx(9.80665)
-
-
-def test_importer_keeps_low_kns97_pressure_values_in_mpa(tmp_path):
+@pytest.mark.parametrize("value", [11.807, 70.0])
+def test_importer_keeps_kns97pr_pressure_values_in_mpa(tmp_path, value):
     database = AuditDatabase(tmp_path / "audit.sqlite")
     database.migrate()
     database.upsert_plant("kns97pren", "КНС-97", "Елховнефть", "пресная", "кнс")
-    database.upsert_aggregate("kns97pren", "НА-2 ПР", "работа")
+    database.upsert_technical_place("kns97pren", "kns97pr", "Зарегистрированный контур")
+    database.upsert_aggregate("kns97pren", "НА-2 ПР", "работа", technical_place_code="kns97pr")
     (tmp_path / "КНС-97 ПР ЕН давления НА-02 из вомбат.xls.json").write_text(
         json.dumps({
             "telemetry": [
@@ -82,7 +111,7 @@ def test_importer_keeps_low_kns97_pressure_values_in_mpa(tmp_path):
                     "timestamp": "2026-07-24T00:00:00",
                     "metric": "pressure",
                     "label": "Давление на выкиде",
-                    "value": 11.807,
+                    "value": value,
                 }
             ]
         }),
@@ -90,8 +119,14 @@ def test_importer_keeps_low_kns97_pressure_values_in_mpa(tmp_path):
     )
 
     import_test_telemetry(database, tmp_path)
+    assert (
+        database.aggregate("kns97pren", "НА-2 ПР")["technical_place_name"]
+        == "Зарегистрированный контур"
+    )
 
-    assert database.measurements("kns97pren", "НА-2 ПР")[0]["value"] == pytest.approx(11.807)
+    records = database.measurements("kns97pren", "НА-2 ПР", technical_place_code="kns97pr")
+    assert records[0]["value"] == pytest.approx(value)
+    assert records[0]["unit"] == "МПа"
 
 
 def test_importer_uses_kns10_daily_file_tag_as_aggregate_scope(tmp_path):
@@ -171,7 +206,8 @@ def test_importer_maps_kns97_pr_daily_tag_to_na02(tmp_path):
     database = AuditDatabase(tmp_path / "audit.sqlite")
     database.migrate()
     database.upsert_plant("kns97pren", "КНС-97/2", "Елховнефть", "пресная", "кнс")
-    database.upsert_aggregate("kns97pren", "НА-2 ПР", "работа")
+    database.upsert_technical_place("kns97pren", "kns97pr", "КНС-97ПР")
+    database.upsert_aggregate("kns97pren", "НА-2 ПР", "работа", technical_place_code="kns97pr")
     draft = {
         "telemetry": [
             {
@@ -188,7 +224,10 @@ def test_importer_maps_kns97_pr_daily_tag_to_na02(tmp_path):
 
     import_test_telemetry(database, tmp_path)
 
-    assert database.measurements("kns97pren", "НА-2 ПР")[0]["metric"] == "q_day"
+    assert (
+        database.measurements("kns97pren", "НА-2 ПР", technical_place_code="kns97pr")[0]["metric"]
+        == "q_day"
+    )
 
 
 def test_importer_maps_knsopu_daily_values_to_aggregate_scope(tmp_path):

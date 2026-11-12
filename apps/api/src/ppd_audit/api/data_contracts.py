@@ -1,6 +1,6 @@
 """JSON contracts телеметрии, прогнозов и внешних CRM-выгрузок."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -236,7 +236,11 @@ class NetworkFluid(BaseModel):
 
 class NetworkView(BaseModel):
     object_id: str
-    month: str | None
+    status: Literal["scenario"]
+    temporal_alignment: Literal["mixed_or_unknown"]
+    flow_months: list[str]
+    technical_place_code: str | None
+    warnings: list[str]
     p_bg_mpa: float
     p_bg_source: ManifoldSource
     fluid: NetworkFluid

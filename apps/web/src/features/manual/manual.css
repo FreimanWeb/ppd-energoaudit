@@ -12,6 +12,29 @@
 .req-badge.req-pending_confirmation, .req-badge.req-assumed { color: var(--status-warning); }
 .req-badge.req-ready { color: var(--status-success); }
 .requirement-ready { margin-block: var(--space-3); }
+.requirement-summary { margin-block: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.requirement-summary > summary { font-weight: var(--weight-semibold); }
+.requirement-group { margin-top: var(--space-4); }
+.requirement-group > h4 { margin: 0; font-size: var(--text-body); }
+.requirement-group > p { margin-block: var(--space-2); }
+.requirement-compact-list { list-style: none; margin: 0; padding: 0; }
+.requirement-compact-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: start; padding-block: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.requirement-compact-item:last-child { border-bottom: 0; }
+.requirement-compact-item .requirement-affects { margin: var(--space-1) 0 0; font-size: var(--text-caption); }
+.requirement-compact-item .ds-button { text-decoration: none; }
+.requirement-review-item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+
+.loss-detail { min-width: 0; overflow-wrap: anywhere; }
+.loss-detail-status { margin-block: var(--space-3); }
+.loss-detail-status.partial { background: var(--status-warning-surface); color: var(--status-warning-content); }
+.loss-detail-status.unavailable { background: var(--status-danger-surface); color: var(--status-danger-content); }
+.loss-component { margin-block: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.loss-component > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); }
+.loss-component > header h4 { margin: 0; }
+.loss-substitution { margin: var(--space-1) 0 var(--space-3); font-variant-numeric: tabular-nums; }
+.loss-origin { font-size: var(--text-caption); color: var(--content-muted); }
+.loss-detail table { min-width: 720px; }
+.loss-detail :is(th, td) { vertical-align: top; white-space: normal; }
 
 .manual-form { display: grid; gap: var(--space-4); margin-block: var(--space-4); }
 .manual-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }

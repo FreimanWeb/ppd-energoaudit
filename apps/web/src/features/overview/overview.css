@@ -85,3 +85,5 @@
 .machine-kpi-panels .machine-efficiency > .metric-group { border: 0; border-top: 1px solid var(--border-subtle); padding: var(--space-3) 0 0; --metric-danger: var(--content-muted); color: var(--content-muted); }
 .machine-kpi-panels .machine-kpi-secondary :is(strong, .metric-segment-label, .metric-unit, .metric-actions summary),
 .machine-kpi-panels .machine-efficiency > .metric-group :is(strong, .metric-label, .metric-unit, .metric-actions summary) { color: var(--content-muted); }
+
+.machine-ure > .metric-values .metric-values-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }

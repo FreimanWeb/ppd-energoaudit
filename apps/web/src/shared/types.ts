@@ -216,6 +216,40 @@ export type Requirement = {
   action: "equipment" | "measurement" | "network" | "review";
   action_label: string;
 };
+export type LossComponent = {
+  key: string;
+  name: string;
+  power_kw: number | null;
+  share_pct: number | null;
+  annual_kwh: number | null;
+  annual_rub: number | null;
+  origin: "measured" | "calculated" | "assumed" | "unavailable";
+  formula: string;
+  substitution: string;
+  formula_latex: string;
+  substitution_latex: string | null;
+  basis: string;
+  inputs: { key: string; label: string; value: number | string | boolean | null; unit: string; origin: string; source: string }[];
+};
+export type LossDetail = {
+  key: string;
+  title: string;
+  boundary: string;
+  status: "ready" | "partial" | "unavailable";
+  total_kw: number | null;
+  unallocated_kw?: number | null;
+  balance_residual_kw?: number | null;
+  input_kw: number | null;
+  output_kw: number | null;
+  annual_runtime_hours: number;
+  annual_runtime_is_assumed: boolean;
+  tariff: number;
+  annual_kwh: number | null;
+  annual_rub: number | null;
+  components: LossComponent[];
+  requirements: Requirement[];
+  notes: string[];
+};
 export type Audit = {
   pump_assessment: {name: string; tone: string};
   diagnostics: DiagnosticReport;

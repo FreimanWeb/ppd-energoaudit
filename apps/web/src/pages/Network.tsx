@@ -38,7 +38,11 @@ type Pipeline = {
   dp_friction_mpa: number;
 };
 type NetworkView = {
-  month: string | null;
+  status: "scenario";
+  temporal_alignment: "mixed_or_unknown";
+  flow_months: string[];
+  warnings: string[];
+  technical_place_code: string | null;
   p_bg_mpa: number;
   p_bg_source: { kind: "telemetry" | "wells"; start: string | null; end: string | null };
   fluid: { rho: number };
@@ -78,10 +82,11 @@ function auditEta(p: PageProps): number | null {
 
 function sourceLine(view: NetworkView) {
   const s = view.p_bg_source;
+  const group = view.technical_place_code ? `Контур: ${view.technical_place_code} · ` : "";
   const pressure =
     s.kind === "telemetry" ? `p_БГ по телеметрии ${s.start} — ${s.end}` : "p_БГ по карточкам скважин";
   const eta = view.eta_basis === "fact" ? "КПД выбранного режима" : "номинальный КПД станции";
-  return `Скважины: ${view.month ?? "—"} · ${pressure} · ρ ${fmt(view.fluid.rho, 0)} кг/м³ · ${eta} ${fmt(view.eta, 3)} · тариф ${fmt(view.tariff, 2)} ₽/кВт·ч`;
+  return `${group}Скважины: ${view.flow_months.join(", ") || "—"} · ${pressure} · ρ ${fmt(view.fluid.rho, 0)} кг/м³ · ${eta} ${fmt(view.eta, 3)} · тариф ${fmt(view.tariff, 2)} ₽/кВт·ч`;
 }
 
 export function NetworkPage(p: PageProps) {
@@ -114,6 +119,7 @@ export function NetworkPage(p: PageProps) {
       {resource.data?.error && <p className="notice">{resource.data.error}</p>}
       {view && t && (
         <>
+          {view.warnings.map((warning) => <p key={warning} className="notice">{warning}</p>)}
           <p className="muted">{sourceLine(view)}</p>
           <div className="page-kpis">
             <div>

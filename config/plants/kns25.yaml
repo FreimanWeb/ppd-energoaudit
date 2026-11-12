@@ -1,6 +1,7 @@
 id: kns25
 name: КНС-25
 ngdu: Джалильнефть
+operator_visible: false  # Исторический справочный объект: паспорт сохранён, в каталоге оператора скрыт.
 water_type: пресная
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная

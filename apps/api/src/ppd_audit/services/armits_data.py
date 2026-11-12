@@ -1,22 +1,39 @@
 """Локальные снимки реестра сети и накопленной наработки; без записи в телеметрию."""
 
 import json
+import re
 from functools import cache
+
+import yaml
 
 from ..config import project_root
 
 
+_OBJECT_ID = re.compile(r"[A-Za-z0-9_-]+")
+
+
 @cache
 def load_network(object_id: str) -> dict | None:
-    """Пилотная сеть; идентификатор не используется как произвольный путь."""
-    if object_id == "demo-ppd":
+    """Снимок реестра сети объекта: data/armits/<object_id>.json, если подключён."""
+    from .demo import DEMO_OBJECT_ID
+
+    if object_id == DEMO_OBJECT_ID:
         from .demo import demo_network
 
         return demo_network()
-    if object_id != "kns54an":
+    if _OBJECT_ID.fullmatch(object_id) is None:
         return None
-    path = project_root() / "data" / "armits" / "kns54an.json"
+    path = project_root() / "data" / "armits" / f"{object_id}.json"
+    if not path.is_file():
+        return None
     network = json.loads(path.read_text(encoding="utf-8"))
+    config_path = project_root() / "config" / "network.yaml"
+    if config_path.is_file():
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        binding = (config.get("plants") or {}).get(object_id, {})
+        for key in ("station_nodes", "technical_place_code"):
+            if key in binding:
+                network[key] = binding[key]
     network.update(well_rates(object_id))
     return network
 

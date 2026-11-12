@@ -9,15 +9,16 @@ import { fmt } from "../../shared/ui/format";
 export function AnnualSummary({ audit }: { audit: Audit }) {
   const view = dashboardData(audit);
   if (!view.usable)
-    return <p className="notice error">Годовая экономия скрыта: режим непригоден для экономических выводов.</p>;
+    return <p className="notice error" role="alert">Годовая оценка недоступна: режим непригоден для экономических выводов.</p>;
   const segment = (label: string, value: unknown, unit: string, help: string): MetricSegment => {
     const assessment = metricAssessment(value, 0, "higher", true);
     return { label, value, unit, help, tone: "neutral", reason: assessment.reason };
   };
   return (
     <Panel
-      title="Годовая оценка"
-      help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours, 1)} ч. Тариф: ${fmt(audit.tariff)} ₽/кВт·ч. Годовая оценка — сценарий, не достигнутая экономия.`}
+      title="Годовая оценка · сценарий"
+      caption={`${view.runtime} Наработка: ${fmt(audit.scope.annual_runtime_hours, 1)} ч/год. Тариф: ${fmt(audit.tariff)} ₽/кВт·ч. Экстраполяция исходного режима, не измеренный годовой баланс и не достигнутая экономия.`}
+      help="Мощность потерь исходного режима умножается на принятую годовую наработку; денежная оценка использует тариф. Подтверждённая наработка сама по себе не подтверждает сохранение этого режима весь год."
     >
       <section className="metric-group annual-group" aria-label="Показатели годовой оценки">
         <div className="kpis">

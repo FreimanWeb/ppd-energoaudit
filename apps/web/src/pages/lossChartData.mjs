@@ -25,9 +25,10 @@ export function lossChartData(input, items, inputLabel="Подведённая �
   };
 }
 
+const aggregateLossChildren=["Дросселирование","Гидравл. насос→БГ"];
 /** @param {import('../shared/types').Audit['losses']} items @param {boolean} [detailed] */
 export function aggregateLossGroups(items, detailed=false) {
-  const names=["Дросселирование","Гидравл. насос→БГ"];
+  const names=aggregateLossChildren;
   const combined=items.filter(item=>names.includes(item.name));
   if(!combined.length) return items;
   const order=["Полезная мощность","Номинальные","Потери КПД","Износ","Неоптимальная подача","Дросселирование","Гидравл. насос→БГ"];
