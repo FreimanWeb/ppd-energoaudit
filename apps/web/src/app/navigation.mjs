@@ -6,11 +6,13 @@ export const navigationSections = [
     {id:"timeline",label:"История показателей",icon:"timeline"},
     {id:"overview",label:"Схема и участки",icon:"overview"},
     {id:"losses",label:"Карта потерь",icon:"losses"},
+    {id:"loss-detail",label:"Составляющая потерь",icon:"loss-detail",hidden:true},
   ]},
   {label:"Машинный блок",root:"machine-block",pages:[
     {id:"machine-block",label:"Показатели",icon:"machine-block"},
     {id:"machine-losses",label:"Карта потерь",icon:"machine-losses"},
     {id:"working-point",label:"Рабочая точка",icon:"working-point"},
+    {id:"recommendations",label:"Рекомендации",icon:"recommendations"},
   ]},
   {label:"Трубопроводы",root:"pipelines",pages:[
     {id:"pipelines",label:"Потери",icon:"pipelines"},
@@ -33,6 +35,7 @@ export const navigationSections = [
     {id:"snapshot",label:"Режимный расчёт",icon:"snapshot"},
     {id:"formulas",label:"Формулы",icon:"formulas"},
     {id:"equipment-journal",label:"Журнал оборудования",icon:"sources"},
+    {id:"reference",label:"Справочник",icon:"reference"},
     {id:"onboarding",label:"Готовность данных",icon:"onboarding"},
   ]},
 ];
@@ -45,6 +48,9 @@ const fieldPages = new Set([
   "wells",
   "well-history",
   "losses",
+  "loss-detail",
+  "recommendations",
+  "reference",
   "network-scenario",
   "network",
   "equipment-journal",

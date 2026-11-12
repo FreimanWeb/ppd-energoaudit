@@ -4,7 +4,7 @@ import { segment, useResource } from "../../shared/api";
 import { Status } from "../../shared/ui/Status";
 import { inspections, inspectionFor, inspectionHref, relatedMeasures } from "../inspection/inspection.mjs";
 import "../inspection/inspection.css";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Audit } from "../../shared/types";
 import { dashboardData } from "../overview/dashboardData.mjs";
 import { LossCharts } from "./LossCharts";
@@ -12,6 +12,7 @@ import { Panel } from "../../shared/ui/Panel";
 import { Table } from "../../shared/ui/Table";
 import { fmt } from "../../shared/ui/format";
 import { aggregateLossGroups } from "../../pages/lossChartData.mjs";
+import { lossDetailHref } from "./lossDetail.mjs";
 
 export function LossesView({ audit, inspectionKey, summary, children }: { audit: Audit; inspectionKey?: string; summary?:ReactNode; children?:ReactNode }) {
   const [mode, setMode] = useState<"decomposition" | "percentage">("decomposition");
@@ -38,9 +39,15 @@ export function LossesView({ audit, inspectionKey, summary, children }: { audit:
     JSON.stringify({source: audit.source, basis: "annual", ...(audit.source === "telemetry" && timestamp ? {day: timestamp.slice(0, 10), timestamp} : {})}),
   );
   const measures = relatedMeasures(proposals.data?.annual ?? [], metric);
+  // Клик по столбцу потерь открывает страницу подробностей статьи; стабильная
+  // ссылка не пересоздаёт модель графика при каждом рендере.
+  const select = useCallback((name: string) => {
+    const href = lossDetailHref(name, "machine-losses");
+    if (href) location.assign(href); else setName(name);
+  }, []);
   return (
     <>
-    <Panel title="Цифровая карта потерь мощности" caption="Агрегат и обвязка до блока гребёнок. Разложение мощности выбранного НА." help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Выберите элемент графика, чтобы увидеть доступные мероприятия.`}>
+    <Panel title="Цифровая карта потерь мощности" caption="Агрегат и обвязка до блока гребёнок. Разложение мощности выбранного НА." help={`${view.runtime} Годовая наработка: ${fmt(audit.scope.annual_runtime_hours)} ч; тариф ${fmt(audit.tariff)} ₽/кВт·ч. Нажмите на столбец, чтобы открыть подробности составляющей.`}>
       {view.usable ? (
         <>
           {summary}
@@ -51,7 +58,7 @@ export function LossesView({ audit, inspectionKey, summary, children }: { audit:
             </div>
             {canDetail && <Button variant="secondary" aria-expanded={detailed} onClick={()=>{setDetailed(previous=>!previous);setName("");}}>{detailed ? "Свернуть детализацию НА" : "Детализация потерь НА"}</Button>}
           </div>}
-          <LossCharts onSelect={setName} power={audit.audit.metrics.p_electric_kw ?? 0} losses={losses} status={audit.quality.status} mode={mode} axisLabels={labels} showSummary={false} />
+          <LossCharts onSelect={select} power={audit.audit.metrics.p_electric_kw ?? 0} losses={losses} status={audit.quality.status} mode={mode} axisLabels={labels} showSummary={false} />
           <p className="muted">Потреблённая мощность {fmt(audit.audit.metrics.p_electric_kw)} кВт · {canDetail ? "гидравлическая мощность на БГ" : "полезная мощность"} {fmt(losses.find(item=>item.category === "полезная")?.power_kw)} кВт.</p>
           {detailed && view.losses.some((item:Audit["losses"][number])=>item.name === "Потери КПД") && <p className="muted">Износ и неоптимальная подача в текущем расчёте не разделены: показана суммарная составляющая снижения КПД.</p>}
           {selectedName && <section className="inspection-result" aria-label="Разбор составляющей">

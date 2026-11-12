@@ -51,8 +51,8 @@ test("timeline keeps the selected regime through chain losses and measure compar
   await expect(plot.locator('.visx-bar').first()).toHaveAttribute('aria-label',/^Гидравлическая мощность на БГ:/);
   await expect(panel.getByRole('button',{name:'Оценить сценарий',exact:true})).toHaveCount(0);
   await panel.getByText('Параметры сценария',{exact:true}).click();
-  await panel.getByLabel('Шероховатость труб, мм',{exact:true}).fill('0.2');
-  const updated=page.waitForResponse(r=>r.url().endsWith('/network-losses') && r.request().postDataJSON()?.scenario?.roughness_mm===.2);
+  await panel.getByLabel('Множитель к справочной шероховатости труб и НКТ',{exact:true}).fill('2');
+  const updated=page.waitForResponse(r=>r.url().endsWith('/network-losses') && r.request().postDataJSON()?.scenario?.roughness_factor===2);
   await panel.getByRole('button',{name:'Пересчитать сценарий',exact:true}).click();
   const updatedData=await (await updated).json();
   expect(updatedData.status).toBe('scenario');
@@ -65,7 +65,7 @@ test("timeline keeps the selected regime through chain losses and measure compar
   await panel.getByRole('link',{name:/^Подробнее:/}).click();
   expect(new URL(page.url()).hash).toBe('#measures');
   expect(new URL(page.url()).searchParams.get('timestamp')).toBe(snapshot);
-  expect(JSON.parse(new URL(page.url()).searchParams.get('network_scenario')!).roughness_mm).toBe(.2);
+  expect(JSON.parse(new URL(page.url()).searchParams.get('network_scenario')!).roughness_factor).toBe(2);
   const detail=page.getByRole('region',{name:'Мероприятие',exact:true});
   await expect(detail).toBeVisible();
   await expect(page.getByText('Параметры из гидравлического сценария',{exact:true})).toBeVisible();
@@ -74,7 +74,7 @@ test("timeline keeps the selected regime through chain losses and measure compar
   const request=page.waitForResponse(r=>r.url().endsWith('/network-losses') && Boolean(r.request().postDataJSON()?.intervention));
   await detail.getByRole('button',{name:'Оценить сценарий',exact:true}).click();
   const response=await request,result=await response.json();
-  expect(response.request().postDataJSON().scenario.roughness_mm).toBe(.2);
+  expect(response.request().postDataJSON().scenario.roughness_factor).toBe(2);
   expect(result.comparison.measure_id).toBe('clean_pipes');
   expect(result.context.timestamp).toBe(snapshot);
   expect(result.comparison.after.input_kw).toBeLessThan(result.comparison.before.input_kw);
@@ -83,7 +83,7 @@ test("timeline keeps the selected regime through chain losses and measure compar
   await expect(detail).toBeVisible();
   await detail.getByRole('link',{name:'Вернуться к гидравлическому сценарию',exact:true}).click();
   await page.getByText('Параметры сценария',{exact:true}).click();
-  await expect(page.getByLabel('Шероховатость труб, мм',{exact:true})).toHaveValue('0.2');
+  await expect(page.getByLabel('Множитель к справочной шероховатости труб и НКТ',{exact:true})).toHaveValue('2');
   await goToSection(page,"timeline");
   await expect.poll(() => new URL(page.url()).hash).toBe("#timeline");
   await expect(page.getByLabel("Конец периода")).toHaveValue("2026-09-29");

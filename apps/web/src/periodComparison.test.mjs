@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { previousPeriod, summarizePeriod, periodChange } from './features/monitoring/periodComparison.mjs';
+import { previousPeriod, summarizePeriod, periodChange } from './features/monitoring/periodComparisonData.mjs';
 
 test('previous calendar period has the same inclusive duration including leap dates',()=>{
   assert.deepEqual(previousPeriod('2024-03-01','2024-03-07'),{start:'2024-02-23',end:'2024-02-29'});
@@ -35,7 +35,7 @@ test('mixed bases cannot produce a misleading SEC and no data is not zero',()=>{
 });
 
 test('comparison profiles align calendar starts, retain real dates and break gaps',async()=>{
-  const {comparisonProfile}=await import('./features/monitoring/periodComparison.mjs');
+  const {comparisonProfile}=await import('./features/monitoring/periodComparisonData.mjs');
   const points=[
     {timestamp:'2026-10-01T00:00:00',basis:'interval',quality:'ready',power_kw:100,flow_m3h:20},
     {timestamp:'2026-10-01T01:00:00',basis:'none',quality:'partial',p_in_mpa:1},
@@ -50,7 +50,7 @@ test('comparison profiles align calendar starts, retain real dates and break gap
   assert.equal(shifted[0].day,profile[0].day);
 });
 test('daily profiles align by date, preserve zero SEC and exclude unrelated snapshots',async()=>{
-  const {comparisonProfile}=await import('./features/monitoring/periodComparison.mjs');
+  const {comparisonProfile}=await import('./features/monitoring/periodComparisonData.mjs');
   const profile=comparisonProfile([
     {timestamp:'2026-10-01T23:00:00',basis:'daily',quality:'ready',energy_kwh:0,volume_m3:10},
     {timestamp:'2026-10-02T00:00:00',basis:'none',quality:'partial'},

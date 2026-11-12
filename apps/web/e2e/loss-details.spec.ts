@@ -49,14 +49,21 @@ test('aggregate details expand by button and retain their selection and annual t
     })).toBeLessThanOrEqual(0);
   }
 
-  await plot.getByRole('button',{name:/^Потери из-за снижения КПД/}).click();
-  await expect(panel.getByLabel('Предлагаемые мероприятия')).toBeVisible();
   await panel.getByRole('button',{name:'Свернуть детализацию НА',exact:true}).click();
   await expect(plot.getByRole('button',{name:/^Потери на участке «Насос – БГ»/})).toBeVisible();
   await expect(panel.getByLabel('Разбор составляющей')).toHaveCount(0);
   await panel.getByText('Таблица составляющих',{exact:true}).click();
   await expect(panel.getByRole('table')).toContainText('Потери на участке «Насос – БГ»');
   await expect(panel.getByRole('table')).not.toContainText('Гидравл. насос→БГ');
+
+  // Клик по столбцу потерь открывает страницу подробностей статьи.
+  await plot.getByRole('button',{name:/^Потери из-за снижения КПД/}).click();
+  await expect.poll(()=>new URL(page.url()).hash).toBe('#loss-detail');
+  expect(new URL(page.url()).searchParams.get('loss')).toBe('efficiency');
+  expect(new URL(page.url()).searchParams.get('timestamp')).toBe('2026-10-18T22:00:00');
+  await expect(page.getByLabel('Предлагаемые мероприятия')).toBeVisible();
+  await page.getByRole('link',{name:'К карте потерь машинного блока',exact:true}).click();
+  await expect(page.getByRole('heading',{name:/^Цифровая карта потерь мощности/})).toBeVisible();
 });
 
 

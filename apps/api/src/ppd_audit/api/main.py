@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
@@ -41,7 +43,21 @@ from .monitoring_routes import router as monitoring_router
 from .station_routes import router as station_router
 
 
-app = FastAPI(title="PPD Energoaudit API", version="0.1.0")
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    """Подготовить БД до первого запроса: справочники и выгрузки АСУ ТП.
+
+    Если БД уже собрана (``python -m ppd_audit.build_db``), это проверка
+    набора файлов и выход; иначе импорт занимает около минуты.
+    """
+    if os.getenv("PPD_SKIP_DATA_PREPARE") != "1":
+        path = Path(os.getenv("PPD_DATABASE_PATH", default_database_path()))
+        root = Path(__file__).resolve().parents[3]
+        await asyncio.to_thread(catalog.prepare_database, root, path)
+    yield
+
+
+app = FastAPI(title="PPD Energoaudit API", version="0.1.0", lifespan=_lifespan)
 app.include_router(dashboard_router)
 app.include_router(data_router)
 app.include_router(monitoring_router)

@@ -35,7 +35,7 @@ class NetworkLossScenario(BaseModel):
 
     model_config = {"extra": "forbid", "allow_inf_nan": False}
 
-    roughness_mm: float = Field(0.1, ge=0, le=5)
+    roughness_factor: float = Field(1.0, ge=0, le=10)
     well_depth_m: float = Field(1800, ge=1, le=10000)
     well_diameter_mm: float = Field(62, ge=10, le=500)
     local_resistance_k: float = Field(2, ge=0, le=1000)
@@ -46,3 +46,10 @@ class NetworkLossScenario(BaseModel):
 class NetworkLossRequest(AnalysisContext):
     scenario: NetworkLossScenario = Field(default_factory=NetworkLossScenario)
     intervention: Literal["reduce_head", "clean_pipes", "reduce_local_resistance"] | None = None
+
+
+class LossDetailRequest(AnalysisContext):
+    """Статья карты потерь по канону shared/loss-labels.json."""
+
+    loss: str = Field(min_length=1, max_length=40)
+    scenario: NetworkLossScenario = Field(default_factory=NetworkLossScenario)

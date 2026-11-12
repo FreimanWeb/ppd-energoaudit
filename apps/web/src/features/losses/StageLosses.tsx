@@ -89,7 +89,7 @@ export function StageLosses({ stage, audit, inspectionKey, view="indicators" }: 
         </section> : null}
         {stage!=="hall" && stageActions}
         {data && <details className="stage-assumptions"><summary>Исходные данные и допущения</summary>
-          {supported && <p className="muted">{demo ? "Режимы и потери демонстрационного объекта синтетические." : "Сценарная оценка выбранного агрегата. Геометрия из АРМИТС; единицы требуют подтверждения. Недостающие параметры и распределение расхода заменены синтетикой."}</p>}
+          {supported && <p className="muted">{demo ? "Режимы и потери демонстрационного объекта синтетические." : "Сценарная оценка выбранного агрегата. Геометрия — реестр АРМИТС, расход по скважинам — по фактической закачке, шероховатость — справочная; параметры НКТ сценарные."}</p>}
           {data.warnings.length > 0 && <ul>{data.warnings.map((warning,index) => <li key={index}>{warning}</li>)}</ul>}
           {Boolean(data.assumptions?.length) && <Table rows={data.assumptions!.map(item => ({ ...item, origin: origins[item.provenance] ?? item.provenance }))} columns={[
           { key: "label", label: "Параметр" }, { key: "value", label: "Значение" }, { key: "unit", label: "Единица" }, { key: "origin", label: "Происхождение" }, { key: "basis", label: "Основание" },

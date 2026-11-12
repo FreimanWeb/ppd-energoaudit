@@ -21,7 +21,9 @@ from ..services.catalog import with_confirmed_density
 from ..services.diagnostics import diagnose_aggregate
 from ..services.forecast_data import injection_profile
 from ..services.manual_data import manual_measurement
+from ..services.loss_details import build_loss_detail
 from ..services.network_losses import build_network_analysis
+from ..services.pump_recommendations import recommendations
 from ..services.result_scope import result_scope
 from ..services.telemetry_audit import (
     object_from_database,
@@ -31,7 +33,12 @@ from ..services.telemetry_audit import (
 )
 from ..services.telemetry_quality import QualityIssue, TelemetryQuality
 from ..spec import load_object_spec
-from .analysis_contracts import AnalysisContext, MeasuresRequest, NetworkLossRequest
+from .analysis_contracts import (
+    AnalysisContext,
+    LossDetailRequest,
+    MeasuresRequest,
+    NetworkLossRequest,
+)
 from .dashboard import _day_window, _require_ids, _tariff
 
 
@@ -263,6 +270,20 @@ def working_point_view(object_id: str, aggregate_id: str, request: AnalysisConte
     return working_point(audit)
 
 
+@router.post("/objects/{object_id}/aggregates/{aggregate_id}/recommendations")
+def pump_recommendations_view(object_id: str, aggregate_id: str, request: AnalysisContext):
+    """Адресная диагностика агрегата со справочными сведениями: бенчмарки и дефекты."""
+    database = _database()
+    _, audit, scope, quality, _ = _context(database, object_id, aggregate_id, request)
+    report = diagnose_aggregate(object_id, audit, scope, quality)
+    result = recommendations(audit, object_id, aggregate_id, report)
+    result["quality"] = {
+        "status": quality.status,
+        "issues": [issue.message for issue in quality.issues],
+    }
+    return result
+
+
 @router.post("/objects/{object_id}/aggregates/{aggregate_id}/measures")
 def measures_view(object_id: str, aggregate_id: str, request: MeasuresRequest):
     database = _database()
@@ -396,6 +417,58 @@ def network_losses_view(object_id: str, aggregate_id: str, request: NetworkLossR
         dict.fromkeys([issue.message for issue in quality.issues] + result.get("warnings", []))
     )
     return result
+
+
+@router.post("/objects/{object_id}/aggregates/{aggregate_id}/loss-detail")
+def loss_detail_view(object_id: str, aggregate_id: str, request: LossDetailRequest):
+    """Подробности статьи карты потерь (переход по клику на столбец)."""
+    from ..config import project_root
+    from ..services import catalog, network_view
+
+    database = _database()
+    _, audit, scope, quality, _ = _context(database, object_id, aggregate_id, request)
+    network = None
+    raw_network = load_network(object_id)
+    if raw_network is not None and quality.status != "unfit":
+        try:
+            network = build_network_analysis(audit, raw_network, request.scenario.model_dump())
+        except ValueError:
+            network = None
+    tariff = _tariff(
+        database, date.fromisoformat(request.day) if request.source == "telemetry" else None
+    )["rub_per_kwh"]
+    paths = catalog.source_paths(project_root())
+    measured = network_view.network_view(
+        database,
+        paths["network"],
+        paths["network_config"],
+        object_id,
+        tariff=tariff,
+        eta=audit.regime.eta_unit if quality.allows_economic_conclusions else None,
+    )
+    try:
+        detail = build_loss_detail(
+            request.loss,
+            audit,
+            tariff=tariff,
+            t_year=scope.annual_runtime_hours,
+            network=network,
+            measured=measured,
+            recs=recommendations(
+                audit,
+                object_id,
+                aggregate_id,
+                diagnose_aggregate(object_id, audit, scope, quality),
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    detail["quality"] = {
+        "status": quality.status,
+        "issues": [issue.message for issue in quality.issues],
+    }
+    detail["annual_runtime_is_assumed"] = scope.annual_runtime_is_assumed
+    return detail
 
 
 @router.get("/objects/{object_id}/wells")

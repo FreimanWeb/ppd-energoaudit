@@ -50,7 +50,7 @@ test('annual measures retain intervention-specific engineering prerequisites',()
 
 
 test('hydraulic measure links carry custom parameters and unrelated cards clear them',()=>{
-  const context={objectId:'demo-ppd',aggregateId:'НА-1',source:'telemetry',timestamp:'2026-10-18T22:00:00',networkScenario:{roughness_mm:.2}};
+  const context={objectId:'demo-ppd',aggregateId:'НА-1',source:'telemetry',timestamp:'2026-10-18T22:00:00',networkScenario:{roughness_factor:.5}};
   const url=new URL(measureHref('network:clean_pipes','pipes',context,'http://localhost/?start=2026-09-19#network-scenario'),'http://localhost');
   assert.deepEqual(JSON.parse(url.searchParams.get('network_scenario')),context.networkScenario);
   assert.equal(url.searchParams.get('timestamp'),context.timestamp);

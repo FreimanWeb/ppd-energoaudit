@@ -9,10 +9,11 @@ from collections import defaultdict
 from ..core.audit import AuditResult
 from ..core.hydraulics import darcy_weisbach_dp, velocity
 from ..core.pump import KnsDecomposition
+from ..core.roughness import hydraulic_reference
 
 
 _OPTIONS = {
-    "roughness_mm": (0.1, 0.0, 5.0, "Шероховатость", "мм"),
+    "roughness_factor": (1.0, 0.0, 10.0, "Множитель к справочной шероховатости", ""),
     "well_depth_m": (1800.0, 1.0, 10000.0, "Длина ствола скважины", "м"),
     "well_diameter_mm": (62.0, 10.0, 500.0, "Внутренний диаметр НКТ", "мм"),
     "local_resistance_k": (2.0, 0.0, 1000.0, "Суммарное местное сопротивление", ""),
@@ -145,8 +146,13 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
                 "label": definition[3],
                 "value": values[key],
                 "unit": definition[4],
-                "provenance": "synthetic",
-                "basis": "Сценарное допущение; требуется подтверждение измерениями/паспортом",
+                "provenance": "calculated"
+                if key == "roughness_factor" and values[key] == 1
+                else "synthetic",
+                "basis": "Справочная шероховатость по типу трубы и покрытию "
+                "(config/hydraulic_reference.yaml)"
+                if key == "roughness_factor"
+                else "Сценарное допущение; требуется подтверждение измерениями/паспортом",
             }
             for key, definition in _OPTIONS.items()
         ],
@@ -255,32 +261,59 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         warnings.append("Нет скважин для распределения расхода.")
         return result
 
+    rates = {
+        _name(str(well)).split("/")[0]: rate
+        for well, rate in (network.get("well_rates") or {}).items()
+        if isinstance(rate, (int, float)) and math.isfinite(rate) and rate >= 0
+    }
+    known = [rates[well] for well in paths if well in rates]
+    measured_split = bool(known) and sum(known) > 0
+    if measured_split:
+        fallback = sum(known) / len(known)
+        weights = {well: rates.get(well, fallback) for well in paths}
+        missing = sorted(well for well in paths if well not in rates)
+        split_basis = (
+            "Доли скважин по среднекалендарной закачке АРМИТС за "
+            f"{network.get('well_rates_month') or 'последний месяц'}; "
+            "сумма приведена к расходу выбранного агрегата"
+        )
+        if missing:
+            warnings.append("Нет карточки АРМИТС, доля принята средней: " + ", ".join(missing))
+    else:
+        weights = dict.fromkeys(paths, 1.0)
+        split_basis = (
+            "Расход одного агрегата поровну между уникальными скважинами, без учёта пластов"
+        )
+    total_weight = sum(weights.values())
+    flows = {well: regime.q * weight / total_weight for well, weight in weights.items()}
+
     warnings.extend([
-        "Работает только выбранный агрегат; расход распределён поровну по уникальным скважинам.",
+        "Работает только выбранный агрегат; его расход распределён по скважинам "
+        + ("пропорционально фактической закачке." if measured_split else "поровну."),
         "Точки врезок неизвестны: учтена вся длина родительской трубы; потери могут быть завышены.",
         "Внутриплощадочные, подводящие и участок до БГ исключены: насос→БГ уже учтён.",
         "Для соединений названия «КНС 54» и «КНС-54» приняты эквивалентными.",
         "Реестровые Q/P не использованы: единицы и дата измерений не подтверждены.",
+        "Шероховатость — справочная по типу трубы и покрытию; в реестре её нет.",
         "Требуемое давление и геодезический перепад определяют полезную работу; "
         "геодезия добавлена отдельно как ρgΔz, а не потеря.",
         "Штуцирование — остаток баланса сценария, а не измеренная потеря на штуцере.",
         "Накопленная наработка не используется; годовые энергия и экономия здесь не оцениваются.",
     ])
     result["input_kw"] = regime.p_electric
-    q_well = regime.q / len(paths)
     result["assumptions"].append({
         "parameter": "well_flow_m3h",
-        "label": "Расход каждой скважины",
-        "value": q_well,
+        "label": "Средний расход скважины",
+        "value": regime.q / len(paths),
         "unit": "м³/ч",
-        "provenance": "synthetic",
-        "basis": "Расход одного агрегата поровну между уникальными скважинами, без учёта пластов",
+        "provenance": "measured" if measured_split else "synthetic",
+        "basis": split_basis,
     })
     available_dp = available_kw * 3.6 / regime.q
-    demands = defaultdict(int)
-    for ids in paths.values():
+    demands = defaultdict(float)
+    for well, ids in paths.items():
         for pid in ids:
-            demands[pid] += 1
+            demands[pid] += flows[well]
     pipe_dp = defaultdict(float)
     pipe_kw = 0.0
     nu = audit.spec.regime.nu if audit.spec and audit.spec.regime else None
@@ -297,7 +330,9 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
     if not isinstance(nu, (int, float)) or not math.isfinite(nu) or nu <= 0:
         warnings.append("Нет положительной кинематической вязкости.")
         return result
-    for pid, count in demands.items():
+    reference = hydraulic_reference()
+    factor = values["roughness_factor"]
+    for pid, q in demands.items():
         sections = sorted(groups[pid], key=lambda section: section["start_m"])
         previous_end = None
         for section in sections:
@@ -315,10 +350,13 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
                 warnings.append(f"Разрыв или перекрытие интервалов трубопровода {pid}.")
                 return result
             previous_end = end
-            q = q_well * count
-            dp = darcy_weisbach_dp(
-                q, length, diameter / 1000, values["roughness_mm"] / 1000, regime.rho, nu
+            rule = reference.roughness(
+                section.get("pipe_type", ""),
+                section.get("material", ""),
+                section.get("inner_coating", ""),
             )
+            roughness_mm = rule.value_mm * factor
+            dp = darcy_weisbach_dp(q, length, diameter / 1000, roughness_mm / 1000, regime.rho, nu)
             power = dp * q / 3.6
             pipe_dp[pid] += dp
             pipe_kw += power
@@ -331,23 +369,29 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
                 "flow_m3h": q,
                 "pressure_loss_mpa": dp,
                 "power_kw": power,
-                "provenance": "synthetic",
-                "basis": "Darcy–Weisbach; геометрия реестра, допущение мм/м и Dнар−2s "
-                "без покрытия; синтетический расход/шероховатость",
+                "roughness_mm": roughness_mm,
+                "roughness_rule": rule.label,
+                "provenance": "calculated" if measured_split else "synthetic",
+                "basis": "Darcy–Weisbach (Свами–Джейн); геометрия реестра, Dвн = Dнар − 2s; "
+                f"Δэ {roughness_mm:g} мм — {rule.label.lower()}; "
+                + ("расход по долям закачки АРМИТС" if measured_split else "синтетический расход"),
                 "source_sheet": section["source_sheet"],
                 "source_row": section["source_row"],
             })
 
     well_d = values["well_diameter_mm"] / 1000
-    well_dp = darcy_weisbach_dp(
-        q_well,
-        values["well_depth_m"],
-        well_d,
-        values["roughness_mm"] / 1000,
-        regime.rho,
-        nu,
-    )
-    local_dp = values["local_resistance_k"] * regime.rho * velocity(q_well, well_d) ** 2 / 2e6
+    tubing_mm = reference.tubing.value_mm * factor
+
+    def bore_dp(q: float) -> float:
+        if q <= 0:
+            return 0.0
+        return darcy_weisbach_dp(
+            q, values["well_depth_m"], well_d, tubing_mm / 1000, regime.rho, nu
+        )
+
+    def fitting_dp(q: float) -> float:
+        return values["local_resistance_k"] * regime.rho * velocity(q, well_d) ** 2 / 2e6
+
     useful_dp = (
         values["useful_pressure_mpa"] + regime.rho * 9.81 * values["elevation_change_m"] / 1e6
     )
@@ -358,11 +402,17 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         return result
     feasible = True
     choke_kw = 0.0
+    bore_kw = 0.0
+    local_kw = 0.0
     for well, ids in paths.items():
+        q_well = flows[well]
         branch_dp = sum(pipe_dp[pid] for pid in ids)
+        well_dp, local_dp = bore_dp(q_well), fitting_dp(q_well)
+        bore_kw += well_dp * q_well / 3.6
+        local_kw += local_dp * q_well / 3.6
         required_dp = branch_dp + well_dp + local_dp + useful_dp
-        deficit = max(required_dp - available_dp, 0.0)
-        choke = None if deficit > 1e-9 else (available_dp - required_dp) * q_well / 3.6
+        deficit = max(required_dp - available_dp, 0.0) if q_well > 0 else 0.0
+        choke = None if deficit > 1e-9 else max(available_dp - required_dp, 0.0) * q_well / 3.6
         if choke is None:
             feasible = False
         else:
@@ -408,22 +458,24 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
             "Трение в трубопроводах",
             pipe_kw,
             "потеря",
-            "synthetic",
-            "Darcy–Weisbach по участкам; общий участок учтён один раз",
+            "calculated" if measured_split else "synthetic",
+            "Darcy–Weisbach по участкам реестра, справочная шероховатость; "
+            "общий участок учтён один раз",
         ),
         item(
             "Арматура сети и скважин",
-            local_dp * regime.q / 3.6,
+            local_kw,
             "потеря",
             "synthetic",
             "K·ρ·v²/2; K задан на путь каждой скважины",
         ),
         item(
             "Трение в стволах скважин",
-            well_dp * regime.q / 3.6,
+            bore_kw,
             "потеря",
             "synthetic",
-            "Darcy–Weisbach; синтетические длина и внутренний диаметр НКТ",
+            "Darcy–Weisbach; синтетические длина и внутренний диаметр НКТ, "
+            f"Δэ {tubing_mm:g} мм — {reference.tubing.label.lower()}",
         ),
     ]
     result["network"].update(
@@ -498,7 +550,7 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
                 {
                     "id": "local",
                     "name": "Местные сопротивления сети и арматуры",
-                    "power_kw": local_dp * regime.q / 3.6,
+                    "power_kw": local_kw,
                 },
             ],
         },
@@ -520,7 +572,7 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         "boundary": "wellhead_after_choke",
         "input_kw": regime.p_electric,
         "bg_kw": available_kw,
-        "output_kw": useful_kw + well_dp * regime.q / 3.6,
+        "output_kw": useful_kw + bore_kw,
         "total_loss_kw": sum(group["power_kw"] for group in operator_groups),
         "groups": operator_groups,
     }
@@ -555,8 +607,9 @@ def build_network_analysis(
         "clean_pipes": (
             "Очистить трубы и НКТ с настройкой напора",
             "Трение в трубопроводах",
-            "Вдвое снизить сценарную шероховатость труб и НКТ, затем настроить напор.",
-            "roughness_mm",
+            "Вдвое снизить шероховатость труб и НКТ относительно справочной, "
+            "затем настроить напор.",
+            "roughness_factor",
         ),
         "reduce_local_resistance": (
             "Снизить местные сопротивления с настройкой напора",
@@ -596,7 +649,9 @@ def build_network_analysis(
         candidate = build_network_loss_map(audit, network, candidate_options)
         if candidate["status"] != "scenario":
             continue
-        required_dp = max(well["required_pressure_mpa"] for well in candidate["wells"])
+        required_dp = max(
+            well["required_pressure_mpa"] for well in candidate["wells"] if well["flow_m3h"] > 0
+        )
         ratio = required_dp / available_dp
         input_kw = baseline["input_kw"] * ratio
         saving_kw = baseline["input_kw"] - input_kw

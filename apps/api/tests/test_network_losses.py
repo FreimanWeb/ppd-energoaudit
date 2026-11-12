@@ -126,7 +126,9 @@ def test_scenario_analysis_closes_balance_and_preserves_inputs(audit, network, o
 
 def test_friction_reduction_without_head_control_only_moves_losses(audit, network, options):
     before = network_losses.build_network_loss_map(audit, network, options)
-    after = network_losses.build_network_loss_map(audit, network, {**options, "roughness_mm": 0.05})
+    after = network_losses.build_network_loss_map(
+        audit, network, {**options, "roughness_factor": 0.5}
+    )
     assert after["input_kw"] == before["input_kw"]
     assert after["total_loss_kw"] == pytest.approx(before["total_loss_kw"])
     assert sum(w["choke_loss_kw"] for w in after["wells"]) > sum(
@@ -162,7 +164,7 @@ def test_invalid_and_inapplicable_interventions(audit, network, options):
         network_losses.build_network_analysis(audit, network, {"unknown": 1})
     with pytest.raises(ValueError):
         network_losses.build_network_analysis(
-            audit, network, {**options, "roughness_mm": 0}, "clean_pipes"
+            audit, network, {**options, "roughness_factor": 0}, "clean_pipes"
         )
     with pytest.raises(ValueError):
         network_losses.build_network_analysis(
@@ -223,3 +225,29 @@ def test_real_registry_geometry_supports_model_comparison(audit):
         assert after["balance_error_kw"] == pytest.approx(0, abs=1e-8)
         assert after["useful_kw"] == result["useful_kw"]
     assert network == original
+
+
+def test_well_flows_follow_measured_injection_and_reference_roughness():
+    """Подача агрегата делится по фактической закачке АРМИТС, Δэ — справочная."""
+    import copy
+
+    from ppd_audit.core.audit import audit_aggregate
+    from ppd_audit.services.armits_data import load_network
+    from ppd_audit.spec import load_object_spec
+
+    spec = load_object_spec("kns54an")
+    audit = audit_aggregate(next(item for item in spec.aggregates if item.id == "НА-1"))
+    network = load_network("kns54an")
+    result = network_losses.build_network_loss_map(audit, network)
+    rates = network["well_rates"]
+    flows = {well["id"]: well["flow_m3h"] for well in result["wells"]}
+
+    assert sum(flows.values()) == pytest.approx(audit.regime.q)
+    first, second = sorted(rates)[:2]
+    assert flows[first] / flows[second] == pytest.approx(rates[first] / rates[second])
+    assert {segment["roughness_mm"] for segment in result["segments"]} <= {0.01, 0.02, 0.5}
+
+    equal = copy.deepcopy(network)
+    equal.pop("well_rates")
+    split = network_losses.build_network_loss_map(audit, equal)
+    assert len({round(well["flow_m3h"], 9) for well in split["wells"]}) == 1

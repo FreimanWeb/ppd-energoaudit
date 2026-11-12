@@ -15,8 +15,8 @@ aggregates:
   pump:
     model: ЦНС 63-1400(-3)
     kind: центробежный
-    q_nom: 1100.0
-    h_nom: 63.0
+    q_nom: 63.0
+    h_nom: 1100.0
     eta_nom: 0.6
     power_nom: 366.84
     n_rpm: 3000.0
@@ -63,8 +63,8 @@ aggregates:
   pump:
     model: ЦНС 80-1400(-3)
     kind: центробежный
-    q_nom: 1100.0
-    h_nom: 80.0
+    q_nom: 80.0
+    h_nom: 1100.0
     eta_nom: 0.63
     power_nom: 427.05
     n_rpm: 3000.0
@@ -111,8 +111,8 @@ aggregates:
   pump:
     model: ЦНС 180-1422 (-1)
     kind: центробежный
-    q_nom: 1300.0
-    h_nom: 180.0
+    q_nom: 180.0
+    h_nom: 1300.0
     eta_nom: 0.76
     power_nom: 974.6
     n_rpm: 3000.0

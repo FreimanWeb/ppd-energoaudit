@@ -129,6 +129,7 @@ def test_source_paths_honor_optional_environment_overrides(tmp_path, monkeypatch
         "scada_tags": tmp_path / "custom.yaml",
         "network": tmp_path / "custom-network",
         "network_config": tmp_path / "network.yaml",
+        "exports": tmp_path / "data" / "telemetry" / "exports",
     }
 
 

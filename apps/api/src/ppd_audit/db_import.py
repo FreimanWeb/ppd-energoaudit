@@ -9,7 +9,8 @@ from pathlib import Path
 
 from .db import AuditDatabase, TelemetryMeasurement
 from .ingest.excel_telemetry import build_excel_telemetry
-from .ingest.scada_txt import ScadaMapping, read_rows, scada_files
+from .ingest.measurement_export import export_files, read_exports
+from .ingest.scada_txt import ScadaMapping, ScadaPoint, build_rows, read_points, scada_files
 
 
 _KGF_PER_CM2_TO_MPA = 0.0980665
@@ -263,50 +264,103 @@ def _metric(record: dict, pressure_metric: str | None = None) -> tuple[str | Non
 SCADA_SOURCE_KIND = "scada"
 
 
-def import_scada_exports(database: AuditDatabase, root: Path, mapping: ScadaMapping) -> ImportStats:
-    """Загрузить выгрузки АСУ ТП (ТИ/ТС) из каталога в canonical SQLite.
+def import_scada_exports(
+    database: AuditDatabase,
+    root: Path,
+    mapping: ScadaMapping,
+    exports_dir: Path | None = None,
+) -> ImportStats:
+    """Загрузить выгрузки АСУ ТП (ТИ/ТС и годовые «Измерения») в canonical SQLite.
+
+    Все точки сводятся в один поток и проходят общий конвейер ``build_rows``:
+    так станционный расход ОПУ делится по энергии агрегатов, даже если расход
+    и энергия пришли из разных файлов. Где ряд тега есть в годовой выгрузке,
+    точки ТИ того же тега внутри её периода отбрасываются — годовая выгрузка
+    новее и полнее (на пересечении значения совпадают).
 
     Агрегаты, которых нет в паспорте объекта, создаются: выгрузка — источник
     факта о том, что агрегат существует и работает. Ошибка разбора одного
     файла не прерывает остальные, её имя возвращается в ``unreadable``.
     """
-    measurements: list[TelemetryMeasurement] = []
     unreadable: list[str] = []
-    seen_aggregates: set[tuple[str, str, str]] = set()
-
-    for path in scada_files(root):
+    export_points: list[ScadaPoint] = []
+    windows: dict[tuple[str, str, str], tuple[datetime, datetime]] = {}
+    for path in export_files(exports_dir) if exports_dir else []:
         try:
-            rows = read_rows(path, mapping)
+            sheets, skipped = read_exports(
+                path, mapping.measurement_exports, mapping.interval_hours
+            )
         except Exception:
             unreadable.append(path.name)
             continue
-        for row in rows:
-            if row.aggregate_code:
-                key = (row.plant_code, row.technical_place_code, row.aggregate_code)
-                if key not in seen_aggregates:
-                    database.upsert_aggregate(
-                        row.plant_code,
-                        row.aggregate_code,
-                        "работа",
-                        technical_place_code=row.technical_place_code,
-                    )
-                    seen_aggregates.add(key)
-            measurements.append(
-                TelemetryMeasurement(
-                    plant_code=row.plant_code,
-                    aggregate_code=row.aggregate_code,
-                    timestamp=row.timestamp,
-                    metric=row.metric,
-                    value=row.value,
-                    unit=row.unit,
+        unreadable.extend(skipped)
+        for sheet in sheets:
+            if not sheet.points:
+                continue
+            start = sheet.start or min(point.timestamp for point in sheet.points)
+            end = sheet.end or max(point.timestamp for point in sheet.points)
+            for point in sheet.points:
+                key = (point.tag.object_code, point.tag.unit, point.tag.code)
+                if key not in windows:
+                    windows[key] = (start, end)
+                else:
+                    low, high = windows[key]
+                    windows[key] = (min(low, start), max(high, end))
+                export_points.append(ScadaPoint(point.tag, point.timestamp, point.value, path.name))
+
+    points: list[ScadaPoint] = []
+    for path in scada_files(root):
+        try:
+            file_points = list(read_points(path))
+        except Exception:
+            unreadable.append(path.name)
+            continue
+        for point in file_points:
+            window = windows.get((point.tag.object_code, point.tag.unit, point.tag.code))
+            if window and window[0] <= point.timestamp <= window[1]:
+                continue
+            points.append(point)
+    points.extend(export_points)
+    points.sort(key=lambda point: point.timestamp)
+    rows = build_rows(iter(points), mapping)
+
+    measurements: list[TelemetryMeasurement] = []
+    seen_aggregates: set[tuple[str, str, str]] = set()
+    for row in rows:
+        if row.aggregate_code:
+            key = (row.plant_code, row.technical_place_code, row.aggregate_code)
+            if key not in seen_aggregates:
+                database.upsert_aggregate(
+                    row.plant_code,
+                    row.aggregate_code,
+                    "работа",
                     technical_place_code=row.technical_place_code,
-                    source_kind=SCADA_SOURCE_KIND,
-                    source_file=path.name,
-                    source_tag=row.source_tag,
                 )
+                seen_aggregates.add(key)
+        measurements.append(
+            TelemetryMeasurement(
+                plant_code=row.plant_code,
+                aggregate_code=row.aggregate_code,
+                timestamp=row.timestamp,
+                metric=row.metric,
+                value=row.value,
+                unit=row.unit,
+                technical_place_code=row.technical_place_code,
+                source_kind=SCADA_SOURCE_KIND,
+                source_file=row.source_file or None,
+                source_tag=row.source_tag,
             )
+        )
     _flag_allocated_flow(database, mapping, seen_aggregates)
     return ImportStats(database.add_measurements(iter(measurements)), 0, tuple(unreadable))
+
+
+def scada_source_names(root: Path, exports_dir: Path | None = None) -> list[str]:
+    """Имена файлов, из которых складывается SCADA-телеметрия в БД."""
+    names = [path.name for path in scada_files(root)]
+    if exports_dir is not None:
+        names += [path.name for path in export_files(exports_dir)]
+    return sorted(names)
 
 
 def _flag_allocated_flow(

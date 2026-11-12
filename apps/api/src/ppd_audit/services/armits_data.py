@@ -16,7 +16,31 @@ def load_network(object_id: str) -> dict | None:
     if object_id != "kns54an":
         return None
     path = project_root() / "data" / "armits" / "kns54an.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    network = json.loads(path.read_text(encoding="utf-8"))
+    network.update(well_rates(object_id))
+    return network
+
+
+def well_rates(object_id: str) -> dict:
+    """Фактическая закачка скважин по карточкам АРМИТС, м³/ч (среднекалендарная).
+
+    Пустой словарь, если карточек объекта нет: тогда сценарий делит расход
+    поровну, как раньше.
+    """
+    from . import catalog, network_view
+
+    paths = catalog.source_paths(project_root())
+    plant = network_view.plant_network(paths["network"], paths["network_config"], object_id)
+    if plant is None:
+        return {}
+    cards = network_view.cards(plant)
+    months = [card.last_month.month for card in cards if card.last_month]
+    return {
+        "well_rates": {
+            card.well: card.last_month.mean_rate_m3h or 0.0 for card in cards if card.last_month
+        },
+        "well_rates_month": max(months).strftime("%m.%Y") if months else None,
+    }
 
 
 @cache

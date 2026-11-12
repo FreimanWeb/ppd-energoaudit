@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from .. import units
 from ..ingest.pipelines import Pipeline, PipeSection
 from . import hydraulics
+from .roughness import RoughnessRule, hydraulic_reference
 
 
 DISTRIBUTION = "Разводящий"
@@ -40,13 +41,6 @@ FLAG_CHOKE_REVERSED = "давление после штуцера выше, че
 FLAG_FRICTION_CAPPED = "расчётное трение больше замеренного перепада"
 MEASUREMENT_FLAGS = (FLAG_HEAD_ABOVE_BG, FLAG_CHOKE_REVERSED)
 
-# Шероховатость стенки по умолчанию, м: труба с внутренним полимерным покрытием
-# или неметаллическая — гладкая, стальная без покрытия — с отложениями.
-ROUGHNESS_SMOOTH_M = 0.02e-3
-ROUGHNESS_STEEL_M = 0.5e-3
-_SMOOTH_COATINGS = ("пэ", "стекло", "dpc", "пэп", "эпокс", "полимер")
-_SMOOTH_MATERIALS = ("стеклопласт", "полиэтилен", "пластик")
-
 
 def water_viscosity_cst(temperature_c: float) -> float:
     """Кинематическая вязкость воды, сСт, по формуле Пуазейля."""
@@ -55,14 +49,14 @@ def water_viscosity_cst(temperature_c: float) -> float:
 
 
 def section_roughness_m(section: PipeSection) -> float:
-    """Эквивалентная шероховатость участка по покрытию и материалу."""
-    coating = section.inner_coating.lower()
-    material = section.material.lower()
-    if any(mark in coating for mark in _SMOOTH_COATINGS):
-        return ROUGHNESS_SMOOTH_M
-    if any(mark in material for mark in _SMOOTH_MATERIALS):
-        return ROUGHNESS_SMOOTH_M
-    return ROUGHNESS_STEEL_M
+    """Справочная эквивалентная шероховатость участка, м (см. ``core.roughness``)."""
+    return section_roughness(section).value_m
+
+
+def section_roughness(section: PipeSection) -> RoughnessRule:
+    return hydraulic_reference().roughness(
+        section.pipe_type, section.material, section.inner_coating
+    )
 
 
 @dataclass(frozen=True)

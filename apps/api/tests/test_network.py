@@ -5,7 +5,6 @@ import math
 import pytest
 
 from ppd_audit import units
-from ppd_audit.core import network
 from ppd_audit.core.network import (
     FLAG_FRICTION_CAPPED,
     FLAG_HEAD_ABOVE_BG,
@@ -79,8 +78,8 @@ def test_water_viscosity_matches_reference_points():
 
 
 def test_coated_pipe_is_smooth_and_bare_steel_is_rough():
-    assert section_roughness_m(_section(10.0, coating="ПЭ")) == network.ROUGHNESS_SMOOTH_M
-    assert section_roughness_m(_section(10.0, coating="нет")) == network.ROUGHNESS_STEEL_M
+    assert section_roughness_m(_section(10.0, coating="ПЭ")) == pytest.approx(0.02e-3)
+    assert section_roughness_m(_section(10.0, coating="нет")) == pytest.approx(0.5e-3)
 
 
 def test_branch_path_climbs_through_the_trunk_to_the_station():

@@ -1,5 +1,5 @@
 import {lossLabel,lossLabels} from "../../shared/lossLabels";
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import type { OperatorBalance } from "../scheme/LossFlow";
 import { chainLossGroups } from "../../pages/lossChartData.mjs";
 import type { Audit } from "../../shared/types";
@@ -13,6 +13,7 @@ import { LossCharts, type Loss } from "./LossCharts";
 import {networkMeasures,scenarioParameters as parameters,readNetworkScenario,hydraulicLossMap} from "./networkScenario.mjs";
 import {catalogMeasures,measureHref} from "./measureCatalog.mjs";
 import {MeasureCards} from "./MeasureCards";
+import {lossDetailHref} from "./lossDetail.mjs";
 import { networkStages,stageDefinitions } from "./networkStages.mjs";
 import "./networkLosses.css";
 
@@ -79,6 +80,12 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
   const measures = networkMeasures(data?.status ?? "", data?.measures ?? [], selectedName);
   const actionContext={objectId:audit.audit.object_id,aggregateId:audit.audit.aggregate_id,source:audit.source,timestamp:timestamp ?? "",networkScenario:scenario};
   const actions=catalogMeasures([],{status:data?.status ?? "",measures});
+  // На карте потерь клик по столбцу открывает страницу подробностей статьи;
+  // в гидравлическом сценарии выбор по-прежнему фильтрует мероприятия.
+  const select=useCallback((name:string)=>{
+    const href=editable ? null : lossDetailHref(name,"losses");
+    if(href) location.assign(href); else setSelectedName(name);
+  },[editable]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -87,7 +94,7 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
   };
   return <Panel title={editable ? "Гидравлический сценарий" : "Карта потерь по цепочке"} action={!editable ? <LinkButton href="#network-scenario">Гидравлический сценарий</LinkButton> : undefined}>
     <div className="network-losses">
-      {editable && <p className="notice">{demo ? "Демонстрационный объект: геометрия, режимы и потери синтетические. Не производственные данные." : "Геометрия — из АРМИТС; единицы выгрузки ещё требуют подтверждения. Недостающие параметры и распределение потока заменены синтетикой. Это сценарная оценка, а не измеренные потери или достигнутая экономия."}</p>}
+      {editable && <p className="notice">{demo ? "Демонстрационный объект: геометрия, режимы и потери синтетические. Не производственные данные." : "Геометрия — реестр АРМИТС, расход по скважинам — по фактической закачке, шероховатость — справочная. Параметры НКТ и требуемое давление — сценарные. Это оценка, а не измеренные потери."}</p>}
       {editable && <details className="network-scenario">
         <summary>Параметры сценария</summary>
         <form onSubmit={submit}>
@@ -104,7 +111,7 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
       {data && <>
         {data.status !== "unavailable" && <>
           <p className="muted">{editable ? "Сценарный баланс внешней сети от блока гребёнок." : data.title}</p>
-          <p className="network-metadata">{data.network.well_count} скважин · {fmt((data.network.total_length_m ?? [...new Map(data.segments.map(item => [item.id, item])).values()].reduce((sum, item) => sum + item.length_m, 0)) / 1000, 1)} км учтённых участков · перепад высот {fmt(scenario.elevation_change_m, 0)} м (синтетика). {demo ? "Геометрия синтетическая, длины в метрах и диаметры в миллиметрах." : "Геометрия по реестру, единицы не подтверждены."}</p>
+          <p className="network-metadata">{data.network.well_count} скважин · {fmt((data.network.total_length_m ?? [...new Map(data.segments.map(item => [item.id, item])).values()].reduce((sum, item) => sum + item.length_m, 0)) / 1000, 1)} км учтённых участков · перепад высот {fmt(scenario.elevation_change_m, 0)} м (синтетика). {demo ? "Геометрия синтетическая, длины в метрах и диаметры в миллиметрах." : "Геометрия по реестру АРМИТС."}</p>
         </>}
         {data.warnings.length > 0 && (data.status === "unavailable"
           ? <div className="notice" role="status"><ul>{data.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>
@@ -127,13 +134,14 @@ export function NetworkLosses({ audit, view = "map" }: { audit: Audit; view?: "m
           </div>
             {!editable && summaryItems.length>0 && <Button variant="secondary" aria-expanded={detailed} onClick={()=>{setDetailed(previous=>!previous);setSelectedName("");}}>{detailed ? "Свернуть детализацию" : "Детализация"}</Button>}
           </div>
+          {!editable && <p className="muted">Нажмите на столбец потерь, чтобы открыть подробности составляющей.</p>}
           <p className="stage-basis">{editable ? "Граница расчёта — от БГ через трубопроводы, штуцеры и стволы скважин. Доли показаны от гидравлической мощности на БГ. Машинный блок в эту карту не входит." : grouped ? "Граница расчёта — устья после штуцеров. Трение в НКТ доступно в детализации." : "Подробный баланс включает трение в стволах скважин до полезной закачки."}</p>
           {mode === "decomposition" ? <>
             <div className="network-waterfall-scroll" tabIndex={0} role="region" aria-label="Разложение всей цепочки, горизонтальная прокрутка">
-              <div className="network-waterfall-wide"><LossCharts power={editable ? hydraulic?.input_kw ?? 0 : data.input_kw} inputLabel={editable ? lossLabels.bg : undefined} losses={chartItems} mode={mode} showSummary={false} groups={groups} onSelect={setSelectedName} /></div>
+              <div className="network-waterfall-wide"><LossCharts power={editable ? hydraulic?.input_kw ?? 0 : data.input_kw} inputLabel={editable ? lossLabels.bg : undefined} losses={chartItems} mode={mode} showSummary={false} groups={groups} onSelect={select} /></div>
             </div>
             <p className="muted network-waterfall-hint">На узком экране прокрутите график вправо; доступны стрелки клавиатуры.</p>
-          </> : <LossCharts power={editable ? hydraulic?.input_kw ?? 0 : data.input_kw} inputLabel={editable ? lossLabels.bg : undefined} losses={chartItems} mode={mode} showSummary={false} onSelect={setSelectedName} />}
+          </> : <LossCharts power={editable ? hydraulic?.input_kw ?? 0 : data.input_kw} inputLabel={editable ? lossLabels.bg : undefined} losses={chartItems} mode={mode} showSummary={false} onSelect={select} />}
           {selected && <p><strong>{lossLabel(selected.name)}: {fmt(selected.power_kw)} кВт.</strong> {selected.basis} Происхождение: {origins[selected.provenance]}.</p>}
         </> : <p className="notice error" role="alert">{data.status === "infeasible" ? "Сценарий физически невыполним: доступного давления недостаточно. Сбалансированная карта не построена." : editable ? "Гидравлический сценарий недоступен: нет положительной мощности на БГ." : "Карта всей цепочки недоступна для выбранного режима."}</p>}
         {editable && <>

@@ -2,7 +2,7 @@
 UV ?= uv
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web build check format lint test test-api test-e2e verify ingest reports clean-reports
+.PHONY: help setup dev api web build check format lint test test-api test-e2e data reference verify ingest reports clean-reports
 
 help: ## Показать доступные команды
 	@echo "PPD Energoaudit: make <цель>"
@@ -14,6 +14,8 @@ help: ## Показать доступные команды
 	@echo "  test          Python и frontend unit-тесты"
 	@echo "  test-api      тесты API и расчётного ядра"
 	@echo "  test-e2e      Playwright с изолированной БД"
+	@echo "  data          собрать БД из файлов проекта (API делает это и сам)"
+	@echo "  reference     пересобрать data/reference/reference.json из xlsx заказчика"
 	@echo "  verify        сверить модель с исходными xlsx и отчётами"
 	@echo "  ingest        legacy ДНС-7с (нужны внешние исходные Excel)"
 	@echo "  reports       пересобрать кэш .docx-отчётов"
@@ -53,6 +55,12 @@ test-api:
 
 test-e2e:
 	npm run test:e2e
+
+data:
+	$(UV) run --frozen --package ppd-audit python -m ppd_audit.build_db
+
+reference:
+	$(UV) run --frozen --package ppd-audit python scripts/import_reference.py data/reference/source data/reference/reference.json
 
 verify:
 	$(UV) run --frozen --package ppd-audit python -m ppd_audit.verify

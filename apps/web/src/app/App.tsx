@@ -26,6 +26,10 @@ import { CRMWellsPage } from "../pages/CRMWells";
 import { WorkingPointPage } from "../pages/WorkingPoint";
 import { MeasuresPage } from "../pages/Measures";
 import { NetworkPage } from "../pages/Network";
+import { LossDetailPage } from "../pages/LossDetail";
+import { RecommendationsPage } from "../pages/Recommendations";
+import { ReferencePage } from "../pages/Reference";
+import { readLossDetail } from "../features/losses/lossDetail.mjs";
 import { FormulasPage } from "../pages/Formulas";
 import { OnboardingPage } from "../pages/Onboarding";
 import { EquipmentJournalPage } from "../pages/EquipmentJournal";
@@ -77,7 +81,7 @@ export function App({ logout }: { logout?: () => void }) {
     source = mode === "field_trip" ? "field_trip" : "telemetry";
   const monitoringPage = page === "portfolio" || page === "timeline" || page === "overview";
   const objectOnlyPage = ["well-history","crm-wells","network"].includes(page);
-  const auditPage = ["snapshot","losses","network-scenario","machine-block","machine-losses","pipelines","wells","sources","formulas","working-point","measures","onboarding","equipment-journal"].includes(page);
+  const auditPage = ["snapshot","losses","network-scenario","machine-block","machine-losses","pipelines","wells","sources","formulas","working-point","measures","onboarding","equipment-journal","loss-detail","recommendations"].includes(page);
   const snapshotPage = auditPage || page === "telemetry" || page === "timeline";
   const objects = useResource<Plant[]>("/catalog/objects", undefined, true);
   const visibleObjects = operatorObjects(objects.data ?? []);
@@ -287,7 +291,9 @@ export function App({ logout }: { logout?: () => void }) {
       setSelection(next);
     }
   }, [monitoringPage, objectOnlyPage, page, object?.code, aggregate?.code, mode, day, timestamp, dates.data, snapshots.data, selection]);
-  const section = navigationSections.find(group => group.pages.some(item => item.id === page));
+  // Подробности статьи потерь принадлежат разделу той карты, с которой пришли.
+  const sectionPage = page === "loss-detail" ? readLossDetail(location.href).from : page;
+  const section = navigationSections.find(group => group.pages.some(item => item.id === sectionPage));
   function navigationHref(target: string) {
     if ((target === "timeline" && mode !== "analysis") || pageForMode(mode,target) !== target) {
       const url = new URL(location.href);
@@ -331,7 +337,7 @@ export function App({ logout }: { logout?: () => void }) {
           <nav aria-label="Разделы энергоаудита" className="sidebar-nav">
             {navigationSections.map(section => {
               const root = section.pages.find(item => item.id === section.root)!;
-              const active = section.pages.some(item => item.id === page);
+              const active = section.pages.some(item => item.id === sectionPage);
               return <a key={section.root} href={navigationHref(section.root)} className={active ? "active" : ""} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)}>
                 <Icon name={root.icon} /><span>{section.label}</span>
               </a>;
@@ -444,7 +450,7 @@ export function App({ logout }: { logout?: () => void }) {
           </p>
         </div>}
         {page !== "portfolio" && section && section.pages.length > 1 && <nav className="page-tabs" aria-label={`Вкладки: ${section.label}`}>
-          {section.pages.filter(item=>!item.hidden).map(item => <a key={item.id} href={navigationHref(item.id)} aria-current={page === item.id ? "page" : undefined}>{item.label}</a>)}
+          {section.pages.filter(item=>!item.hidden).map(item => <a key={item.id} href={navigationHref(item.id)} aria-current={sectionPage === item.id ? "page" : undefined}>{item.label}</a>)}
         </nav>}
         {page !== "portfolio" && <AnalysisScope page={page} aggregate={page === "timeline" ? aggregateChoice : aggregate?.code ?? ""} source={source} timestamp={timestamp} well={selectedWell} measurementId={measurementId} scenario={Boolean(equipmentOverride)} />}
         {equipmentOverride && <div className="notice scenario-banner" role="status">
@@ -525,6 +531,9 @@ export function App({ logout }: { logout?: () => void }) {
         )}
         {page === "measures" && <MeasuresPage key={contextKey} {...context} />}
         {page === "network" && <NetworkPage key={contextKey} {...context} />}
+        {page === "loss-detail" && <LossDetailPage key={`${contextKey}:${timestamp}`} {...context} {...readLossDetail(location.href)} />}
+        {page === "recommendations" && <RecommendationsPage key={`${contextKey}:${timestamp}`} {...context} />}
+        {page === "reference" && <ReferencePage />}
         {page === "onboarding" && (
           <OnboardingPage key={contextKey} {...context} />
         )}

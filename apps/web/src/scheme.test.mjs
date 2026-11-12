@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { layoutTopology, pressureForEdge } from "./features/scheme/scheme.mjs";
+import { layoutTopology, pressureForEdge } from "./features/scheme/schemeLayout.mjs";
 
 test("all pump branches and actual edges survive layout", () => {
   const topology = {

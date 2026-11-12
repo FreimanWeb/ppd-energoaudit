@@ -5,7 +5,7 @@ import { Button } from "../../shared/ui/Button";
 import { Panel } from "../../shared/ui/Panel";
 import { Status } from "../../shared/ui/Status";
 import { Table } from "../../shared/ui/Table";
-import { previousPeriod, summarizePeriod, periodChange, comparisonProfile } from "./periodComparison.mjs";
+import { previousPeriod, summarizePeriod, periodChange, comparisonProfile } from "./periodComparisonData.mjs";
 
 type Period = {start:string;end:string};
 type History = {points:Record<string,unknown>[];interval_hours:number};

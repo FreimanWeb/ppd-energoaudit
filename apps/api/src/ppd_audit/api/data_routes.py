@@ -288,3 +288,21 @@ def network(
         tariff=catalog.tariff(database=database)["rub_per_kwh"],
         eta=eta,
     )
+
+
+@router.get("/reference")
+def reference() -> dict:
+    """Справочные материалы: шероховатость, правила диагностики, бенчмарки, алгоритм НА."""
+    from ..core.roughness import hydraulic_reference
+    from ..services.diagnostics import rule_catalog
+    from ..services.pump_recommendations import reference_data
+
+    data = reference_data()
+    return {
+        "hydraulics": hydraulic_reference().as_dict(),
+        "diagnostic_rules": rule_catalog(),
+        "pump_benchmark": data.get("pump_benchmark", []),
+        "motor_benchmark": data.get("motor_benchmark", []),
+        "critical_parameters": data.get("critical_parameters", {}),
+        "sources": data.get("sources", []),
+    }
