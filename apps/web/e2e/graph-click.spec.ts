@@ -32,15 +32,3 @@ test('CRM graph accepts a real well click and keyboard activation', async ({ pag
   await expect(page.getByLabel('Скважина графа')).toHaveValue(well);
 });
 
-test('loss charts scroll locally and retain full labels on mobile', async ({ page }) => {
-  await fixture(page);
-  await goToSection(page, "machine-losses");
-  await page.setViewportSize({ width: 390, height: 844 });
-  const plot=page.locator(".page-panel").filter({has:page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})}).getByRole('group',{name:'Декомпозиция мощности',exact:true});
-  await expect(plot.locator('svg.visx-chart')).toBeVisible();
-  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  const labels=await plot.locator('.visx-axis-x text').allTextContents();
-  expect(labels.length).toBeGreaterThanOrEqual(2);
-  expect(labels.every(text=>text && !text.includes('…'))).toBe(true);
-  await expect(page.getByRole('button',{name:'Поток мощности',exact:true})).toHaveCount(0);
-});

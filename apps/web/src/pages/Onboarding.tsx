@@ -1,108 +1,48 @@
-import { Tooltip } from "../shared/ui/Tooltip";
 import { useResource, segment } from "../shared/api";
 import { Panel } from "../shared/ui/Panel";
 import { Status } from "../shared/ui/Status";
-import { Table } from "../shared/ui/Table";
-import type { PageProps } from "../shared/ui/context";
-type Onboarding = {
-  basis?: { source: "telemetry" | "field_trip" | "passport"; day: string | null; timestamp: string | null };
-  telemetry_requirements: {
-    parameter: string;
-    symbol: string;
-    unit: string;
-    requirement: string;
-    source: string;
-  }[];
-  manual_requirements: string[];
-  checks: {
-    field: string;
-    present: boolean;
-    value: number | unknown[] | null;
-  }[];
-  yaml_template: string;
-  verification_template: string;
+import { LinkButton } from "../shared/ui/Button";
+import { contextBody, type PageProps } from "../shared/ui/context";
+import { RequirementList } from "../features/manual/requirements";
+import type { Requirement } from "../shared/types";
+
+type Requirements = {
+  requirements: Requirement[];
+  basis: { source: string; at: string };
   notes: string[];
 };
-export function OnboardingPage(p: PageProps) {
-  const resource = useResource<Onboarding>(
-    p.objectId && p.aggregateId
-      ? `/objects/${segment(p.objectId)}/aggregates/${segment(p.aggregateId)}/onboarding${p.source === "telemetry" && p.day ? `?at=${p.day}${p.timestamp ? `&timestamp=${encodeURIComponent(p.timestamp)}` : ""}` : ""}`
-      : null,
-  );
-  const data = resource.data;
-  const basicFields = ["Телеметрия: p_вх", "Телеметрия: p_вых", "Плотность ρ",
-    "Паспорт насоса: η_ном", "Паспорт ЭД: P_ном", "Паспорт ЭД: η_ном"];
-  const missingBasic = data?.checks.filter(check => check.value == null && basicFields.includes(check.field)
-    && (data.basis?.source !== "passport" || check.field.startsWith("Паспорт"))) ?? [];
-  return (
-    <Panel
-      title="Готовность данных"
-      help="Требования к исходным данным, готовность агрегата и шаблоны паспорта. Изменение данных выполняется через принятый процесс верификации."
-    >
-      <Status {...resource} />
-      {data && (
-        <>
-          <p className="notice" aria-label="База проверки данных">
-            {data.basis?.source === "telemetry" && data.basis.timestamp
-              ? `Проверка режима ${p.aggregateId} по снимку ${new Date(data.basis.timestamp).toLocaleString("ru-RU")}. Паспорт и исходные значения совпадают с выбранным расчётом.`
-              : data.basis?.source === "passport"
-                ? `Проверка паспорта ${p.aggregateId} на ${data.basis.day}. Момент измерения не выбран; наличие режимных значений здесь не проверяется.`
-                : `Проверка паспорта и выездного замера ${p.aggregateId}.`}
-          </p>
-          {missingBasic.length > 0 && <section className="notice error" aria-label="Недостающие базовые данные">
-            <strong>Сначала заполните базовые данные для расчёта</strong>
-            <ul>{missingBasic.map(check => <li key={check.field}>{check.field}</li>)}</ul>
-          </section>}
-          <h3>Готовность выбранного агрегата</h3>
-          <Table
-            rows={[...data.checks].sort((a, b) => Number(a.value != null) - Number(b.value != null)).map((check) => ({
-              ...check,
-              present: check.value != null ? "Есть" : "Не задано",
-              value: Array.isArray(check.value)
-                ? JSON.stringify(check.value)
-                : check.value,
-            }))}
-            columns={[
-              { key: "field", label: "Поле" },
-              { key: "present", label: "Наличие" },
-              { key: "value", label: "Значение" },
-            ]}
-          />
 
-          {data.notes.map((note, index) => (
-            <p className="notice" key={index}>{note}</p>
-          ))}
-          <details>
-            <summary>Требования к телеметрии</summary>
-            <Table
-              rows={data.telemetry_requirements}
-              columns={[
-                { key: "parameter", label: "Параметр" },
-                { key: "symbol", label: "Обозначение" },
-                { key: "unit", label: "Единица" },
-                { key: "requirement", label: "Требование" },
-                { key: "source", label: "Источник" },
-              ]}
-            />
-          </details>
-          <details>
-            <summary>Паспортные данные и замеры</summary>
-            <ul className="requirements">
-              {data.manual_requirements.map((r, i) => (
-                <li key={i}>{r.includes("config/") ? <>{r.split(";")[0]}.<Tooltip label="Источник свойств жидкости" content={r} /></> : r}</li>
-              ))}
-            </ul>
-          </details>
-          <details>
-            <summary>Шаблон паспорта объекта</summary>
-            <pre className="template-code">{data.yaml_template}</pre>
-          </details>
-          <details>
-            <summary>Шаблон записи для верификации</summary>
-            <pre className="template-code">{data.verification_template}</pre>
-          </details>
-        </>
-      )}
-    </Panel>
+export function OnboardingPage(p: PageProps) {
+  const base = p.objectId && p.aggregateId
+    ? `/objects/${segment(p.objectId)}/aggregates/${segment(p.aggregateId)}` : null;
+  const requirements = useResource<Requirements>(
+    base ? `${base}/data-requirements` : null,
+    contextBody(p, { with_regime: Boolean(p.audit) }),
   );
+  const guide = useResource<{ yaml_template: string }>(base ? `${base}/onboarding` : null);
+  const journalHref = () => {
+    const url = new URL(location.href);
+    url.hash = "equipment-journal";
+    url.searchParams.delete("edit");
+    return url.href;
+  };
+  return <Panel title="Готовность данных" help="Один и тот же список требований используется здесь и в разборе потерь. Наличие значения, происхождение и подтверждение — разные признаки.">
+    <div className="content-actions">
+      <LinkButton href={journalHref()}>Открыть журнал оборудования</LinkButton>
+    </div>
+    <Status {...requirements} empty="Выберите объект и агрегат для проверки данных." />
+    {requirements.data && <>
+      <p className="muted">{requirements.data.basis.source === "passport"
+        ? `Паспорт на ${requirements.data.basis.at.replace("T", " ")}; измеренный режим не проверен.`
+        : `Требования выбранного режима на ${requirements.data.basis.at.replace("T", " ")}.`}</p>
+      {requirements.data.notes.map((note, i) => <p className="notice" key={i}>{note}</p>)}
+      <RequirementList items={requirements.data.requirements}
+        caption="Для каждого параметра показано, что известно, на какой расчёт он влияет и что нужно сделать. Ручной ввод сам по себе не подтверждает значение." />
+    </>}
+    <details className="stage-assumptions"><summary>Подключение нового объекта</summary>
+      <p>Начальная регистрация объекта пока выполняется через конфигурацию. После регистрации изменения оборудования ведутся в журнале без правки YAML; ранее сохранённые ручные замеры остаются доступными. Телеметрия подключается отдельно.</p>
+      <Status {...guide} />
+      {guide.data?.yaml_template && <pre className="template-code">{guide.data.yaml_template}</pre>}
+    </details>
+  </Panel>;
 }

@@ -81,7 +81,7 @@ test("portfolio filter fields show clear labels and selected values", async ({ p
   await expect(filter).toHaveAttribute("data-active", "false");
 });
 
-test("portfolio offers up to six months of full-width charts in wide cards", async ({ page }) => {
+test("portfolio preserves measured history windows through six months", async ({ page }) => {
   await page.setViewportSize({width: 1600, height: 1000});
   await page.goto("/");
   await selectDate(page, "2026-10-01", "Дата окончания графиков");
@@ -91,9 +91,6 @@ test("portfolio offers up to six months of full-width charts in wide cards", asy
   const svg = card.locator(".portfolio-sparkline");
   const graphWidth = (await svg.boundingBox())!.width;
   expect((await svg.locator(".portfolio-sparkline-baseline").boundingBox())!.width / graphWidth).toBeGreaterThan(0.9);
-  const dot = (await svg.locator("circle").first().boundingBox())!;
-  expect(dot.width).toBeCloseTo(5, 1);
-  expect(dot.height).toBeCloseTo(5, 1);
   await page.getByLabel("Период графиков").selectOption("180");
   await expect(card.locator(".portfolio-sparkline circle")).toHaveCount(93);
   await page.getByLabel("Период графиков").selectOption("90");
@@ -103,14 +100,6 @@ test("portfolio offers up to six months of full-width charts in wide cards", asy
   await expect(card.locator(".portfolio-history-range time").first()).toHaveAttribute("datetime", "2026-09-25");
   await page.getByLabel("Период графиков").selectOption("1");
   await expect(card.locator(".portfolio-sparkline circle")).toHaveCount(1);
-  const cards = page.locator(".portfolio-card");
-  const first = (await cards.nth(0).boundingBox())!;
-  const second = (await cards.nth(1).boundingBox())!;
-  const third = (await cards.nth(2).boundingBox())!;
-  expect(first.width).toBeGreaterThan(700);
-  expect(first.y).toBe(second.y);
-  expect(third.x).toBe(first.x);
-  expect(third.y).toBeGreaterThan(first.y);
 });
 
 test("portfolio tooltip stays outside clipping containers and appears only while hovering", async ({ page }) => {

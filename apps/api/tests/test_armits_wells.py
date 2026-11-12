@@ -248,14 +248,6 @@ def test_real_cards_have_history_and_pressures(folder):
 
 
 @pytest.mark.skipif(not ARCHIVE.exists(), reason="нет выгрузки АРМИТС")
-def test_agent_density_matches_station():
-    cards = read_cards(ARCHIVE, "54")
-    densities = [card.agent_density for card in cards if card.agent_density]
-
-    assert max(set(densities), key=densities.count) == pytest.approx(1138.0)
-
-
-@pytest.mark.skipif(not ARCHIVE.exists(), reason="нет выгрузки АРМИТС")
 def test_history_holds_only_complete_months_before_the_current_one():
     for folder in ("54", "97-2", "ОПУ"):
         for card in read_cards(ARCHIVE, folder):

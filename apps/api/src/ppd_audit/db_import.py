@@ -11,10 +11,10 @@ from .db import AuditDatabase, TelemetryMeasurement
 from .ingest.excel_telemetry import build_excel_telemetry
 from .ingest.measurement_export import export_files, read_exports
 from .ingest.scada_txt import ScadaMapping, ScadaPoint, build_rows, read_points, scada_files
+from .telemetry import pressure_metric_from_label
 
 
 _KGF_PER_CM2_TO_MPA = 0.0980665
-_PRESSURE_KGF_THRESHOLD = 15.0
 
 EXAMPLE_PREFIX = "ПРИМЕР"
 
@@ -41,7 +41,12 @@ def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
             pressure_metric,
         ) = target
         if technical_place_code != "main":
-            database.upsert_technical_place(plant_code, technical_place_code, "КНС-97 ЕН")
+            database.upsert_technical_place(
+                plant_code,
+                technical_place_code,
+                "КНС-97ПР" if technical_place_code == "kns97pr" else "КНС-97",
+                update_existing=False,
+            )
         if aggregate_code:
             database.upsert_aggregate(
                 plant_code,
@@ -51,7 +56,7 @@ def import_test_telemetry(database: AuditDatabase, root: Path) -> ImportStats:
             )
         draft = json.loads(path.read_text(encoding="utf-8"))
         records = draft.get("telemetry", [])
-        pressure_multiplier = _pressure_multiplier(records)
+        pressure_multiplier = _pressure_multiplier(plant_code, technical_place_code)
         for record in records:
             measurement = _measurement(
                 record,
@@ -106,6 +111,13 @@ def import_excel_telemetry(
             technical_place_code,
             pressure_metric,
         ) = target
+        if technical_place_code != "main":
+            database.upsert_technical_place(
+                plant_code,
+                technical_place_code,
+                "КНС-97ПР" if technical_place_code == "kns97pr" else "КНС-97",
+                update_existing=False,
+            )
         if aggregate_code:
             database.upsert_aggregate(
                 plant_code,
@@ -118,7 +130,7 @@ def import_excel_telemetry(
         except Exception:
             unreadable.append(path.name)
             continue
-        pressure_multiplier = _pressure_multiplier(records)
+        pressure_multiplier = _pressure_multiplier(plant_code, technical_place_code)
         for record in records:
             measurement = _measurement(
                 record,
@@ -158,25 +170,21 @@ def _target(filename: str) -> tuple[str, str | None, str, str | None] | None:
         if aggregate:
             aggregate = f"{aggregate} ПР"
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns97pren", aggregate, "main", pressure_metric
+        return "kns97pren", aggregate, "kns97pr", pressure_metric
     if "КНС-97 ЕН" in filename:
         aggregate = None if "бг" in filename.lower() else _aggregate_from_filename(filename)
         pressure_metric = "p_bg" if aggregate is None and "бг" in filename.lower() else None
-        return "kns97pren", aggregate, "main", pressure_metric
+        return "kns97pren", aggregate, "kns97", pressure_metric
     return None
 
 
-def _pressure_multiplier(records: list[dict]) -> float:
-    """Выбрать единицы одного файла: большие значения считаем кгс/см²."""
-    for record in records:
-        if record.get("metric") != "pressure" or record.get("value") is None:
-            continue
-        try:
-            if float(record["value"]) > _PRESSURE_KGF_THRESHOLD:
-                return _KGF_PER_CM2_TO_MPA
-        except (TypeError, ValueError):
-            continue
-    return 1.0
+def _pressure_multiplier(plant_code: str, technical_place_code: str) -> float | None:
+    """Единицы задаются источником, а не выбираются по величине давления."""
+    if plant_code in {"kns54an", "knsopu"}:
+        return _KGF_PER_CM2_TO_MPA
+    if plant_code == "kns97pren" and technical_place_code == "kns97pr":
+        return 1.0
+    return None
 
 
 def _aggregate_from_filename(filename: str) -> str | None:
@@ -209,7 +217,7 @@ def _measurement(
     plant_code: str,
     aggregate_code: str | None,
     technical_place_code: str,
-    pressure_multiplier: float,
+    pressure_multiplier: float | None,
     pressure_metric: str | None,
     *,
     source_kind: str,
@@ -220,14 +228,29 @@ def _measurement(
     metric, unit = _metric(record, pressure_metric)
     if metric is None:
         return None
+    quality = str(record["quality"]) if record.get("quality") not in (None, "") else None
+    if unit == "не подтверждена" or (metric.startswith("p_") and pressure_multiplier is None):
+        unit = "не подтверждена"
+        quality = "unit_unconfirmed" + (
+            f"; source_quality={quality}" if quality is not None else ""
+        )
+    if metric == "power" and (
+        "проток" in source_file.lower() or str(record.get("sheet", "")).lower() == "r1020"
+    ):
+        metric = "power_daily_reported"
     return TelemetryMeasurement(
         plant_code=plant_code,
         aggregate_code=aggregate_code,
         timestamp=datetime.fromisoformat(record["timestamp"]),
         metric=metric,
-        value=float(record["value"]) * (pressure_multiplier if metric.startswith("p_") else 1.0),
+        value=float(record["value"])
+        * (
+            pressure_multiplier
+            if metric.startswith("p_") and pressure_multiplier is not None
+            else 1.0
+        ),
         unit=unit,
-        quality=str(record["quality"]) if record.get("quality") not in (None, "") else None,
+        quality=quality,
         technical_place_code=technical_place_code,
         source_kind=source_kind,
         source_file=source_file,
@@ -240,18 +263,16 @@ def _measurement(
 
 def _metric(record: dict, pressure_metric: str | None = None) -> tuple[str | None, str]:
     raw_metric = record.get("metric", "")
-    label = record.get("label", "").lower()
+    label = record.get("label", "").lower().replace("ё", "е").strip()
     if raw_metric == "pressure":
         if pressure_metric:
             return pressure_metric, "МПа"
-        if "приём" in label or "прием" in label:
-            return "p_in", "МПа"
-        if "выкид" in label:
-            return "p_out", "МПа"
-        if "бг" in label:
-            return "p_bg", "МПа"
+        metric = pressure_metric_from_label(label)
+        return (metric, "МПа") if metric else ("pressure_unassigned", "не подтверждена")
     if raw_metric == "power_kw":
         return "power", "кВт"
+    if raw_metric == "runtime_reported" or (raw_metric == "runtime_h" and "мин" in label):
+        return "runtime", "не подтверждена"
     if raw_metric == "runtime_h":
         return "runtime", "ч"
     if raw_metric == "flow" and "расход" in label:
@@ -326,7 +347,20 @@ def import_scada_exports(
 
     measurements: list[TelemetryMeasurement] = []
     seen_aggregates: set[tuple[str, str, str]] = set()
+    seen_places: set[tuple[str, str]] = set()
     for row in rows:
+        place = (row.plant_code, row.technical_place_code)
+        if place not in seen_places:
+            database.upsert_technical_place(
+                *place,
+                "КНС-97ПР"
+                if row.technical_place_code == "kns97pr"
+                else "КНС-97"
+                if row.technical_place_code == "kns97"
+                else row.plant_code,
+                update_existing=False,
+            )
+            seen_places.add(place)
         if row.aggregate_code:
             key = (row.plant_code, row.technical_place_code, row.aggregate_code)
             if key not in seen_aggregates:
@@ -345,6 +379,7 @@ def import_scada_exports(
                 metric=row.metric,
                 value=row.value,
                 unit=row.unit,
+                quality=row.quality,
                 technical_place_code=row.technical_place_code,
                 source_kind=SCADA_SOURCE_KIND,
                 source_file=row.source_file or None,

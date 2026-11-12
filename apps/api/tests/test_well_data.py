@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -18,10 +18,50 @@ def test_confirmed_density_is_available_from_receipt_not_backfilled(db):
     assert db.plant_density_default("knsopu", date(2026, 10, 15)) is None
     assert db.plant_density_default("knsopu", date(2026, 10, 16))["density_kgm3"] == 1142
     assert db.plant("knsopu")["default_density"] == 1123
-    from ppd_audit.services.catalog import get_field_trip_audit
 
-    _, audit = get_field_trip_audit("knsopu", "НА-1", database=db)
-    assert audit.regime.rho == 1142
+
+@pytest.mark.parametrize(
+    ("measured_at", "expected_density"),
+    [(date(2026, 4, 9), 1054), (date(2026, 10, 16), 1142), (None, 1142)],
+)
+def test_field_trip_density_uses_measurement_date(db, monkeypatch, measured_at, expected_density):
+    from ppd_audit.services.catalog import with_confirmed_density
+    from ppd_audit.spec import RegimeMeasurement, load_object_spec
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 17, tzinfo=tz)
+
+    monkeypatch.setattr("ppd_audit.services.catalog.datetime", FixedDateTime)
+    obj = load_object_spec("knsopu").model_copy(deep=True)
+    aggregate = obj.aggregate("НА-2")
+    aggregate.regime = RegimeMeasurement(
+        rho=1054,
+        p_in=1.77,
+        p_out=11.37612,
+        q_fact=96.58,
+        p_electric=466.9,
+        measured_at=measured_at,
+    )
+    selected = with_confirmed_density(obj, db)
+    assert selected.aggregate("НА-2").regime.rho == expected_density
+    assert aggregate.regime.rho == 1054
+
+
+def test_historical_field_trip_does_not_cite_later_density_source(db, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from ppd_audit.api import analysis_routes
+
+    monkeypatch.setattr(analysis_routes, "_database", lambda: db)
+    app = FastAPI()
+    app.include_router(analysis_routes.router)
+    with TestClient(app) as client:
+        response = client.post("/objects/knsopu/aggregates/НА-2/field-trip-audit")
+    assert response.status_code == 200
+    assert "ρ" not in response.json()["sources"]
 
 
 def test_well_history_is_separate_and_import_is_idempotent(db, monkeypatch):

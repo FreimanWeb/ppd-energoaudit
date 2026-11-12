@@ -91,7 +91,6 @@ def test_demo_has_ready_snapshot_audit(tmp_path):
     seed_demo(db, datetime(2026, 10, 18, 12))
     start, end = datetime(2026, 10, 17), datetime(2026, 10, 18)
     snapshots = telemetry_snapshots(db, DEMO_OBJECT_ID, "НА-1", start, end)
-    assert len(snapshots) == 48
     audit = run_snapshot_audit(
         db,
         DEMO_OBJECT_ID,

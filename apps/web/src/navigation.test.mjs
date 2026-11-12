@@ -43,9 +43,10 @@ test("calendar uses local ISO day strings, Monday weeks and leap years", async (
 
 test("analysis context round-trips Cyrillic aggregates and keeps the page and unrelated query", async () => {
   const nav = await import("./app/navigation.mjs");
-  const context = {object: "kns54an", aggregate: "НА-2", day: "2026-09-28", timestamp: "2026-09-28T12:00:00", mode: "analysis"};
-  const href = nav.analysisContextURL("http://localhost/?keep=1#scheme", context);
+  const context = {object: "kns54an", aggregate: "НА-2", day: "2026-09-28", timestamp: "2026-09-28T12:00:00", mode: "analysis", measurement: ""};
+  const href = nav.analysisContextURL("http://localhost/?keep=1&measurement=7#scheme", context);
   assert.deepEqual(nav.readAnalysisContext(href), context);
+  assert.equal(new URL(href).searchParams.has("measurement"), false);
   assert.equal(new URL(href).hash, "#scheme");
   assert.equal(new URL(href).searchParams.get("keep"), "1");
 });
@@ -63,9 +64,9 @@ test("source modes omit irrelevant measurement parameters and unknown modes fall
 });
 
 
-test("operator list keeps three real objects and one explicit demo", async () => {
-  const {operatorObjects,pageForMode} = await import("./app/navigation.mjs");
-  assert.deepEqual(operatorObjects(["knsopu","kns54an","kns97pren","demo-ppd","kns10bn","dns7"].map(code => ({code}))).map(o => o.code),["knsopu","kns54an","kns97pren","demo-ppd"]);
+
+test("field-trip mode keeps machine, pipeline and well pages", async () => {
+  const {pageForMode} = await import("./app/navigation.mjs");
   for (const page of ["machine-block","machine-losses","pipelines","wells"]) assert.equal(pageForMode("field_trip",page),page);
 });
 

@@ -50,10 +50,10 @@ def _components(audit: AuditResult) -> tuple[float, list[tuple[str, float]]]:
     ]
 
 
-def build_loss_map(audit: AuditResult, tariff: float = 4.68, t_year: float = 8760.0) -> LossMap:
+def build_loss_map(audit: AuditResult, tariff: float = 4.68) -> LossMap:
     """Карта потерь агрегата с годовой энергией и стоимостью."""
     p_el = audit.regime.p_electric
-    t_year = (audit.spec and audit.spec.regime and audit.spec.regime.t_year) or t_year
+    t_year = audit.annual_runtime_hours
     useful, comps = _components(audit)
     items = [
         LossItem(

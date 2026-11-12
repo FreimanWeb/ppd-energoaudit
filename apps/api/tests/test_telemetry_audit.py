@@ -62,7 +62,7 @@ def test_build_regime_reduces_telemetry_window(tmp_path):
 
     assert regime.p_in == pytest.approx(1.2)
     assert regime.p_out == pytest.approx(10.4)
-    assert regime.p_electric == pytest.approx(200.0)
+    assert regime.p_electric == pytest.approx(210.0)
     assert regime.q_day == pytest.approx(2400.0)
     assert regime.t == pytest.approx(24.0)
     assert regime.w == pytest.approx(4800.0)
@@ -112,7 +112,9 @@ def test_build_regime_averages_daily_operating_pressure_and_power(tmp_path):
 
     assert regime.p_in == pytest.approx((1 + 2 + 10 * 46) / 48)
     assert regime.p_out == pytest.approx((10 + 20 + 50 * 46) / 48)
-    assert regime.p_electric == pytest.approx(300.0)
+    assert regime.p_electric == pytest.approx(400.0)
+    assert regime.w == pytest.approx(600.0)
+    assert regime.t == pytest.approx(2.0)
 
 
 def test_build_regime_uses_held_power_when_energy_is_absent(tmp_path):
@@ -395,7 +397,7 @@ def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
         ("density", 1000.0, "кг/м³"),
         ("q_day", 48.0, "м³/сут"),
         ("runtime", 2.0, "ч"),
-        ("energy", 420.0, "кВт·ч"),
+        ("energy", 480.0, "кВт·ч"),
     ]:
         database.add_measurement("kns97", "НА-02", start, metric, value, unit)
     database.add_measurement(
@@ -424,10 +426,12 @@ def test_snapshot_audit_marks_daily_totals_as_assumptions(tmp_path):
     )
 
     assert snapshot.audit.regime.p_in == pytest.approx(1.2)
-    assert snapshot.audit.regime.p_out == pytest.approx(10.4)
+    assert snapshot.uses_daily_power is False
     assert snapshot.uses_daily_flow is True
-    assert snapshot.uses_daily_power is True
-    assert snapshot.annual_runtime_is_assumed is True
+    assert snapshot.audit.regime.p_electric == pytest.approx(210.0)
+    daily = snapshot.audit.spec.regime
+    assert daily.w / daily.t == pytest.approx(240.0)
+    assert snapshot.audit.annual_runtime_is_assumed is True
     assert snapshot.quality.status == "assumptions"
     assert snapshot.quality.basis["flow"] == "Q_сут / T_сут"
     assert snapshot.sources["p_вх"] == (
@@ -547,7 +551,7 @@ def test_snapshot_audit_resolves_t_year_clarification_with_complete_runtime(tmp_
 
     snapshot = run_snapshot_audit(database, "kns97", "НА-02", start, end, start)
 
-    assert snapshot.annual_runtime_is_assumed is False
+    assert snapshot.audit.annual_runtime_is_assumed is False
     assert database.clarifications("kns97", "НА-02") == []
 
 
@@ -568,8 +572,7 @@ def test_date_statuses_marks_snapshot_when_daily_coverage_is_incomplete(tmp_path
     database.add_measurement("kns97", "НА-02", start + timedelta(hours=2), "power", 0.0, "кВт")
 
     statuses = telemetry_date_statuses(database, "kns97", "НА-02", [start.date()])
-
-    assert statuses == {start.date(): "ready"}
+    assert statuses == {start.date(): "snapshot"}
 
 
 def test_telemetry_day_status_is_insufficient_when_snapshot_has_no_flow(tmp_path):
@@ -605,25 +608,6 @@ def test_telemetry_audit_uses_passport_and_reduced_regime(tmp_path):
     assert result.aggregate_id == "НА-02"
     assert result.regime.p_out == pytest.approx(10.4)
     assert result.sec_fact > 0
-
-
-def test_telemetry_audit_uses_and_marks_annual_runtime_fallback(tmp_path):
-    database = _database_with_aggregate(tmp_path)
-    start = datetime(2026, 7, 24)
-    for metric, value, unit in [
-        ("p_in", 1.2, "МПа"),
-        ("p_out", 10.4, "МПа"),
-        ("power", 210.0, "кВт"),
-        ("q_day", 2400.0, "м³/сут"),
-        ("runtime", 24.0, "ч"),
-        ("density", 1000.0, "кг/м³"),
-    ]:
-        database.add_measurement("kns97", "НА-02", start, metric, value, unit)
-
-    result = run_telemetry_audit(database, "kns97", "НА-02", start, start + timedelta(days=1))
-
-    assert result.spec.regime.t_year == 8760.0
-    assert database.clarifications("kns97", "НА-02")[0]["field"] == "t_year"
 
 
 def test_build_regime_rejects_station_flow_for_aggregate(tmp_path):
@@ -750,15 +734,38 @@ def test_telemetry_day_status_is_the_single_source_for_calendar_status(tmp_path)
 def test_integrated_flow_uses_adjacent_readings_and_ignores_other_series():
     start = datetime(2026, 1, 1)
     rows = [
-        {"timestamp": start.isoformat(), "metric": "flow_rate", "is_station": False, "value": 20},
+        {
+            "timestamp": start.isoformat(),
+            "metric": "flow_rate",
+            "is_station": False,
+            "value": 20,
+            "unit": "м³/ч",
+            "quality": None,
+        },
         {
             "timestamp": (start + timedelta(minutes=30)).isoformat(),
             "metric": "flow_rate",
             "is_station": False,
             "value": 30,
+            "unit": "м³/ч",
+            "quality": None,
         },
-        {"timestamp": start.isoformat(), "metric": "flow_rate", "is_station": True, "value": 999},
-        {"timestamp": start.isoformat(), "metric": "power", "is_station": False, "value": 999},
+        {
+            "timestamp": start.isoformat(),
+            "metric": "flow_rate",
+            "is_station": True,
+            "value": 999,
+            "unit": "м³/ч",
+            "quality": None,
+        },
+        {
+            "timestamp": start.isoformat(),
+            "metric": "power",
+            "is_station": False,
+            "value": 999,
+            "unit": "кВт",
+            "quality": None,
+        },
     ]
     assert _integrated_flow_rate(start, start + timedelta(hours=1), rows) == pytest.approx(25)
 
@@ -770,6 +777,8 @@ def test_integrated_flow_does_not_extrapolate_partial_or_irregular_series(minute
         {
             "timestamp": (start + timedelta(minutes=minute)).isoformat(),
             "metric": "flow_rate",
+            "unit": "м³/ч",
+            "quality": None,
             "is_station": False,
             "value": 20,
         }

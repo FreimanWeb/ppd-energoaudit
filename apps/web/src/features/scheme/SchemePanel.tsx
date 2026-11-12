@@ -1,9 +1,8 @@
-import {useEffect,useLayoutEffect,useRef,useState,type ReactNode} from "react";
+import {useEffect,useLayoutEffect,useRef,useState} from "react";
 import {Button} from "../../shared/ui/Button";
-import type { Audit, Topology } from "../../shared/types";
+import type { Topology } from "../../shared/types";
 import { fmt } from "../../shared/ui/format";
 import { Scheme } from "./Scheme";
-import { segment, useResource } from "../../shared/api";
 import {type OperatorBalance,LossFlow} from "./LossFlow";
 import "./schemeLosses.css";
 
@@ -11,10 +10,9 @@ const DETAIL_WIDTH=1400;
 
 type SchemeNetwork={status?:string;total_loss_kw?:number|null;operator_balance?:OperatorBalance|null;warnings?:string[];network?:{well_count?:number}};
 
-export function SchemePanel({topology,audit,aggregate="",pressures,status,station=false,stationNetwork}: {
-  topology?: Topology; audit?: Audit; aggregate?: string;
-  station?:boolean;stationNetwork?:SchemeNetwork;
-  pressures?: Record<string,{p_in_mpa:number;p_out_mpa:number}>; status?: ReactNode;
+export function SchemePanel({topology,pressures,stationNetwork}: {
+  topology?: Topology; stationNetwork?:SchemeNetwork;
+  pressures?: Record<string,{p_in_mpa:number;p_out_mpa:number}>;
 }) {
   const [hovered,setHovered]=useState<string|null>(null),[focused,setFocused]=useState<string|null>(null);
   const activeStage=hovered ?? focused;
@@ -56,16 +54,8 @@ export function SchemePanel({topology,audit,aggregate="",pressures,status,statio
     update();
     return ()=>{observer.disconnect();cancelAnimationFrame(frame);element.removeEventListener('scroll',schedule,true);};
   },[topology,fit,fullscreen]);
-  const timestamp = audit?.snapshot?.timestamp;
-  const supported = ["kns54an","demo-ppd"].includes(audit?.audit.object_id ?? "");
-  const network = useResource<SchemeNetwork>(
-    !station && supported && audit && audit.quality.status !== "unfit" && (audit?.source === "field_trip" || timestamp)
-      ? `/objects/${segment(audit?.audit.object_id)}/aggregates/${segment(aggregate)}/network-losses` : null,
-    JSON.stringify({source:audit?.source,...(audit?.source === "telemetry" && timestamp ? {day:timestamp.slice(0,10),timestamp} : {})}),
-  );
-  const map = station ? stationNetwork : network.data;
-  const balance=map?.status === "scenario" ? map.operator_balance : null;
-  const wellCount = map?.network?.well_count;
+  const balance=stationNetwork?.status === "scenario" ? stationNetwork.operator_balance : null;
+  const wellCount = stationNetwork?.network?.well_count;
   const content=<>
     <div className="section-heading"><h2>Условная технологическая схема ППД</h2>
       {topology && <div className="scheme-view-actions">
@@ -76,19 +66,18 @@ export function SchemePanel({topology,audit,aggregate="",pressures,status,statio
         <Button variant="secondary" data-expand autoFocus={fullscreen} onClick={()=>fullscreen ? dialog.current?.close() : setFullscreen(true)}>{fullscreen ? "Свернуть" : "На весь экран"}</Button>
       </div>}
     </div>
-    <p className="scheme-source">{station ? "Вся станция: совместно работающие НА." : `Сценарий НА ${aggregate}: остальные насосы выключены.`} Баланс до устьев после штуцеров; трение в стволах за границей расчёта. Скважины и водоводы показаны группами. Выберите участок или статью потерь.</p>
-    {status}
+    <p className="scheme-source">Вся станция: совместно работающие НА. Баланс до устьев после штуцеров; трение в стволах за границей расчёта. Скважины и водоводы показаны группами. Выберите участок или статью потерь.</p>
     {topology && <>
       {!fit && canEnlarge && <p className="scheme-scroll-hint">Крупная схема: прокручивайте по горизонтали или откройте на весь экран.</p>}
       <div className="scheme-layout" data-fit={fit} tabIndex={0} role="region" aria-label="Технологическая схема с прокруткой"><div className="scheme-canvas" ref={canvas} style={{minWidth:fit ? 0 : DETAIL_WIDTH}}>
-        <Scheme textScale={textScale} balance={balance} topology={topology} aggregate={aggregate} audit={station?undefined:audit} pressures={pressures} activeStage={activeStage} onStageHover={setHovered} onStageFocus={setFocused} wellCount={typeof wellCount === "number" && wellCount > 0 ? wellCount : undefined} />
+        <Scheme textScale={textScale} balance={balance} topology={topology} aggregate="" pressures={pressures} activeStage={activeStage} onStageHover={setHovered} onStageFocus={setFocused} wellCount={typeof wellCount === "number" && wellCount > 0 ? wellCount : undefined} />
         <LossFlow balance={balance} activeStage={activeStage} onHover={setHovered} onFocus={setFocused}/>
         <svg className="scheme-leaders" aria-hidden="true">{leaders.map(line=><path key={line.id} data-loss={line.id} data-stage={line.stage} d={line.path} data-active={activeStage===line.stage?true:undefined}/>)}</svg>
       </div></div>
       <details className="scheme-method"><summary>Данные и границы расчёта</summary>
       {balance
-        ? <p className="scheme-source">Потери до устьев: {fmt(balance.total_loss_kw,1)} кВт. Доли показаны от потреблённой мощности, полезная мощность не относится к потерям. Сценарная оценка: параметры внешней сети частично синтетические. {station ? "Учтены совместно работающие НА станции." : "Сценарий выбранного НА; остальные насосы в сценарии выключены."} Трение, местные сопротивления и штуцирование объединены на участке от БГ до устьев скважин. Нормы потерь по участкам для цветовой оценки пока не заданы.</p>
-        : <p className="scheme-source" role="status">{network.loading ? "Рассчитываем доли потерь…" : network.error ? `Распределение потерь недоступно: ${network.error}` : "Доли потерь недоступны для выбранного режима. Откройте участок для просмотра имеющихся данных."}</p>}
+        ? <p className="scheme-source">Потери до устьев: {fmt(balance.total_loss_kw,1)} кВт. Доли показаны от потреблённой мощности, полезная мощность не относится к потерям. Сценарная оценка: параметры внешней сети частично синтетические. Учтены совместно работающие НА станции. Трение, местные сопротивления и штуцирование объединены на участке от БГ до устьев скважин. Нормы потерь по участкам для цветовой оценки пока не заданы.</p>
+        : <p className="scheme-source" role="status">Доли потерь недоступны для выбранного режима. Откройте участок для просмотра имеющихся данных.</p>}
       <p className="scheme-source">Источник схемы: {topology.source}</p></details>
     </>}
   </>;

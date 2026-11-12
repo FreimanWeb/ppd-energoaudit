@@ -30,6 +30,7 @@ plants:
       - БГ-1 (КНС-54)
       - Задвижка (выход с КНС) (КНС-54)
   kns97pren:
+    technical_place_code: kns97pr
     pipelines_sheet: 97-2 труб
     wells_folder: 97-2
     station_nodes:

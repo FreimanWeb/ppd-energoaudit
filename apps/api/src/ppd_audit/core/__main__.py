@@ -25,7 +25,8 @@ def main(argv: list[str] | None = None) -> int:
 
     def line(label, val, ref, unit="", fmt="{:.4f}"):
         ref_s = fmt.format(ref) if isinstance(ref, (int, float)) else "—"
-        print(f"  {label:24s} {fmt.format(val):>12s} {unit:<10s} эталон {ref_s}")
+        val_s = fmt.format(val) if isinstance(val, (int, float)) else "—"
+        print(f"  {label:24s} {val_s:>12s} {unit:<10s} эталон {ref_s}")
 
     print(f"=== {plant.name} · агрегат {r.aggregate_id} · ветка «{r.branch}» ===")
     line("H_ф (8), м", g.h_fact, exp.get("h_fact"), fmt="{:.2f}")
@@ -39,8 +40,9 @@ def main(argv: list[str] | None = None) -> int:
     line("УРЭ_ф (16), кВт·ч/м³", r.sec_fact, exp.get("sec_fact"))
     line("УРЭ_р (17), кВт·ч/м³", r.sec_calc, exp.get("sec_calc"))
     d = r.decomposition
+    dw = f"{r.dw_efficiency:>12.1f}" if r.dw_efficiency is not None else f"{'—':>12s}"
     print(
-        f"  {'ΔW_НА = ΔP_КПД·T_год':24s} {r.dw_efficiency:>12.1f} {'кВт·ч/год':<10s} "
+        f"  {'ΔW_НА = ΔP_КПД·T_год':24s} {dw} {'кВт·ч/год':<10s} "
         f"эталон {exp.get('dw_efficiency', '—')}"
     )
     if isinstance(d, PumpingDecomposition):

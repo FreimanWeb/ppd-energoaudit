@@ -69,7 +69,7 @@ export function TimelineView({ objectId, aggregateId = "", timestamp, onSelectTi
     }
     return [
       { title: "Удельный расход энергии", series: [
-        signal("sec_kwh_m3", "УРЭ факт", "кВт·ч/м³"),
+        signal("sec_kwh_m3", data.basis === "daily" ? "УРЭ факт" : "УРЭ по парным данным", "кВт·ч/м³"),
         signal("sec_calc_kwh_m3", "УРЭ расчётный", "кВт·ч/м³"),
         signal("sec_optimal_kwh_m3", "УРЭ оптим. по БГ", "кВт·ч/м³"),
       ] },
@@ -126,13 +126,19 @@ export function TimelineView({ objectId, aggregateId = "", timestamp, onSelectTi
           const point = latestMetricPoint(current.data?.points ?? [], metric.key);
           const value = point?.[metric.key as keyof TimelinePoint];
           return <article className="timeline-kpi" key={metric.name} aria-label={metric.name}>
-            <MetricCard label={metric.name} value={value} unit={metric.unit} help={metric.key === "sec_kwh_m3" ? "Энергия / объём закачки в выбранных границах: " + (aggregateId || "вся станция") + "." : metric.name + ": последнее доступное измерение."} />
+            <MetricCard label={metric.name} value={value} unit={metric.unit} help={metric.key === "sec_kwh_m3"
+              ? point?.basis === "daily"
+                ? "Последний суточный УРЭ: измеренная энергия / объём за те же сутки; не итог выбранного периода."
+                : "Отношение мощности к расходу по парному замеру; не измеренные энергия и объём за весь период."
+              : metric.name + ": последнее доступное измерение."} />
+            {metric.key === "sec_kwh_m3" && point && <small>{point.basis === "daily" ? "Суточный факт" : point.basis === "interval" ? "По парным замерам" : "Временная база не указана"}</small>}
             {point && <time dateTime={point.timestamp} title="Дата измерения">{dateLabel(point.timestamp)}</time>}
           </article>;
         })}
       </div>
     </Panel>
     <Panel title="История показателей">
+      <p className="muted">{basisLabels[data?.basis ?? "none"]}. Суточный УРЭ — W / Q_сут; интервальный — отношение мощности к расходу по парным замерам, не измеренные энергия и объём за период. Расчётные ориентиры относятся к исходному режиму, а не к суточному факту.</p>
       <div className="timeline-presets" aria-label="Быстрый выбор периода">
         {[7, 30, 90].map(days => <Button key={days} variant="secondary" disabled={!current.data?.latest_at} onClick={() => changePeriod(recentPeriod(current.data!.latest_at!, days))}>{days} дней</Button>)}
         <Button variant="secondary" onClick={() => changePeriod(null)}>Последние данные</Button>
@@ -149,7 +155,6 @@ export function TimelineView({ objectId, aggregateId = "", timestamp, onSelectTi
     <PeriodComparison objectId={objectId} aggregateId={aggregateId} start={from} end={to} data={validPeriod ? data : undefined}>
       <details><summary>Данные и ограничения</summary><p>Ожидаемый интервал новой телеметрии — 2 часа. Суточные показатели не превращаются в двухчасовые измерения. Для всей станции используются суммарные показатели; КПД отдельных насосов не усредняется.</p>
         <p className="muted">{period ? "Выбранный период закреплён" : "Последний доступный период"} · {basisLabels[data?.basis ?? "none"]}. Пропуски не соединяются линией.</p>
-        {data && aggregateId && <p className="muted">УРЭ: факт, расчётный при паспортном КПД и оптимальный по давлению БГ. Ориентиры меняются с режимом; суточный факт и отдельные замеры давления имеют разную временную базу.</p>}
         {(data?.notes ?? []).map((note, index) => <p className="muted" key={index}>{note}</p>)}</details>
     </PeriodComparison>
   </div>;

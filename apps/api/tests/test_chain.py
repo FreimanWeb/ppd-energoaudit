@@ -3,14 +3,12 @@
 
 import pytest
 
-from ppd_audit.config import load_constraints
 from ppd_audit.core import hydraulics, nodes, wells, zra
 from ppd_audit.core.audit import run_pump_audit
 from ppd_audit.core.losses import build_loss_map
 from ppd_audit.core.pump import PumpingDecomposition
 from ppd_audit.core.reservoir import CRMLite, DemoReservoir, ReservoirInput, get_model
 from ppd_audit.measures import CATALOG, evaluate, suggest_measures
-from ppd_audit.optimize import optimize_setpoint
 
 
 # ---------- Водоводы ----------
@@ -180,10 +178,3 @@ def test_pumping_measures_use_decomposition_components():
     assert evaluate(measures["pump_overhaul"], audit).energy_saving_kwh == pytest.approx(
         round(decomposition.dp_wear * t_year, 1)
     )
-
-
-def test_setpoint_optimization(audit_kns25):
-    opt = optimize_setpoint(audit_kns25, load_constraints())
-    assert opt.optimal_p_out <= opt.current_p_out
-    assert opt.saving_kwh_year >= 0
-    assert isinstance(opt.within_constraints, bool)

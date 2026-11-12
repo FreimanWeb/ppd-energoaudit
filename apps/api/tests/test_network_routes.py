@@ -65,3 +65,30 @@ def test_network_api_preserves_unavailable_and_unknown_object_guards(client):
     assert response.json()["measures"] == []
     assert response.json()["comparison"] is None
     assert client.post("/objects/missing/aggregates/NA/network-losses", json={}).status_code == 404
+
+
+@pytest.mark.parametrize("binding", ["object", "group", "ambiguous"])
+def test_network_api_rejects_incompatible_hydraulic_binding(client, monkeypatch, binding):
+    from copy import deepcopy
+
+    from ppd_audit.api import analysis_routes
+    from ppd_audit.services.armits_data import load_network
+
+    network = deepcopy(load_network("kns54an"))
+    if binding == "object":
+        network["object_id"] = "another-object"
+    elif binding == "group":
+        network["technical_place_code"] = "another-group"
+    else:
+        db = analysis_routes._database()
+        db.upsert_technical_place("kns54an", "another-group", "Отдельная группа")
+        db.upsert_aggregate("kns54an", "OTHER", "работа", technical_place_code="another-group")
+    monkeypatch.setattr(analysis_routes, "load_network", lambda _: network)
+    response = client.post(
+        "/objects/kns54an/aggregates/НА-1/network-losses", json={"source": "field_trip"}
+    )
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["status"] == "unavailable"
+    assert result["measures"] == []
+    assert result["comparison"] is None

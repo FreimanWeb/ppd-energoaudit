@@ -1,0 +1,69 @@
+.requirement-list { list-style: none; margin: var(--space-4) 0; padding: 0; display: grid; gap: var(--space-3); }
+.requirement { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.requirement.req-missing { border-left: 4px solid var(--status-danger); }
+.requirement.req-pending_confirmation, .requirement.req-conflict, .requirement.req-assumed { border-left: 4px solid var(--status-warning); }
+.requirement-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.requirement-value { font-variant-numeric: tabular-nums; }
+.requirement-reason { margin: var(--space-2) 0; }
+.requirement-affects { margin: 0 0 var(--space-2); }
+.requirement .ds-button { margin-top: var(--space-2); text-decoration: none; }
+.req-badge { font-size: var(--text-caption); font-weight: var(--weight-semibold); padding: 0 var(--space-2); border-radius: var(--radius-sm); background: var(--surface-subtle); }
+.req-badge.req-missing, .req-badge.req-conflict { color: var(--status-danger); }
+.req-badge.req-pending_confirmation, .req-badge.req-assumed { color: var(--status-warning); }
+.req-badge.req-ready { color: var(--status-success); }
+.requirement-ready { margin-block: var(--space-3); }
+.requirement-summary { margin-block: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.requirement-summary > summary { font-weight: var(--weight-semibold); }
+.requirement-group { margin-top: var(--space-4); }
+.requirement-group > h4 { margin: 0; font-size: var(--text-body); }
+.requirement-group > p { margin-block: var(--space-2); }
+.requirement-compact-list { list-style: none; margin: 0; padding: 0; }
+.requirement-compact-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: start; padding-block: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.requirement-compact-item:last-child { border-bottom: 0; }
+.requirement-compact-item .requirement-affects { margin: var(--space-1) 0 0; font-size: var(--text-caption); }
+.requirement-compact-item .ds-button { text-decoration: none; }
+.requirement-review-item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+
+.loss-detail { min-width: 0; overflow-wrap: anywhere; }
+.loss-detail-status { margin-block: var(--space-3); }
+.loss-detail-status.partial { background: var(--status-warning-surface); color: var(--status-warning-content); }
+.loss-detail-status.unavailable { background: var(--status-danger-surface); color: var(--status-danger-content); }
+.loss-component { margin-block: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.loss-component > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); }
+.loss-component > header h4 { margin: 0; }
+.loss-substitution { margin: var(--space-1) 0 var(--space-3); font-variant-numeric: tabular-nums; }
+.loss-origin { font-size: var(--text-caption); color: var(--content-muted); }
+.loss-detail table { min-width: 720px; }
+.loss-detail :is(th, td) { vertical-align: top; white-space: normal; }
+
+.manual-form { display: grid; gap: var(--space-4); margin-block: var(--space-4); }
+.manual-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+.manual-grid label { display: flex; flex-direction: column; gap: .35rem; }
+.manual-grid input, .manual-grid select { width: 100%; box-sizing: border-box; padding: .6rem .75rem; color: inherit; background: var(--surface-input); border: 1px solid var(--border-form-control); border-radius: .5rem; font: inherit; }
+.manual-grid small { color: var(--content-muted); }
+.manual-field { display: flex; flex-direction: column; gap: .35rem; }
+.manual-field > small { color: var(--content-muted); font-size: var(--text-caption); }
+.manual-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
+.manual-check input { width: auto; }
+.manual-grid .manual-check { flex-direction: row; align-items: center; gap: var(--space-2); }
+.manual-grid .manual-check input { width: auto; }
+.link-button { background: none; border: 0; padding: 0; color: var(--accent-strong); text-align: start; text-decoration: underline; cursor: pointer; font: inherit; }
+.manual-field[data-focused="true"] { outline: 2px solid var(--accent-strong); outline-offset: 2px; border-radius: var(--radius-sm); }
+.manual-provenance { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); padding: var(--space-4); border: 1px dashed var(--border); border-radius: var(--radius-md); }
+.manual-provenance label { display: flex; flex-direction: column; gap: .35rem; }
+.manual-provenance input, .manual-provenance select { width: 100%; box-sizing: border-box; padding: .6rem .75rem; color: inherit; background: var(--surface-input); border: 1px solid var(--border-form-control); border-radius: .5rem; font: inherit; }
+.manual-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.curve-editor { display: grid; gap: var(--space-3); margin-block: var(--space-3); }
+.curve-editor table input { width: 8rem; padding: .35rem .5rem; font: inherit; }
+.scenario-banner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.scenario-banner strong { margin-right: var(--space-2); }
+.journal-fields { min-width: 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.journal-fields details { margin-top: var(--space-4); }
+.journal-confirmation { width: min(52rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); box-sizing: border-box; overflow: auto; padding: var(--space-5); color: var(--content-primary); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.journal-confirmation::backdrop { background: color-mix(in srgb, var(--content-primary) 35%, transparent); }
+.journal-confirmation :is(th, td) { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.journal-confirmation table { width: 100%; table-layout: fixed; }
+.journal-confirmation :is(th, td):first-child { width: 50%; }
+.journal-confirmation th { white-space: nowrap; }
+.journal-confirmation td:nth-child(n + 2) { overflow-wrap: break-word; }
+.journal-confirmation .manual-actions { margin-top: var(--space-4); }

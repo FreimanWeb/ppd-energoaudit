@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..spec import RegimeMeasurement
+from ..core.audit import AuditResult
 
 
 @dataclass(frozen=True)
@@ -16,15 +16,17 @@ class ResultScope:
 
 
 def result_scope(
-    regime: RegimeMeasurement,
-    annual_runtime: float | None,
+    audit: AuditResult,
     *,
     daily_pressure_coverage_is_complete: bool = True,
 ) -> ResultScope:
     """Отделить измеренный суточный KPI от сценарной годовой оценки."""
+    if audit.spec is None or audit.spec.regime is None:
+        raise ValueError("Для определения базы нужен исходный режим агрегата")
+    regime = audit.spec.regime
     return ResultScope(
         daily_kpi_is_fact=regime.w is not None and regime.q_day not in (None, 0),
         daily_pressure_coverage_is_complete=daily_pressure_coverage_is_complete,
-        annual_runtime_hours=annual_runtime if annual_runtime is not None else 8760.0,
-        annual_runtime_is_assumed=annual_runtime is None,
+        annual_runtime_hours=audit.annual_runtime_hours,
+        annual_runtime_is_assumed=audit.annual_runtime_is_assumed,
     )

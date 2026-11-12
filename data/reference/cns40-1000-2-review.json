@@ -5,13 +5,50 @@
     "sha256": "4a760fa1642e7ae14f2f5604a87dc1c2d068e96a4d6074ff7d984a5b7bf27251",
     "sheet": "Уравнения",
     "cells": "A5:K5",
-    "eta_unit_in_workbook": "percent"
+    "eta_unit_in_workbook": "percent",
+    "sha256_verified_2026-11-02": true,
+    "sheet_title": "Характеристики насосов по приложению Д",
+    "related_artifacts": [
+      {
+        "file": "../artifacts/objects/2026-10-15_04.05.2026 (исходная форма).xls",
+        "sha256": "1a5b39c446389c5c42401cdf95ad831531d18dc3ff00127cf7671eeba5f959ab",
+        "role": "raw Protok two-hourly export, КНС 205, 04.05.2026; no calculation block, no characteristics"
+      },
+      {
+        "file": "../artifacts/objects/2026-10-15_12_02_2026_КНС_205,_двухчасовые_показатели_с_расчетом_Н_2.xls",
+        "sha256": "c6bb1ace496e74f045a095a799f8018ad09292957dc1a844ebf0b9462fe70f40",
+        "role": "same export for 12.02.2026 with appended bottom block rows 51-106 comparing measured H/eta against Уравнения polynomials for ГНУ 1500-1300; usage example only, contains no new characteristic data"
+      }
+      ,
+      {
+        "file": "../artifacts/objects/2026-10-22_02_2499_2023.pdf",
+        "sha256": "5aeacfad6603b5ac2fc1bca4ce3963a2b0206cf8586e4e5b80c0e50775e9ea7e",
+        "role": "IDENTIFIED 'приложение Д': ЕРБ 2499-2023 (Татнефть), Приложение Д, Таблица Д.1 — tabulated Q-H-eta-stage points from which the workbook polynomials were fitted"
+      }
+    ]
   },
   "model": "ЦНС 40-1000-2",
+  "provenance": {
+    "classification": "quadratic_fit_of_normative_table",
+    "identified_source": {
+      "document": "ЕРБ 2499-2023 «Эксплуатация насосных агрегатов КНС системы ППД на месторождениях ПАО Татнефть», Приложение Д (рекомендуемое) «Нормы удельных затрат электроэнергии для насосных агрегатов ЦНС, ГНУ», Таблица Д.1",
+      "file": "../artifacts/objects/2026-10-22_02_2499_2023.pdf",
+      "sha256": "5aeacfad6603b5ac2fc1bca4ce3963a2b0206cf8586e4e5b80c0e50775e9ea7e",
+      "pdf_pages": "187-201 (Table Д.1); footnote on p.201 defines suffixes -1/-2/-3 as 1/2/3 removed stages (рабочее колесо + направляющий аппарат)",
+      "normative_documents_cited_in_table": "e.g. ЦНСА 40-1000 → ТУ 3666-067-00147105-2002; ЦНСА 63-1400 → ТУ 3666-037-00147105-95; ЦНСА 80-1400 → ТУ 3666-064-00147105-2000; АЦНС 180-1422 → ТУ У 3.19-05747991-012-95"
+    },
+    "detail": "Workbook coefficients are least-squares quadratic fits over the 3-4 tabulated Q-H / Q-η points of Таблица Д.1, not passport curves: workbook applies them as 'по ур-ю линии тренда' (Расчет рабочих точек B53). Verified numerically 2026-11-02: ЦНСА 40-1000 family fit residual ≤0.6 m at every tabulated point; ЦНСА 63-1400 family ≤11.6 m; ЦНСА 80-1400 family ≤24.4 m (largest at Q=80-96 mid-range); eta fits match the shared per-size eta points in Д.1 (eta is identical across trims because the source table itself lists one eta per size). The trim-step 'deltas' come from the source table (stages removed), not from synthetic generation.",
+    "not_manufacturer_passport": "Таблица Д.1 is a normative energy-consumption appendix (Татнефть ЕРБ): values are stated 'без учета производственных отклонений по напору и КПД и носит информационный характер' (footnote 2, p.201). Treat as engineering reference, not installed-pump passport.",
+    "experimental_files_do_not_prove_characteristics": "A045/A046 contain only field measurements; A046 reuses the same polynomials as 'должный' values, it does not derive them."
+  },
   "source_range_m3h": [
     28.0,
     60.0
   ],
+  "speed_rpm": null,
+  "speed_rpm_inferred_nominal": 3000,
+  "speed_rpm_verified": false,
+  "speed_note": "3000 rpm is contextual INFERENCE only, not verified: Д.1 has no rpm column; motor types (СТДМ-630/-1250, 4АРМ, ВАО 2-pole synchronous/asynchronous class) and the workbook's own n=3000 input for its ЦНС aggregates are consistent with nominal 3000 rpm but do not prove it. The workbook applies polynomials at fixed rated speed with no affinity-law rescaling (ГНУ rows are even used at 4104 rpm via a gearbox without recalculation). Do not apply to frequency-controlled operating points without explicit scaling rules.",
   "head_coefficients": [
     -0.10541667,
     5.503873,
@@ -22,6 +59,69 @@
     0.0110049,
     0.22411765
   ],
+  "verification_2026-11-02": {
+    "coefficients_match_source_cells": "F5:H5 and I5:K5 match JSON head/eta coefficients exactly (eta stored as fraction = workbook percent / 100).",
+    "points_recomputed": "All 'within_source_range' point rows recompute exactly from the source coefficients; out_of_range flags at 27.99 and 60.01 m³/h are correct.",
+    "opu_model_bindings": {
+      "ЦНС 63-1400": {"row": 23, "cells": "A23:K23", "range_m3h": [44, 94.5], "head_coefficients": [-0.10777182, 7.816594, 1346.8017], "eta_percent_coefficients": [-0.00621651, 1.091205, 12.205178]},
+      "ЦНС 63-1400-3": {"row": 26, "cells": "A26:K26", "range_m3h": [44, 94.5], "head_coefficients": [-0.08293985, 6.01774, 1035.8427], "eta_percent_coefficients": [-0.00621651, 1.091205, 12.205178]},
+      "ЦНС 80-1400": {"row": 39, "cells": "A39:K39", "range_m3h": [57, 120], "head_coefficients": [-0.04930348, -0.60161604, 1788.1127], "eta_percent_coefficients": [-0.00355013, 0.72886584, 26.076322]},
+      "ЦНС 80-1400-3": {"row": 42, "cells": "A42:K42", "range_m3h": [57, 120], "head_coefficients": [-0.03791321, -0.46583072, 1375.6303], "eta_percent_coefficients": [-0.00355013, 0.72886584, 26.076322]},
+      "ЦНС 180-1422": {
+        "row": null,
+        "status": "not_in_workbook_but_present_in_source_appendix",
+        "detail": "No ЦНС 180 rows in the Уравнения sheet. Таблица Д.1 contains АЦНС 180-1422 rows 10-13 on physical PDF p.191 (printed p.189), with stage count and source points; binding to the installed OPU pump is unresolved.",
+        "appendix_d_points": {
+          "АЦНС 180-1422 (11 ступеней, ТУ У 3.19-05747991-012-95)": {"Q_m3h": [100, 180, 200], "H_m": [1690.0, 1422.0, 1369.0], "eta_pct": [59.0, 73.0, 72.0], "motor": "СТДМ-1250"},
+          "АЦНС 180-1422-1 (10 ступеней)": {"Q_m3h": [100, 180, 200], "H_m": [1536.4, 1292.7, 1244.5], "eta_pct": [59.0, 73.0, 72.0], "motor": "СТДМ-1250"},
+          "АЦНС 180-1422-2 (9 ступеней)": {"Q_m3h": [100, 180, 200], "H_m": [1382.7, 1163.5, 1120.1], "eta_pct": [59.0, 73.0, 72.0], "motor": "СТДМ-1250"},
+          "АЦНС 180-1422-3 (8 ступеней)": {"Q_m3h": [100, 180, 200], "H_m": [1229.1, 1034.2, 995.6], "eta_pct": [59.0, 73.0, 72.0], "motor": "СТДМ-800"}
+        },
+        "naming_caveat": "Source name is АЦНС 180-1422; OPU label 'CNS180-1422(-1)' binds only if the installed aggregate is the АЦНС 180-1422 type. Suffix = stages removed per source footnote, so '-1' = 10 stages."
+      },
+      "naming_caveat": "Per Таблица Д.1 footnote 1 (p.201): suffix -1/-2/-3 = one/two/three stages removed from the base pump; e.g. ЦНС 63-1400-3 = ЦНС 63-1400 with 10 of 13 stages. Workbook 'ЦНС' rows match Д.1 'ЦНСА' rows numerically (points identical), so the labels are the same aggregate family. Stage counts in Д.1 confirm: 63-1400 base 13 ст, -1 12 ст, -2 11 ст, -3 10 ст; 80-1400 same 13→10; 40-1000 9→6."
+    },
+    "internal_anomalies": [
+      "Eta polynomial is identical for every trim of a pump size because the source table itself lists one eta per size (verified against Д.1).",
+      "Row 25 'ЦНС 63-1400-2' earlier flagged as anomaly is RETRACTED: coefficients fit Д.1 row 42 points (44,1256.5)(63,1184.6)(76,1125.4)(94.5,~946).",
+      "Д.1 physical print defects (confirmed on page images, not OCR artifacts): Д.1 row 42 (ЦНСА 63-1400-2, Q=94.5) head cell prints '94П,7' — Cyrillic 'П' glyph inside number; context suggests ~946.7 or ~947.7 m, keep as unverified ~946-947; Д.1 row 43 (ЦНСА 63-1400-3, Q=63) удельные энергозатраты cell prints '5П43' — likely '5,43', affects only column 11, not Q/H/η."
+    ],
+    "appendix_d_page_image_verification": {
+      "verified_on_rendered_pages": "All OPU-relevant rows were checked against rendered PDF pages (not text layer): physical PDF p.191 (printed 189, footer 'Страница 192') = АЦНС 180-1185…180-1422-3 + start of 180-1900; physical p.196 (printed 194, footer 197) = ЦНСА 63-1000-3, 63-1400 base/-1/-2/-3; physical p.199 (printed 197) = ЦНСА 80-1400 base/-1/-2; physical p.200 (printed 198, footer 201) = ЦНСА 80-1400-3 (row 59) + 80-1800 block.",
+      "ЦНСА 63-1400-3": {"Д.1_row": 43, "stages": 10, "Q_m3h": [44.00, 63.00, 76.00, 94.50], "H_m": [1142.3, 1076.9, 1023.1, 861.5], "eta_pct": [48.00, 57.00, 58.50, 60.00], "motor": "4АРМ-500/6000", "status": "Q/H/η fully legible on image"},
+      "ЦНСА 80-1400-3": {"Д.1_row": 59, "stages": 10, "Q_m3h": [57.00, 80.00, 96.00, 120.00], "H_m": [1230.8, 1076.9, 1000.0, 769.2], "eta_pct": [56.00, 62.00, 63.00, 62.50], "motor": "4АРМ-500/6000", "status": "fully legible on image"},
+      "АЦНС 180-1422-1": {"Д.1_row": 11, "stages": 10, "Q_m3h": [100.00, 180.00, 200.00], "H_m": [1536.4, 1292.7, 1244.5], "eta_pct": [59.00, 73.00, 72.00], "motor": "СТДМ-1250", "status": "fully legible on image"},
+      "ЦНСА 40-1000-2": {"Д.1_row": 22, "stages": 7, "physical_pdf_page": 192, "printed_page": 190, "Q_m3h": [28.00, 40.00, 48.00, 60.00], "H_m": [797.2, 777.8, 746.7, 676.7], "eta_pct": [45.00, 50.00, 51.00, 51.00], "motor": "4АРМ-250/6000", "status": "fully legible on 200-dpi page image; these are the normative tabulated source points of the JSON polynomial (this record's model)"}
+    },
+    "opu_workbook_discrepancies_reported_2026-11-02": [
+      {
+        "location": "OPU workbook НА1 AJ15/AK15",
+        "observed": "Q=40 paired with H=1142.3 for ЦНСА 63-1400-3",
+        "finding": "Confirmed discrepancy: OPU pairs Q=40 with H=1142.3, but Д.1 row 43 lists H=1142.3 at Q=44.00. The head value itself is consistent with the -3 curve (workbook polynomial: H(40)=1143.85, H(44)=1140.05, tabulated 1142.3 at Q=44), so the pairing is NOT provably an error — it may be a transcribed-table-point mix-up (Q should be 44.00) or a genuine off-anchor point 4 m³/h below the tabulated minimum. No 'should be 44' correction is asserted; flag for manual resolution.",
+        "normative_table_point": {"Q_m3h": 44.00, "H_m": 1142.3},
+        "status": "unresolved_discrepancy"
+      },
+      {
+        "location": "OPU workbook НА3 AJ15:AK17, label '180-1422(-1)'",
+        "observed": "H values 1690/1422/1369 at Q 100/180/200",
+        "finding": "These are the BASE АЦНС 180-1422 heads (Д.1 row 10, 11 stages). The -1 variant (Д.1 row 11, 10 stages) normative heads are 1536.4/1292.7/1244.5. Either the label is wrong (pump is actually base 11-stage) or the copied points are wrong (label -1 correct, values from wrong row). Cannot be resolved without the aggregate nameplate.",
+        "correct_table_points": {"Q_m3h": [100, 180, 200], "H_m": [1536.4, 1292.7, 1244.5]}
+      }
+    ],
+    "appendix_d_fit_verification": {
+      "method": "least-squares quadratic through tabulated Д.1 points; residuals computed at every tabulated point",
+      "head_fit_residuals_m": {
+        "ЦНСА 40-1000 family (Д.1 rows 20-23)": "max 0.6 m",
+        "ЦНСА 63-1400 base (Д.1 row 40)": [-2.9, 11.5, -11.6, 3.0],
+        "ЦНСА 63-1400-1 (Д.1 row 41)": [-2.7, 10.6, -10.7, 2.8],
+        "ЦНСА 63-1400-3 (Д.1 row 43)": [-2.2, 8.9, -9.0, 2.3],
+        "ЦНСА 80-1400 base (Д.1 row 56)": [-6.4, 24.4, -24.0, 5.9],
+        "ЦНСА 80-1400-3 (Д.1 row 59)": [-4.9, 18.8, -18.5, 4.6]
+      },
+      "speed_evidence": "INFERENCE ONLY: Д.1 has no explicit rpm column. Д.1 motors are СТДМ-630/-800/-1000/-1250/-1600 (2-pole synchronous, nominal 3000 rpm) and 4АРМ/ВАО types; workbook inputs use n=3000 for its ЦНС aggregates. Nominal 3000 rpm is plausible but unverified — speed_rpm_verified=false.",
+      "eta_note": "Д.1 lists identical eta values for all trims of a size (e.g. 63-1400: 48/57/58.5/60 % at Q=44/63/76/94.5), which is why workbook shares eta coefficients across trims."
+    }
+  },
   "points": [
     {
       "flow_m3h": 27.99,
@@ -78,16 +178,36 @@
     "flow_m3h": 40.25,
     "status": "within_source_range",
     "measured_head_m": 778.7971457696228,
-    "current_h_due_m": null,
+    "current_h_due_m": 776.6022227328432,
+    "current_eta_due_fraction": 0.4983084405637246,
     "candidate_h_due_m": 776.602194308125,
     "measured_eta_fraction": 0.48448347848159956,
     "candidate_eta_fraction": 0.4983083105812489
   },
+  "runtime_reference_integration_2026-11-02": {
+    "status": "engineering_reference_unverified",
+    "source": "Tabulated Q/H/eta points from A-2026-027, not synthetic samples of the rounded workbook coefficients",
+    "targets": ["knsopu/НА-1", "knsopu/НА-2", "knsopu/НА-3", "kns97pren/НА-2 ПР"],
+    "blocked_target": "knsopu/НА-3: source АЦНС 180-1422-1 is not bound to installed model; no derived H/eta",
+    "verified": false,
+    "source_speed_rpm": null,
+    "source_frequency_hz": null,
+    "workbook_polynomial_approval": "pending; candidate_* fields remain comparison values, not the activated characteristic",
+    "database_schema": 18,
+    "database_change": "Only Q-H, Q-eta and curve provenance changed in passport IDs 18,19,20,21. All nominal fields, version dates, other passports, telemetry and well history preserved.",
+    "backup": "/home/artur/.cache/ppd-energoaudit/backups/telemetry-before-characteristics-final-20261102T143234Z.sqlite",
+    "runtime_limits": "No extrapolation. Unverified or incompatible curves cannot produce a validated setpoint, target SEC or model saving. Current measured H/eta must agree with the confirmed curve before an affinity-law candidate can be validated."
+  },
   "limitations": [
-    "Source coefficients are not approved passport data for the installed pump.",
-    "The source range is not necessarily the recommended operating zone (48 vs 60 m³/h).",
-    "Speed and applicability to the installed impeller must be confirmed.",
-    "No extrapolation, passport edits or database writes are performed.",
+    "Coefficients are least-squares quadratic fits of normative points in ЕРБ 2499-2023 Приложение Д Таблица Д.1 — an engineering reference, NOT approved manufacturer passport data; the table itself states values are informational, 'без учета производственных отклонений по напору и КПД'.",
+    "Fit residuals vs tabulated points: ≤0.6 m (40-1000), ≤11.6 m (63-1400), ≤24.4 m (80-1400, mid-range); exact tabulated points are preferable where available.",
+    "Eta coefficients are shared across all trim variants of a pump size because Д.1 lists one eta per size; eta is only a per-size approximation.",
+    "Nominal 3000 rpm is contextual inference (СТДМ/4АРМ motor class + workbook n=3000 input); Д.1 has no rpm column, so speed is unverified — do not extrapolate in Q or rescale in n without explicit rules.",
+    "The source Q range is the fit domain, not necessarily the recommended operating zone (48 vs 60 m³/h).",
+    "Suffixes -1/-2/-3 verified = stages removed (Д.1 footnote p.201); binding to an installed aggregate still requires confirming its stage count/nameplate.",
+    "ЦНС 180-1422(-1) is absent from the workbook but present in Д.1 rows 10-13 as АЦНС 180-1422 — tabulated points recorded in verification_2026-11-02; binding needs nameplate confirmation (АЦНС vs ЦНС).",
+    "Page images confirm physical print defects in an unused 63-1400-2 head cell and a 63-1400-3 specific-energy cell; the activated Q/H/eta coordinates are legible and recorded in appendix_d_page_image_verification.",
+    "No extrapolation or nominal-parameter correction performed. Engineering reference points and provenance were added to four active passport records; manufacturer/installed-pump and rounded-polynomial approval remain pending.",
     "Q-eta is compared separately; the KNS loss decomposition is not changed."
   ]
 }

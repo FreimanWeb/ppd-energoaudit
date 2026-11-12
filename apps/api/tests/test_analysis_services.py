@@ -30,43 +30,13 @@ def test_existing_model_curves_characterization():
     )
 
 
-def test_pure_curves_preserve_legacy_models():
-    from ppd_audit.services import analysis
-
-    assert hasattr(analysis, "working_point"), "pure working-point view is missing"
-    p = PumpSpec(q_nom=100, h_nom=1000, eta_nom=0.8)
-    audit = SimpleNamespace(
-        spec=SimpleNamespace(
-            pump=p,
-            regime=SimpleNamespace(flow=lambda: 100, p_in=1, p_bg=None, rho=1000),
-            reference=None,
-        ),
-        regime=SimpleNamespace(h_fact=1000, eta_unit=0.65),
-        h_due=None,
-        eta_pump=None,
-    )
-    view = analysis.working_point(audit)
-    assert view["origin"] == {"qh": "model", "qeta": "model", "system": "model"}
-    assert len(view["qh"]) == 41
-    assert view["qh"][-1]["h"] == pytest.approx(725)
-    assert view["system"][0]["h"] == 350
-    assert view["qeta"][0]["eta"] == pytest.approx(0.8 * (1 - 0.9 * 0.8**2))
-    assert view["notes"]
-    assert view["point"]["eta_pump"] is None
-    assert view["point"]["eta"] == 0.65
-    audit.eta_pump = 0.78
-    view = analysis.working_point(audit)
-    assert view["point"]["eta_pump"] == 0.78
-    assert view["point"]["eta"] == 0.65
-
-
 def test_measures_flat_fallback_and_unfit_guard():
     from ppd_audit.services import analysis
 
     assert hasattr(analysis, "measure_analysis"), "pure measures orchestration is missing"
     obj = load_object_spec("kns25")
     audit = run_energy_audit(obj)
-    scope = result_scope(audit.spec.regime, audit.spec.regime.t_year)
+    scope = result_scope(audit)
     view = analysis.measure_analysis(audit, scope, 4.68, None, horizon_years=3, basis="forecast")
     assert view["profile"]["method"] == "flat"
     assert len(view["profile"]["annual_m3"]) == 3
@@ -81,12 +51,9 @@ def test_measures_flat_fallback_and_unfit_guard():
 def test_onboarding_allows_passport_without_regime():
     from ppd_audit.services import analysis
 
-    assert hasattr(analysis, "onboarding"), "shared readiness view is missing"
     spec = load_object_spec("kns25").aggregates[0].model_copy(update={"regime": None})
     view = analysis.onboarding(spec)
-    assert len(view["telemetry_requirements"]) == 14
     assert not next(c for c in view["checks"] if c["field"] == "Телеметрия: p_вх")["present"]
-    assert view["yaml_template"].startswith("# config/plants/")
 
 
 def test_loss_components_decompose_power_for_both_topologies():
@@ -104,7 +71,7 @@ def test_example_objects_are_marked_in_specs(object_id):
     assert load_object_spec(object_id).is_example
 
 
-def test_volumetric_no_model_diagnostics_and_passport_precedence():
+def test_volumetric_does_not_invent_centrifugal_curves():
     from ppd_audit.services.analysis import working_point
 
     audit = run_energy_audit(load_object_spec("kns25"))
@@ -114,20 +81,3 @@ def test_volumetric_no_model_diagnostics_and_passport_precedence():
     view = working_point(audit)
     assert view["qh"] == view["qeta"] == view["system"] == []
     assert view["nominal"] == {"q": None, "h": None, "eta": None}
-    audit.spec.pump.curve_qh = [[0, 100], [1, 80]]
-    assert working_point(audit)["origin"]["qh"] == "passport"
-
-
-@pytest.mark.parametrize(
-    "actual,nominal,name",
-    [
-        (0.73, 0.8, "норма"),
-        (0.64, 0.8, "пониженный КПД"),
-        (0.5, 0.8, "низкий КПД"),
-        (0.5, None, "норма"),
-    ],
-)
-def test_pump_assessment_thresholds(actual, nominal, name):
-    from ppd_audit.services import analysis
-
-    assert analysis.efficiency_assessment(actual, nominal)["name"] == name

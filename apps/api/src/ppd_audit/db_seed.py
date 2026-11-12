@@ -9,6 +9,7 @@ from functools import cache
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
 from .db import AuditDatabase
 from .db_import import (
@@ -22,6 +23,7 @@ from .db_import import (
     scada_source_names,
 )
 from .ingest.scada_txt import SOURCE_SEPARATOR, ScadaMapping, scada_files
+from .spec import ObjectSpec
 
 
 DEFAULT_TELEMETRY_DIRNAME = "telemetry"
@@ -62,8 +64,7 @@ def bootstrap_database(
 ) -> AuditDatabase:
     database = AuditDatabase(path)
     database.migrate()
-    if not database.plants(include_examples=True):
-        seed_passports(database, plants_dir, valid_from=datetime(1970, 1, 1))
+    seed_passports(database, plants_dir, valid_from=datetime(1970, 1, 1), update_existing=False)
     if include_demo:
         from .services.demo import seed_demo
 
@@ -115,38 +116,79 @@ def seed_passports(
     plants_dir: Path,
     *,
     valid_from: datetime,
+    update_existing: bool = True,
 ) -> list[str]:
-    """Идемпотентно перенести YAML-паспорта в БД.
+    """Перенести YAML-паспорта в БД.
 
-    YAML применяется только при первоначальном заполнении: runtime читает БД.
-    Объект без подтверждённого НГДУ не переносится, чтобы не создавать ложную связь.
+    Паспорт применяется только для объектов, у которых ещё нет записи в БД:
+    runtime читает БД, а не YAML. Объект без подтверждённого НГДУ не переносится,
+    чтобы не создавать ложную связь; ``is_example``-справочники тоже остаются
+    вне каталога. С ``update_existing=False`` зарегистрированные объекты и их
+    паспорта не перезаписываются (правки оператора сохраняются) — из YAML
+    синхронизируется только флаг ``operator_visible``, а новые конфиги
+    добавляются полностью. Новые конфиги валидируются до записи, чтобы ошибка
+    не оставляла частично зарегистрированный объект.
     """
-    seeded = []
+    registered = {plant["code"] for plant in database.plants(include_examples=True)}
+    pending: list[dict] = []
     for path in sorted(plants_dir.glob("*.yaml")):
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if raw.get("id") == "demo-ppd":
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            raise ValueError(f"Некорректный YAML в паспорте объекта {path}: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError(f"Паспорт объекта должен быть отображением: {path}")
+        code = raw.get("id")
+        if code is not None and code != path.stem:
+            raise ValueError(f"Поле id должно совпадать с именем файла в {path}")
+        if code == "demo-ppd":
             continue
-        ngdu = raw.get("ngdu")
-        if not ngdu:
+        if code is not None and code in registered:
+            database.set_operator_visible(code, raw.get("operator_visible", True))
+            if not update_existing or not raw.get("ngdu"):
+                continue
+        elif not raw.get("ngdu"):
+            if not raw.get("is_example"):
+                raise ValueError(f"В паспорте нового объекта нет ngdu: {path}")
             continue
+        raw["_path"] = path
+        pending.append(raw)
+    for raw in pending:
+        try:
+            ObjectSpec(**raw)
+        except ValidationError as exc:
+            raise ValueError(f"Некорректный паспорт объекта {raw['_path']}: {exc}") from exc
+    seeded = []
+    for raw in pending:
+        code = raw["id"]
         database.upsert_plant(
-            raw["id"],
+            code,
             raw["name"],
-            ngdu,
+            raw["ngdu"],
             raw.get("water_type", "пресная"),
             raw.get("branch", "кнс"),
             is_example=raw.get("is_example", False),
+            operator_visible=raw.get("operator_visible", True),
             default_density=_object_density(raw),
             default_viscosity=_first_regime_value(raw, "nu"),
         )
+        for place_code, place_name in raw.get("technical_places", {}).items():
+            database.upsert_technical_place(code, place_code, place_name)
         for aggregate in raw.get("aggregates", []):
-            database.upsert_aggregate(raw["id"], aggregate["id"], aggregate.get("role", "работа"))
+            place_code = aggregate.get("technical_place_code", "main")
+            database.upsert_aggregate(
+                code,
+                aggregate["id"],
+                aggregate.get("role", "работа"),
+                technical_place_code=place_code,
+            )
             pump = aggregate.get("pump", {})
             motor = aggregate.get("motor", {})
             transmission = aggregate.get("transmission", {})
             database.add_passport(
-                raw["id"],
+                code,
                 aggregate["id"],
+                technical_place_code=place_code,
                 valid_from=valid_from,
                 pump_model=pump.get("model", ""),
                 pump_kind=pump.get("kind", "центробежный"),
@@ -160,6 +202,11 @@ def seed_passports(
                 pump_n_rpm=pump.get("n_rpm"),
                 pump_curve_qh_json=json.dumps(pump.get("curve_qh", [])),
                 pump_curve_qeta_json=json.dumps(pump.get("curve_qeta", [])),
+                pump_curve_source_json=(
+                    json.dumps(pump["curve_source"], ensure_ascii=False)
+                    if pump.get("curve_source") is not None
+                    else None
+                ),
                 motor_synchronous=motor.get("synchronous", False),
                 motor_cos_phi=motor.get("cos_phi"),
                 motor_voltage_kv=motor.get("voltage_kv"),
@@ -172,13 +219,13 @@ def seed_passports(
             )
             for clarification in aggregate.get("clarifications", []):
                 database.upsert_clarification(
-                    raw["id"],
+                    code,
                     aggregate["id"],
                     field=clarification["field"],
                     provisional_value=str(clarification["value"]),
                     reason=clarification["reason"],
                 )
-        seeded.append(raw["id"])
+        seeded.append(code)
     return seeded
 
 

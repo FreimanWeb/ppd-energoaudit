@@ -41,7 +41,7 @@ class RegimeResult:
     rho: float  # плотность, кг/м³
     p_in: float  # давление приём, МПа
     p_out: float  # давление выкид, МПа
-    eta_nom: float  # номинальный КПД установки (14)/(15)
+    eta_nom: float | None  # номинальный КПД установки (14)/(15)
     h_fact: float  # напор фактический, м (8)
     p_hydraulic: float  # гидравлическая мощность, кВт (11)
     p_electric: float  # электрическая мощность, кВт (12)
@@ -58,7 +58,7 @@ def compute_regime(
     rho: float,
     p_in: float,
     p_out: float,
-    eta_nom: float,
+    eta_nom: float | None,
     p_electric: float | None = None,
     w: float | None = None,
     t: float | None = None,
@@ -133,6 +133,8 @@ def decompose_pumping(
     Pe = regime.p_electric
     eta_NA = regime.eta_unit
     eta_nom = regime.eta_nom
+    if eta_nom is None:
+        raise ValueError("для декомпозиции нужен подтверждённый номинальный КПД")
     ed = eta_due_visc if eta_due_visc is not None else eta_due
 
     eta_pump = motor.pump_efficiency(eta_NA, eta_motor_real, eta_vfd, eta_gear)  # (27)

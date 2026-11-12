@@ -31,7 +31,7 @@ test("operator sees three working objects and explores demo by process area", as
   await expect(diagram.getByRole("button")).toHaveCount(0);
   await expect(page.locator(".loss-flow-article .loss-flow-share")).toHaveText([/%/,/%/,/%/,/%/,/%/,/%/]);
   await page.locator('.loss-flow-article[data-loss="nominal"]').click();
-  await expect(page.getByRole("heading",{name:/^Цифровая карта потерь мощности/})).toBeVisible();
+  await expect(page.getByRole("group",{name:"Декомпозиция мощности",exact:true})).toBeVisible();
   await page.getByRole("navigation",{name:"Вкладки: Машинный блок",exact:true}).getByRole("link",{name:"Показатели",exact:true}).click();
   await expect(page.getByRole("heading",{name:"КПД",exact:true})).toBeVisible();
   await expect(page.getByRole("navigation",{name:"Вкладки: Машинный блок",exact:true}).getByRole("link",{name:"Рабочая точка",exact:true})).toBeVisible();

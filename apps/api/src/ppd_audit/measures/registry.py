@@ -13,6 +13,7 @@ from typing import Callable
 
 from ..core.audit import AuditResult
 from ..core.pump import PumpingDecomposition
+from ..optimize.setpoints import characteristic_limitation
 
 
 class MeasureClass(StrEnum):
@@ -38,6 +39,13 @@ class Measure:
     # 3.0 подошло бы мероприятию по трению в трубопроводе (ΔW ∝ Q³);
     # 0.0 — эффекту, не зависящему от подачи.
     volume_exponent: float = 1.0
+    # Меняет рабочую точку через частоту вращения — достижимость зависит от
+    # подтверждённой характеристики насоса (и наличия ПЧ).
+    speed_path: bool = False
+    # Реализация требует подтверждённой характеристики насоса; при False
+    # эффект остаётся сценарным потенциалом без проверки применимости.
+    requires_curve_check: bool = False
+    note: str = ""
 
 
 @dataclass
@@ -66,9 +74,7 @@ def _pumping_component_saving(
 ) -> float:
     if not isinstance(audit.decomposition, PumpingDecomposition):
         return 0.0
-    if audit.spec is None or audit.spec.regime is None or audit.spec.regime.t_year is None:
-        return 0.0
-    return max(component(audit.decomposition), 0.0) * audit.spec.regime.t_year
+    return max(component(audit.decomposition), 0.0) * audit.annual_runtime_hours
 
 
 def _suboptimal_saving(audit: AuditResult) -> float:
@@ -101,15 +107,22 @@ CATALOG: list[Measure] = [
         0.0,
         saving_fn=_throttle_saving,
         applicable_fn=lambda a: (a.dw_throttle or 0) > 0,
+        speed_path=True,
+        requires_curve_check=True,
     ),
     Measure(
         "pump_working_point",
         "Оптимизация рабочей точки насоса",
-        MeasureClass.quick_win,
+        MeasureClass.scenario,
         "ΔP_неопт (39)",
         0.0,
         saving_fn=_suboptimal_saving,
         applicable_fn=lambda a: _suboptimal_saving(a) > 0,
+        requires_curve_check=True,
+        note=(
+            "Целевая подача и согласованная характеристика сети не заданы; "
+            "достижимость нового режима не проверена."
+        ),
     ),
     Measure(
         "vfd",
@@ -119,6 +132,11 @@ CATALOG: list[Measure] = [
         7000.0,
         saving_fn=_throttle_saving,
         applicable_fn=lambda a: a.spec is not None and not a.spec.vfd and (a.dw_throttle or 0) > 0,
+        requires_curve_check=True,
+        note=(
+            "Установка ПЧ требует проектной проверки привода и нового режима; "
+            "это оценка потенциала, не готовое решение."
+        ),
     ),
     Measure(
         "motor_resize",
@@ -148,15 +166,23 @@ def evaluate(measure: Measure, audit: AuditResult, tariff: float = 4.68) -> Meas
     payback = (
         (measure.capex_krub / money_krub) if money_krub > 0 and measure.capex_krub > 0 else None
     )
+    note = measure.note
+    if measure.requires_curve_check:
+        limitation = characteristic_limitation(audit, speed_path=measure.speed_path)
+        if limitation:
+            note = (note + " Применимость не подтверждена: " + limitation + ".").strip()
     return MeasureEvaluation(
         measure_id=measure.id,
         addresses=measure.addresses,
         name=measure.name,
-        cls=measure.cls.value,
+        cls=MeasureClass.scenario.value
+        if measure.requires_curve_check and note
+        else measure.cls.value,
         energy_saving_kwh=round(energy, 1),
         money_saving_krub=round(money_krub, 1),
         capex_krub=measure.capex_krub,
         payback_years=round(payback, 2) if payback else None,
+        note=note,
     )
 
 

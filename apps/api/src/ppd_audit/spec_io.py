@@ -1,9 +1,8 @@
 """Ввод/вывод универсального спеца: yaml ↔ ObjectSpec, конвертер легаси-паспорта.
 
 Источники спеца:
-  * нативный yaml ObjectSpec (config/plants/<id>.yaml, сгенерированный парсером);
+  * нативный yaml ObjectSpec (config/plants/<id>.yaml) — заполняется вручную;
   * легаси-паспорт dns7s.yaml (reference_regime/aggregates) — конвертируется;
-  * парсер «… расчет.xlsx» (ingest/report_calc.py);
   * ручной ввод (передать готовый ObjectSpec).
 """
 

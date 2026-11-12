@@ -5,12 +5,15 @@ from datetime import datetime
 from itertools import pairwise
 from math import isfinite
 
+from ..measurement_quality import confirmed_quality
+
 
 _UNITS = {
     "p_in": ("МПа",),
     "p_out": ("МПа",),
     "p_bg": ("МПа",),
     "power": ("кВт",),
+    "power_daily_reported": ("кВт",),
     "flow_rate": ("м³/ч",),
     "density": ("кг/м³",),
     "q_day": ("м³/сут", "м³"),
@@ -34,8 +37,10 @@ def acceptance_report(rows: list[dict]) -> dict:
             value = row["value"]
             if row.get("is_station") and metric not in {"p_bg", "density"}:
                 issues["Станционные данные не распределены на агрегат"] += 1
-            elif row.get("quality") not in (None, "", "good", "ready"):
+            elif not confirmed_quality(row.get("quality")):
                 issues[f"Качество не подтверждено: метка {row['quality']}"] += 1
+            elif row["unit"] == "не подтверждена":
+                issues["Единица измерения не подтверждена"] += 1
             elif metric in _UNITS and row["unit"] not in _UNITS[metric]:
                 issues[f"Ожидаемые единицы: {', '.join(_UNITS[metric])}"] += 1
             elif not isinstance(value, (int, float)) or not isfinite(value) or value < 0:

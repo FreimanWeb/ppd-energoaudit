@@ -11,7 +11,9 @@ from ..optimize import optimize_setpoint
 
 def efficiency_assessment(actual, nominal):
     """Прежние границы оценки КПД относительно паспортного значения."""
-    ratio = actual / nominal if nominal else 1.0
+    if nominal is None:
+        return {"name": "Паспортный КПД не подтверждён", "tone": "warn"}
+    ratio = actual / nominal
     if ratio >= 0.9:
         return {"name": "норма", "tone": "ok"}
     if ratio >= 0.78:
@@ -20,9 +22,10 @@ def efficiency_assessment(actual, nominal):
 
 
 def pump_qh_curve(p):
-    """Паспортная кривая или прежняя оценочная парабола."""
+    """Исходные точки либо явно оценочная парабола без паспортного статуса."""
     if p.curve_qh:
-        return [c[0] for c in p.curve_qh], [c[1] for c in p.curve_qh], True
+        points = sorted(p.curve_qh)
+        return [c[0] for c in points], [c[1] for c in points], True
     if p.kind.value == "объёмный" or not (p.q_nom and p.h_nom):
         return None
     h0 = 1.22 * p.h_nom
@@ -49,14 +52,15 @@ def working_point(audit):
     pc = pump_qh_curve(p)
     sc = None if volumetric else system_curve(q, reg.h_fact, rm.p_in, rm.p_bg, rm.rho, p.q_nom)
     qe = []
+    source_origin = p.curve_source.kind if p.curve_source is not None else "unverified"
     origin = {
-        "qh": "passport" if pc and pc[2] else "model" if pc else "unavailable",
+        "qh": source_origin if pc and pc[2] else "model" if pc else "unavailable",
         "qeta": "unavailable",
         "system": "model" if sc else "unavailable",
     }
     if p.curve_qeta:
-        qe = [{"q": v[0], "eta": v[1]} for v in p.curve_qeta]
-        origin["qeta"] = "passport"
+        qe = [{"q": v[0], "eta": v[1]} for v in sorted(p.curve_qeta)]
+        origin["qeta"] = source_origin
     elif p.q_nom and p.eta_nom and not volumetric:
         qe = [
             {"q": float(v), "eta": float(p.eta_nom * (1 - 0.9 * ((v - p.q_nom) / p.q_nom) ** 2))}
@@ -64,6 +68,8 @@ def working_point(audit):
         ]
         origin["qeta"] = "model"
     notes = []
+    if audit.characteristic is not None:
+        notes.extend(audit.characteristic.notes)
     if volumetric:
         notes.append(
             "Объёмный насос: модельные Q-H и характеристика трубопровода неприменимы; "
@@ -89,11 +95,21 @@ def working_point(audit):
             "eta": None if volumetric else p.eta_nom,
         },
         "due": {
-            "h": audit.h_due or (audit.spec.reference.h_due if audit.spec.reference else None),
-            "eta": getattr(audit.spec, "eta_pump_due", None),
+            "h": audit.h_due,
+            "eta": audit.eta_pump_due,
         },
         "origin": origin,
         "notes": notes,
+        "characteristic": asdict(audit.characteristic)
+        if audit.characteristic is not None
+        else None,
+        "curve_source": p.curve_source.model_dump(mode="json") if p.curve_source else None,
+        "ranges": {
+            name: [min(point[0] for point in points), max(point[0] for point in points)]
+            if points
+            else None
+            for name, points in (("qh", p.curve_qh), ("qeta", p.curve_qeta))
+        },
         "pump_kind": p.kind.value,
     }
 
@@ -106,7 +122,9 @@ def annual_summary(audit, tariff):
     """Годовые потери и стоимость по одному расчётному основанию."""
     return {
         "efficiency_energy_kwh": audit.dw_efficiency,
-        "efficiency_money_krub": audit.dw_efficiency * tariff / 1000,
+        "efficiency_money_krub": audit.dw_efficiency * tariff / 1000
+        if audit.dw_efficiency is not None
+        else None,
         "throttle_energy_kwh": audit.dw_throttle,
         "throttle_money_krub": audit.dw_throttle * tariff / 1000
         if audit.dw_throttle is not None
@@ -144,7 +162,12 @@ def measure_analysis(
             audit, profile, tariff=tariff, discount_rate=discount_rate
         )
     opt = optimize_setpoint(audit, constraints or load_constraints())
-    if basis == "forecast" and profile is not None and (opt.saving_kwh_year or 0) > 0:
+    if (
+        basis == "forecast"
+        and profile is not None
+        and opt.status == "validated"
+        and (opt.saving_kwh_year or 0) > 0
+    ):
         total = opt.saving_kwh_year * sum(profile.ratios())
         optimized = {"energy_kwh": total, "money_krub": total * tariff / 1000.0}
     if scope.annual_runtime_is_assumed:
@@ -183,12 +206,18 @@ TELEMETRY_REQUIREMENTS = [
 
 YAML_TEMPLATE = """\
 # config/plants/<id>.yaml — паспорт + режим объекта.
-# Обычно создаётся автоматически из «… расчет.xlsx», но можно завести вручную.
+# Временный начальный ввод паспортов и выездных режимов вручную.
+# Приложение регистрирует объект из файла; телеметрия и версии паспортов
+# хранятся в БД. Выездной расчёт пока читает режим из этого YAML.
+# `id` должен совпадать с именем файла.
 id: kns_new
 name: КНС-XXX
+ngdu: НГДУ-XXX            # обязательно: без подтверждённого НГДУ объект не регистрируется
+operator_visible: true    # false — исторический справочник, скрыт из каталога оператора
 water_type: пресная        # пресная | агрессивная | пластовая
 branch: кнс                # кнс | перекачка
-source: data/raw/ntu/<вид воды>/<папка>/<...> расчет.xlsx
+# source необязателен: достаточно понятного происхождения, например:
+# source: Паспорт изготовителя и контрольный замер
 aggregates:
   - id: НА-1
     role: работа           # работа | резерв
@@ -212,7 +241,8 @@ aggregates:
     transmission:
       efficiency: 1.0       # η_ред/ременная передача (у плунжерных СИН ~0,97)
     vfd: false              # при ПЧ: true → η_пч=0,97 в (15)/(27)
-    regime:                 # из телеметрии / замера
+    regime:                 # отдельный контрольный замер
+      measured_at: 2026-04-09
       rho: 1130.0
       p_in: 0.8
       p_out: 14.0
@@ -223,22 +253,14 @@ aggregates:
       t_year: 8000.0
 """
 
-VERIFICATION_TEMPLATE = """\
-# config/verification.yaml -> секция objects: (пути относительно data/raw/ntu)
-objects:
-  - id: kns_new
-    name: "КНС-XXX"
-    file: "<вид воды>/<папка объекта>/<...> расчет.xlsx"
-    report: "<вид воды>/<папка объекта>/<самый поздний> отчёт.doc"   # опционально
-"""
-
 
 MANUAL_REQUIREMENTS = [
     "Насос: модель, тип, Q_ном, H_ном, η_нас.ном, P_ном, n и кривые Q-H/Q-η из паспорта.",
     "Электродвигатель: модель, P_ном, η_ЭД.ном, cos φ, U, синхронный/асинхронный.",
     "ПЧ и трансмиссия: наличие ПЧ и КПД трансмиссии.",
     "Жидкость: ρ и ν по замеру; значения по умолчанию из config/fluids.yaml.",
-    "Эталоны для сверки: инженерный расчет.xlsx и текстовый отчёт .doc (опционально).",
+    "Источник можно указать кратко в source: паспорт изготовителя, контрольный "
+    "замер или ручной ввод. Ссылка на отчёт и адреса ячеек не обязательны.",
 ]
 
 
@@ -274,10 +296,12 @@ def onboarding(aggregate):
         "manual_requirements": MANUAL_REQUIREMENTS,
         "checks": [{"field": k, "present": bool(v), "value": v} for k, v in checks],
         "yaml_template": YAML_TEMPLATE,
-        "verification_template": VERIFICATION_TEMPLATE,
         "notes": [
             "Часть полей опциональна: объёмные насосы и объекты без Q-H "
-            "считаются по своей ветке расчёта."
+            "считаются по своей ветке расчёта.",
+            "Новый объект регистрируется из config/plants/<id>.yaml при запуске "
+            "приложения: уже записанные в БД паспорта и правки оператора не "
+            "перезаписываются.",
         ],
     }
 

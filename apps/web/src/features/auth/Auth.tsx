@@ -11,7 +11,7 @@ export function Auth({
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
     [pending, setPending] = useState(false);
-  const session = useResource<Session>(`/auth/session?check=${epoch}`);
+  const session = useResource<Session>(`/auth/session?check=${epoch}`, undefined, true);
   useEffect(() => {
     const expired = () => setEpoch((e) => e + 1);
     window.addEventListener("ppd:unauthorized", expired);

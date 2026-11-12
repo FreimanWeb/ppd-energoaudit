@@ -52,6 +52,7 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   await expect(page).toHaveURL(/#telemetry$/); // 00:07 is a sample, but not an available calculation snapshot.
 
   const handle = page.getByRole('slider', { name: 'Конец видимого периода', exact: true });
+  await handle.scrollIntoViewIfNeeded();
   const bounds = await handle.boundingBox();
   expect(bounds).toBeTruthy();
   await page.mouse.move(bounds!.x + bounds!.width - 6, bounds!.y + bounds!.height / 2);
@@ -59,6 +60,7 @@ test('telemetry shares real sample cursor and viewport, and selects only availab
   await page.mouse.move(bounds!.x + bounds!.width - 156, bounds!.y + bounds!.height / 2, { steps: 10 });
   await page.mouse.up();
   await expect(page.getByRole('button', { name: 'Весь период', exact: true })).toBeVisible();
+  await expect(first).not.toHaveAttribute('data-time-domain', `${new Date(times[0]).getTime()},${new Date(times[3]).getTime()}`);
   const zoom = await first.getAttribute('data-time-domain');
   for (const chart of await charts.all()) await expect(chart).toHaveAttribute('data-time-domain', zoom!);
   expect(zoom).not.toBe(`${new Date(times[0]).getTime()},${new Date(times[3]).getTime()}`);

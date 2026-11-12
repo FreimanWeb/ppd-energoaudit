@@ -1,10 +1,13 @@
 import "./analysisScope.css";
 
-export function AnalysisScope({page,aggregate,source,timestamp,well}: {
+export function AnalysisScope({page,aggregate,source,timestamp,well,measurementId,scenario}: {
   page:string;aggregate:string;source:"telemetry"|"field_trip";timestamp:string;well:string;
+  measurementId?:number|null;scenario?:boolean;
 }) {
   let scope = aggregate || "Агрегат не выбран";
-  let basis = source === "field_trip" ? "Выездной замер" : "Выбранный режим";
+  let basis = source === "field_trip"
+    ? (measurementId ? `Выездной замер · ручная запись №${measurementId}` : "Выездной замер · запись паспорта")
+    : "Выбранный режим";
   let note = "";
   let showTime = source === "telemetry";
   if (page === "overview") {
@@ -39,6 +42,7 @@ export function AnalysisScope({page,aggregate,source,timestamp,well}: {
     scope = `Сценарий одного НА · ${scope}`;
     note = "Расход выбранного НА распределён по сети; совместная работа остальных НА в этом сценарии не учитывается.";
   }
+  if (scenario) note = `${note ? `${note} ` : ""}Действует временный сценарий оборудования: расчёты используют несохранённые значения.`.trim();
   return <section className="analysis-scope" aria-label="Контекст анализа">
     <div><strong>{scope}</strong><span>{basis}</span>
       {showTime && (timestamp ? <time dateTime={timestamp}>{new Date(timestamp).toLocaleString("ru-RU")}</time> : <span>Момент режима не выбран</span>)}

@@ -2,7 +2,7 @@
 UV ?= uv
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web build check format lint test test-api test-e2e data reference verify ingest reports clean-reports
+.PHONY: help setup dev api web build check format lint test test-api test-e2e data reference ingest
 
 help: ## Показать доступные команды
 	@echo "PPD Energoaudit: make <цель>"
@@ -16,9 +16,7 @@ help: ## Показать доступные команды
 	@echo "  test-e2e      Playwright с изолированной БД"
 	@echo "  data          собрать БД из файлов проекта (API делает это и сам)"
 	@echo "  reference     пересобрать data/reference/reference.json из xlsx заказчика"
-	@echo "  verify        сверить модель с исходными xlsx и отчётами"
 	@echo "  ingest        legacy ДНС-7с (нужны внешние исходные Excel)"
-	@echo "  reports       пересобрать кэш .docx-отчётов"
 
 setup:
 	$(UV) sync --frozen --all-packages
@@ -61,21 +59,6 @@ data:
 
 reference:
 	$(UV) run --frozen --package ppd-audit python scripts/import_reference.py data/reference/source data/reference/reference.json
-
-verify:
-	$(UV) run --frozen --package ppd-audit python -m ppd_audit.verify
-
 ingest:
 	$(UV) run --frozen --package ppd-audit python -m ppd_audit.ingest dns7s
 
-reports:
-	$(UV) run --frozen --package ppd-audit python -c "import yaml; from pathlib import Path; \
-from ppd_audit.config import project_root; \
-from ppd_audit.ingest.convert import ensure_report_docx; \
-r=project_root(); m=yaml.safe_load((r/'config/verification.yaml').read_text(encoding='utf-8')); \
-base=r/m['base_dir']; out=r/'data/reports'; \
-[ensure_report_docx(base/o['report'], out/(o['id']+'.docx'), force=True) for o in m['objects'] if 'report' in o]; \
-print('reports rebuilt:', sorted(p.name for p in out.glob('*.docx')))"
-
-clean-reports:
-	rm -f data/reports/*.docx

@@ -7,6 +7,7 @@ import {fmt} from "../../shared/ui/format";
 import {segment,useResource} from "../../shared/api";
 import {Plot,type Trace} from "../../charts/Plot";
 import {economicDisplay} from "../../pages/fidelity.mjs";
+import {dashboardData} from "../overview/dashboardData.mjs";
 
 export type Annual = {
   measure_id: string;
@@ -61,12 +62,13 @@ export type Measures = {
   horizon: Horizon[];
   setpoint: {
     current_p_out: number;
-    optimal_p_out: number;
+    optimal_p_out: number | null;
     sec_current: number;
-    sec_optimal: number;
-    saving_kwh_year: number;
+    sec_optimal: number | null;
+    saving_kwh_year: number | null;
     vfd_freq_hz: number | null;
-    within_constraints: boolean;
+    within_constraints: boolean | null;
+    status: "validated" | "proposal" | "infeasible" | "unavailable" | "no_change";
     notes: string[];
   };
   optimized_horizon: { energy_kwh: number; money_krub: number } | null;
@@ -86,7 +88,7 @@ export function MeasureEconomics({context,measureId,baseline}:{context:PageProps
   const profile=investment ? data?.profile : null;
   const cash=chosen?.years ?? [];
   const displayed=chosen ? economicDisplay(chosen) : undefined;
-  const noPressureChange=Boolean(data && Math.abs(data.setpoint.current_p_out-data.setpoint.optimal_p_out)<1e-9 && Math.abs(data.setpoint.saving_kwh_year)<1e-6);
+  const noPressureChange=data?.setpoint.status==="no_change";
   const profileData: Trace[] = profile
     ? [
         {
@@ -136,6 +138,7 @@ export function MeasureEconomics({context,measureId,baseline}:{context:PageProps
     {investment && (!valid ? <p className="notice error" role="alert">Горизонт: целое число от 1 до 10 лет; ставка: от 0 до 60 %.</p> : <Status {...resource}/>)}
     {data && <>
       {data.notes.slice(1).map((note,index)=><p className="notice" key={index}>{note}</p>)}
+      <p className="notice">{investment ? "Инвестиционный" : "Годовой"} сценарий по исходному режиму. {context.audit ? dashboardData(context.audit).regimeBasis : "Режим не загружен."} Это прогноз эффекта, а не измеренная экономия после реализации.</p>
       <p className="muted">Тариф {fmt(data.tariff)} ₽/кВт·ч · годовая наработка {fmt(data.scope.annual_runtime_hours,0)} ч{data.scope.annual_runtime_is_assumed ? " (допущение)" : ""}.</p>
     </>}
     {!investment && annual && <>
@@ -298,12 +301,19 @@ export function MeasureEconomics({context,measureId,baseline}:{context:PageProps
     {data && ["throttle_down","vfd"].includes(measureId) && <details className="metric-disclosure"><summary>Расчёт уставки для выбранного режима</summary>
           <h3>Оптимизация уставок<Tooltip label="Оптимизация уставок" content="Расчёт целевого давления с учётом технологических ограничений. Экономия — сценарий, а не достигнутый эффект; изменение уставки требует инженерной проверки." /></h3>
           <p
-            className={`notice ${data.setpoint.within_constraints ? "" : "error"}`}
+            className={`notice ${data.setpoint.status === "infeasible" || !data.setpoint.within_constraints ? "error" : ""}`}
           >
-            {data.setpoint.within_constraints
-              ? "Уставка в пределах технологических ограничений"
-              : "Технологические ограничения нарушены"}
+            {data.setpoint.status === "validated"
+              ? "Модельная точка проверена по характеристике насоса"
+              : data.setpoint.status === "infeasible"
+                ? "Целевая уставка недостижима в заданных ограничениях"
+                : data.setpoint.status === "unavailable"
+                  ? "Уставка не рассчитана: нет исходных данных"
+                  : data.setpoint.status === "no_change"
+                    ? "Дросселирования нет — уставка не меняется"
+                    : "Предложение: рабочая точка не проверена по подтверждённой характеристике"}
           </p>
+          <p className="muted">Эффект новой рабочей точки отличается от потенциала мероприятия выше. У непроверенной точки частота, целевой УРЭ и эффект не определены.</p>
           {noPressureChange && (
             <p className="notice">
               Расчёт не предлагает экономичного изменения выходного давления в выбранном режиме.
@@ -314,21 +324,21 @@ export function MeasureEconomics({context,measureId,baseline}:{context:PageProps
             <summary>Расчётные параметры уставки</summary>
           <div className="page-kpis">
             <div>
-              Выходное давление: текущее → целевое, МПа
+              Выходное давление: текущее → проверяемое, МПа
               <strong>
                 {fmt(data.setpoint.current_p_out)} →{" "}
                 {fmt(data.setpoint.optimal_p_out)}
               </strong>
             </div>
             <div>
-              УРЭ: текущее → целевое, кВт·ч/м³
+              УРЭ: текущий → модельный целевой, кВт·ч/м³
               <strong>
                 {fmt(data.setpoint.sec_current, 3)} →{" "}
                 {fmt(data.setpoint.sec_optimal, 3)}
               </strong>
             </div>
             <div>
-              Экономия, кВт·ч/год
+              Экономия новой точки по модели, кВт·ч/год
               <strong>{fmt(data.setpoint.saving_kwh_year, 0)}</strong>
             </div>
             <div>

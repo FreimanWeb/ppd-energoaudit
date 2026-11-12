@@ -47,6 +47,7 @@ class PlantNetwork:
     wells_archive: Path
     wells_folder: str
     station_nodes: tuple[str, ...]
+    technical_place_code: str | None = None
 
 
 def plant_network(network_dir: Path, config_path: Path, plant_id: str) -> PlantNetwork | None:
@@ -64,6 +65,7 @@ def plant_network(network_dir: Path, config_path: Path, plant_id: str) -> PlantN
         wells_archive=network_dir / config["wells_archive"],
         wells_folder=str(plant["wells_folder"]),
         station_nodes=tuple(plant.get("station_nodes") or ()),
+        technical_place_code=plant.get("technical_place_code"),
     )
     if not network.pipelines_file.is_file() or not network.wells_archive.is_file():
         return None
@@ -95,7 +97,7 @@ def cards(network: PlantNetwork) -> list[WellCard]:
 
 
 def time_weighted_median(
-    events: list[tuple[datetime, float]], start: datetime, end: datetime
+    events: list[tuple[datetime, float | None]], start: datetime, end: datetime
 ) -> float | None:
     """Медиана ступенчатого сигнала по времени на интервале [start, end).
 
@@ -108,6 +110,8 @@ def time_weighted_median(
         begin = max(moment, start)
         finish = min(events[index + 1][0], end) if index + 1 < len(events) else end
         if finish > begin:
+            if value is None:
+                return None
             spans.append((value, (finish - begin).total_seconds()))
     total = sum(duration for _, duration in spans)
     if total <= 0:
@@ -121,15 +125,22 @@ def time_weighted_median(
 
 
 def manifold_pressure(
-    database: AuditDatabase, plant_id: str
+    database: AuditDatabase,
+    plant_id: str,
+    *,
+    technical_place_code: str | None = None,
 ) -> tuple[float, datetime, datetime] | None:
     """Давление на БГ по телеметрии: медиана по времени за последние 30 суток."""
-    last = database.last_station_timestamp(plant_id, "p_bg")
+    last = database.last_station_timestamp(
+        plant_id, "p_bg", technical_place_code=technical_place_code
+    )
     if last is None:
         return None
     end = last.replace(hour=0, minute=0, second=0, microsecond=0)
     start = end - MANIFOLD_WINDOW
-    events = database.station_metric_events(plant_id, "p_bg", start, end)
+    events = database.station_metric_events(
+        plant_id, "p_bg", start, end, technical_place_code=technical_place_code
+    )
     value = time_weighted_median(events, start, end)
     if value is None or value <= 0:
         return None
@@ -148,17 +159,31 @@ def card_manifold_pressure(well_cards: list[WellCard]) -> float | None:
     return units.kgfcm2_to_mpa(max(set(values), key=values.count))
 
 
-def station_nominal_efficiency(database: AuditDatabase, plant_id: str) -> float | None:
+def station_nominal_efficiency(
+    database: AuditDatabase,
+    plant_id: str,
+    *,
+    technical_place_code: str | None = None,
+) -> float | None:
     """Номинальный КПД насосной установки станции: медиана по агрегатам."""
     values = []
     for aggregate in database.aggregates(plant_id):
+        if (
+            technical_place_code is not None
+            and aggregate["technical_place_code"] != technical_place_code
+        ):
+            continue
         try:
             passport = database.active_passport(plant_id, aggregate["code"], datetime.now())
         except KeyError:
             continue
-        pump, motor = passport["pump_eta_nom"], passport["motor_eta_nom"]
-        if pump and motor:
-            values.append(pump * motor * (passport["transmission_eff"] or 1.0))
+        pump, motor, gear = (
+            passport["pump_eta_nom"],
+            passport["motor_eta_nom"],
+            passport["transmission_eff"],
+        )
+        if pump and motor and gear is not None:
+            values.append(pump * motor * gear)
     return median(values) if values else None
 
 
@@ -267,7 +292,19 @@ def network_view(
     pipes = pipelines(network)
     well_cards = cards(network)
 
-    telemetry = manifold_pressure(database, plant_id)
+    try:
+        telemetry = manifold_pressure(
+            database, plant_id, technical_place_code=network.technical_place_code
+        )
+    except (KeyError, ValueError) as exc:
+        return {"error": f"Гидравлическая группа сети не сопоставлена: {exc}"}
+    warnings = [
+        "Сценарная оценка, не одновременный измеренный баланс: месячные расходы, "
+        "архивные давления устьев и давление БГ имеют разные либо неподтверждённые даты.",
+        "Давления карточек в исходных «атм» условно трактуются как кгс/см²; "
+        "для подтверждённого расчёта нужны единицы источника и синхронные измерения.",
+        "Годовая оценка использует архивный объём и выбранный режим, не измеренные годовые потери.",
+    ]
     if telemetry is not None:
         p_bg, start, end = telemetry
         p_bg_source = {
@@ -282,7 +319,9 @@ def network_view(
         return {"error": "Нет давления на блок-гребёнке ни в телеметрии, ни в карточках."}
 
     eta_basis = "fact" if eta else "nominal"
-    eta = eta or station_nominal_efficiency(database, plant_id)
+    eta = eta or station_nominal_efficiency(
+        database, plant_id, technical_place_code=network.technical_place_code
+    )
     if not eta:
         return {"error": "Нет КПД насосной установки для оценки годовых потерь."}
 
@@ -290,7 +329,9 @@ def network_view(
     temperature = network_temperature_c(pipes)
     fluid = Fluid(rho=density, nu_cst=water_viscosity_cst(temperature))
     result = analyze_network(pipes, measurements(well_cards), network.station_nodes, p_bg, fluid)
-    month = max((card.last_month.month for card in well_cards if card.last_month), default=None)
+    flow_months = sorted({
+        card.last_month.month.strftime("%Y-%m") for card in well_cards if card.last_month
+    })
 
     energy = {
         key: result.annual_energy_kwh(f"dp_{key}_mpa", eta)
@@ -300,7 +341,11 @@ def network_view(
     wells = result.wells
     return {
         "object_id": plant_id,
-        "month": month.strftime("%Y-%m") if month else None,
+        "status": "scenario",
+        "temporal_alignment": "mixed_or_unknown",
+        "flow_months": flow_months,
+        "technical_place_code": network.technical_place_code,
+        "warnings": warnings,
         "p_bg_mpa": p_bg,
         "p_bg_source": p_bg_source,
         "fluid": {"rho": fluid.rho, "nu_cst": fluid.nu_cst, "temperature_c": temperature},

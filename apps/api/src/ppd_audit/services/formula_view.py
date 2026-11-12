@@ -19,7 +19,7 @@ FORMULA_LATEX = {
     ),
     "29": r"H_{\text{д}}=aQ^{2}+bQ+c",
     "30": r"\eta_{\text{д}}=uQ^{2}+vQ+w",
-    "44": r"\Delta W_{\text{кпд}}=Q_{\text{год}}\,(\text{УРЭ}_{\text{ф}}-\text{УРЭ}_{\text{р}})",
+    "44": r"\Delta W_{\text{кпд}}=Q_{\text{год}}\,(\text{УРЭ}_{\text{реж}}-\text{УРЭ}_{\text{р}})",
 }
 FORMULA_NAME = {
     "8": "Фактический напор, м",
@@ -62,3 +62,81 @@ def formula_entries(trace: dict) -> dict:
             else numeric + " = " + _clean_numbers(entry.get("value")),
         }
     return result
+
+
+# Исходная запись остаётся в трассировке; это только математическое представление.
+LOSS_FORMULA_LATEX = {
+    "P_эл·(1−η_ПЧ)": r"\Delta P_{\text{ПЧ}}=P_{\text{эл}}\,(1-\eta_{\text{ПЧ}})",
+    "P_послеПЧ·(1−η_ЭД.расч)": (
+        r"\Delta P_{\text{ЭД}}=P_{\text{после ПЧ}}\,(1-\eta_{\text{ЭД.расч}})"
+    ),
+    "P_послеЭД·(1−η_передачи)": (
+        r"\Delta P_{\text{передачи}}=P_{\text{после ЭД}}\,(1-\eta_{\text{передачи}})"
+    ),
+    "P_навалу−Q·(p_вых−p_вх)/3,6": (
+        r"\Delta P_{\text{насоса}}=P_{\text{на валу}}"
+        r"-\frac{Q\,(p_{\text{вых}}-p_{\text{вх}})}{3{,}6}"
+    ),
+    "Q·(p_вых−p_БГ)/3,6": (
+        r"\Delta P_{\text{насос–БГ}}=\frac{Q\,(p_{\text{вых}}-p_{\text{БГ}})}{3{,}6}"
+    ),
+    "P_БГ·(1/η_ном−1)": (
+        r"\Delta P_{\text{ном}}=P_{\text{БГ}}\left(\frac{1}{\eta_{\text{ном}}}-1\right)"
+    ),
+    "P_гидр·(1/η_ном−1)": (
+        r"\Delta P_{\text{ном}}=P_{\text{гидр}}\left(\frac{1}{\eta_{\text{ном}}}-1\right)"
+    ),
+    "P_эл−P_гидр/η_ном": (
+        r"\Delta P_{\eta}=P_{\text{эл}}-\frac{P_{\text{гидр}}}{\eta_{\text{ном}}}"
+    ),
+    "Q·(p_вых−p_БГ)/3,6·(1/η_ном−1)": (
+        r"\Delta P_{\text{напор}}=\frac{Q\,(p_{\text{вых}}-p_{\text{БГ}})}{3{,}6}"
+        r"\left(\frac{1}{\eta_{\text{ном}}}-1\right)"
+    ),
+    "P_гидр·(1/(η_д·η_ЭД.ном)−1/η_ном)": (
+        r"\Delta P_Q=P_{\text{гидр}}"
+        r"\left(\frac{1}{\eta_{\text{д}}\eta_{\text{ЭД.ном}}}"
+        r"-\frac{1}{\eta_{\text{ном}}}\right)"
+    ),
+    "P_гидр/η_ЭД.ном·(1/η_нас−1/η_д.в)": (
+        r"\Delta P_{\text{износ}}=\frac{P_{\text{гидр}}}{\eta_{\text{ЭД.ном}}}"
+        r"\left(\frac{1}{\eta_{\text{нас}}}-\frac{1}{\eta_{\text{д.в}}}\right)"
+    ),
+    "P_эл−P_гидр/(η_нас·η_ЭД.ном)": (
+        r"\Delta P_{\text{загрузка ЭД}}=P_{\text{эл}}"
+        r"-\frac{P_{\text{гидр}}}{\eta_{\text{нас}}\eta_{\text{ЭД.ном}}}"
+    ),
+    "P_гидр/η_ЭД.ном·(1/η_д.в−1/η_д)": (
+        r"\Delta P_{\text{вязкость}}=\frac{P_{\text{гидр}}}{\eta_{\text{ЭД.ном}}}"
+        r"\left(\frac{1}{\eta_{\text{д.в}}}-\frac{1}{\eta_{\text{д}}}\right)"
+    ),
+    "Σ Q_i·Δp_i/3,6": r"\sum_i \frac{Q_i\,\Delta p_i}{3{,}6}",
+    "ΔP_i=Q_i·Δp_Darcy–Weisbach/3,6": (
+        r"\Delta P_i=\frac{Q_i\,\Delta p_{\text{Darcy–Weisbach}}}{3{,}6}"
+    ),
+    "ΔP_i=Q_i·Δp_i/3,6": r"\Delta P_i=\frac{Q_i\,\Delta p_i}{3{,}6}",
+}
+
+
+def loss_equations(formula: str, substitution: str, power: float | None) -> dict:
+    """Оформить выражение и числовую подстановку без пересчёта результата."""
+    numeric = None
+    if re.fullmatch(r"[\d.eE+\-−·*/(),\s—]+", substitution):
+        numeric = substitution
+        if power is not None:
+            numeric += f" = {power:g}"
+        numeric = re.sub(
+            r"(\d+(?:\.\d+)?)[eE]([+-]?\d+)",
+            lambda match: rf"{match[1]}\cdot 10^{{{int(match[2])}}}",
+            numeric,
+        )
+        numeric = (
+            numeric
+            .replace("·", r"\cdot ")
+            .replace("−", "-")
+            .replace("—", r"\text{нет данных}")
+            .replace(",", "{,}")
+        )
+        if power is not None:
+            numeric += r"\,\text{кВт}"
+    return {"formula_latex": LOSS_FORMULA_LATEX[formula], "substitution_latex": numeric}

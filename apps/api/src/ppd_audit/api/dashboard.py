@@ -150,36 +150,63 @@ def topology(object_id: str) -> dict:
                     node["agg"] = node["label"]
         return {**graph, "is_typical": False}
 
-    nodes = [{"id": "src", "type": "source", "x": 0, "y": 0, "label": "Приём воды"}]
-    edges = []
+    nodes, edges = [], []
     aggregate_list = aggregates(object_id)
+    groups: dict[str, list[tuple[int, dict]]] = {}
     for index, aggregate in enumerate(aggregate_list):
-        node_id = f"pump-{index}"
+        groups.setdefault(aggregate["technical_place_code"], []).append((index, aggregate))
+    cursor = (len(aggregate_list) - 1) / 2
+    multiple = len(groups) > 1
+    for code, members in groups.items():
+        suffix = f"-{code}" if multiple else ""
+        group_name = members[0][1]["technical_place_name"] if multiple else None
+        center = cursor - (len(members) - 1) / 2
         nodes.append({
-            "id": node_id,
-            "type": "pump",
-            "x": 1,
-            "y": (len(aggregate_list) - 1) / 2 - index,
-            "label": aggregate["code"],
-            "agg": aggregate["code"],
-            "sub": aggregate["pump_model"],
+            "id": f"src{suffix}",
+            "type": "source",
+            "x": 0,
+            "y": center,
+            "label": "Приём воды",
+            "sub": group_name,
         })
-        edges.extend([{"from": "src", "to": node_id}, {"from": node_id, "to": "comb"}])
-    for index, (node_id, kind, label) in enumerate(
-        [
-            ("comb", "manifold", "Блок гребёнок"),
-            ("valve", "valve", "ЗРА / штуцеры"),
-            ("wells", "wells", "Нагнетательные скважины"),
-            ("res", "reservoir", "Пласт / призабойная зона"),
-        ],
-        start=2,
-    ):
-        nodes.append({"id": node_id, "type": kind, "x": index, "y": 0, "label": label})
-    edges.extend([
-        {"from": "comb", "to": "valve"},
-        {"from": "valve", "to": "wells", "kind": "throttle"},
-        {"from": "wells", "to": "res"},
-    ])
+        for row, (index, aggregate) in enumerate(members):
+            node_id = f"pump-{index}"
+            nodes.append({
+                "id": node_id,
+                "type": "pump",
+                "x": 1,
+                "y": cursor - row,
+                "label": aggregate["code"],
+                "agg": aggregate["code"],
+                "sub": aggregate["pump_model"],
+            })
+            edges.extend([
+                {"from": f"src{suffix}", "to": node_id},
+                {"from": node_id, "to": f"comb{suffix}"},
+            ])
+        for index, (node_id, kind, label) in enumerate(
+            [
+                ("comb", "manifold", "Блок гребёнок"),
+                ("valve", "valve", "ЗРА / штуцеры"),
+                ("wells", "wells", "Нагнетательные скважины"),
+                ("res", "reservoir", "Пласт / призабойная зона"),
+            ],
+            start=2,
+        ):
+            nodes.append({
+                "id": f"{node_id}{suffix}",
+                "type": kind,
+                "x": index,
+                "y": center,
+                "label": label,
+                "sub": group_name,
+            })
+        edges.extend([
+            {"from": f"comb{suffix}", "to": f"valve{suffix}"},
+            {"from": f"valve{suffix}", "to": f"wells{suffix}", "kind": "throttle"},
+            {"from": f"wells{suffix}", "to": f"res{suffix}"},
+        ])
+        cursor -= len(members) + 1
     return {
         "title": plant["name"],
         "source": "Типовая схема по составу агрегатов; обвязка не подтверждена",
@@ -198,6 +225,8 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
 
     database = _database()
     _require_ids(database, object_id, aggregate_id)
+    if request.measurement_id is not None:
+        raise HTTPException(400, detail="measurement_id допустим только для source=field_trip")
     start, end = _day_window(request.day)
     try:
         timestamp = datetime.fromisoformat(request.timestamp)
@@ -213,14 +242,20 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
             end,
             timestamp,
             track_clarifications=False,
+            equipment_override=request.equipment_override,
         )
-        obj = object_from_database(database, object_id, start, aggregate_code=aggregate_id)
+        obj = object_from_database(
+            database,
+            object_id,
+            timestamp,
+            aggregate_code=aggregate_id,
+            equipment_override=request.equipment_override,
+        )
     except (ValueError, KeyError) as exc:
         raise HTTPException(400, detail=str(exc)) from exc
     regime = result.audit.spec.regime
     scope = result_scope(
-        regime,
-        None if result.annual_runtime_is_assumed else regime.t_year,
+        result.audit,
         daily_pressure_coverage_is_complete=False,
     )
     constraints = load_constraints()
@@ -250,4 +285,13 @@ def snapshot_audit(object_id: str, aggregate_id: str, request: SnapshotAuditRequ
         "tariff": tariff,
         "tariff_warning": tariff_selection["warning"],
         "target_sec": constraints.kpi.get("target_sec_2035"),
+        "analysis_context": {
+            "source": "telemetry",
+            "day": request.day,
+            "timestamp": request.timestamp,
+            "measurement_id": None,
+            "equipment_override": request.equipment_override.model_dump(mode="json")
+            if request.equipment_override is not None
+            else None,
+        },
     }

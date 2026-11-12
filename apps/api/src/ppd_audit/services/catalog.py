@@ -19,7 +19,7 @@ from ..ingest.crm_forecast import CRM_DIRNAME
 from ..ingest.downtime import DOWNTIME_DIRNAME
 from ..services.audit import run_energy_audit
 from ..spec import ObjectSpec, load_object_spec
-from ..verify.runner import run_verification
+from .armits_data import load_network
 
 
 def prepare_database(root: Path, path: Path | None = None):
@@ -51,21 +51,32 @@ def prepare_database(root: Path, path: Path | None = None):
 def list_object_ids(
     plants_dir: Path,
 ) -> list[str]:
-    """Все объекты из config/plants/*.yaml, для которых грузится спец."""
+    """Операторские объекты из config/plants/*.yaml, для которых грузится спец."""
     ids = []
     for p in sorted(plants_dir.glob("*.yaml")):
         try:
-            if not load_object_spec(p.stem).is_example:
-                ids.append(p.stem)
+            spec = load_object_spec(p.stem)
         except Exception:
             continue
+        if spec.is_example or spec.ngdu is None or not spec.operator_visible:
+            continue
+        ids.append(p.stem)
     return ids
+
+
+def operator_visible_in_catalog(record: dict) -> bool:
+    """Политика каталога операторов: явно скрытый конфиг и неявные примеры прочь."""
+    from .demo import DEMO_OBJECT_ID
+
+    return bool(record["operator_visible"]) and (
+        not record["is_example"] or record["code"] == DEMO_OBJECT_ID
+    )
 
 
 def get_field_trip_audit(
     object_id: str, aggregate_id: str, *, database: AuditDatabase | None = None
 ) -> tuple[ObjectSpec, AuditResult]:
-    """Выездной замер по паспорту с подтверждённой плотностью объекта из БД."""
+    """Выездной замер с плотностью, доступной на дату измерения."""
     obj = load_object_spec(object_id)
     db = database if database is not None else AuditDatabase(default_database_path())
     obj = with_confirmed_density(obj, db)
@@ -73,15 +84,19 @@ def get_field_trip_audit(
 
 
 def with_confirmed_density(obj: ObjectSpec, database: AuditDatabase) -> ObjectSpec:
-    at = datetime.now(ZoneInfo("Europe/Moscow")).date()
-    reading = database.plant_density_default(obj.id, at)
-    if not reading:
-        return obj
-    obj = obj.model_copy(deep=True)
-    for aggregate in obj.aggregates:
-        if aggregate.regime is not None:
-            aggregate.regime.rho = reading["density_kgm3"]
-    return obj
+    today = datetime.now(ZoneInfo("Europe/Moscow")).date()
+    result = obj
+    for index, aggregate in enumerate(obj.aggregates):
+        if aggregate.regime is None:
+            continue
+        at = aggregate.regime.measured_at or today
+        reading = database.plant_density_default(obj.id, at)
+        if reading is None or aggregate.regime.rho == reading["density_kgm3"]:
+            continue
+        if result is obj:
+            result = obj.model_copy(deep=True)
+        result.aggregates[index].regime.rho = reading["density_kgm3"]
+    return result
 
 
 def object_index(
@@ -91,7 +106,7 @@ def object_index(
     db = database
     out = []
     for record in db.plants(include_examples=True):
-        if record["is_example"] and record["code"] != "demo-ppd":
+        if not operator_visible_in_catalog(record):
             continue
         oid = record["code"]
         aggregates = db.aggregates(oid)
@@ -103,23 +118,13 @@ def object_index(
             "n_agg": len(aggregates),
             "aggregate_ids": [aggregate["code"] for aggregate in aggregates],
             "ngdu": record["ngdu_name"],
+            "is_example": record["is_example"],
+            "has_network": load_network(oid) is not None,
             "has_telemetry": any(
                 db.telemetry_dates(oid, aggregate["code"]) for aggregate in aggregates
             ),
         })
     return out
-
-
-def get_verification() -> dict:
-    """Двусторонняя сверка модель↔xlsx. Возвращает строки как dict."""
-    res = run_verification(save_specs=False)
-    from ppd_audit.verify.compare import row_to_dict
-
-    return {
-        "rows": [row_to_dict(r) for r in res["rows"]],
-        "summary": res["summary"],
-        "errors": res["errors"],
-    }
 
 
 def get_topology(topology_dir: Path, object_id: str) -> dict | None:

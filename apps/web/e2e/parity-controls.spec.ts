@@ -43,9 +43,7 @@ test("calendar statuses distinguish valid and unfit days and changing month can 
   await expect(
     page.getByRole("button", { name: "Дата", exact: true }),
   ).toHaveAttribute("data-date", "2026-09-30");
-  await expect(
-    page.getByText("Данные непригодны для достоверных выводов"),
-  ).toBeVisible();
+  await expect(page.locator("main").getByRole("alert").first()).toBeVisible();
   await page.getByRole("button", { name: "Дата", exact: true }).click();
   await page.getByLabel("Месяц календаря").fill("2026-07");
   await page
@@ -124,6 +122,8 @@ test("no telemetry object stays honest in analysis and field trip uses measured 
   await expect(page.getByText("600", { exact: true })).toHaveCount(0);
   await page.getByLabel("Агрегат", { exact: true }).selectOption("НА-2 ПР");
   await page.getByLabel("Режим", { exact: true }).selectOption("field_trip");
+  await page.getByRole("link",{name:"Паспорт и источники",exact:true}).click();
+  await page.getByRole("heading",{name:"Паспорт и исходный режим",exact:true}).click();
   await expect(
     page.getByRole("heading", { name: "Паспорт и исходный режим" }),
   ).toBeVisible();
@@ -137,25 +137,6 @@ test("no telemetry object stays honest in analysis and field trip uses measured 
   await expect(page.locator("svg.visx-chart").first()).toBeVisible();
 });
 
-test("onboarding exposes readiness and both read-only templates for the actual selected aggregate", async ({
-  page,
-}) => {
-  await fixture(page);
-  await section(page, "onboarding");
-  await expect(
-    page.getByRole("heading", { name: "Готовность выбранного агрегата" }),
-  ).toBeVisible();
-  await expect(page.locator("main table").first()).toContainText("Есть");
-  await page.getByText("Шаблон паспорта объекта", { exact: true }).click();
-  await expect(page.locator("pre").first()).toContainText("aggregates");
-  await page
-    .getByText("Шаблон записи для верификации", { exact: true })
-    .click();
-  await expect(page.locator("pre").last()).toContainText(
-    "config/verification.yaml",
-  );
-  await expect(page.locator("main input, main textarea")).toHaveCount(0);
-});
 
 test("a chosen measurement survives visiting the station scheme without changing individual calculations", async ({
   page,

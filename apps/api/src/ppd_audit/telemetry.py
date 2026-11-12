@@ -11,11 +11,28 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .measurement_quality import confirmed_quality
 from .spec import RegimeMeasurement
 
 
 def _norm(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower().replace("ё", "е"))
+
+
+_PRESSURE_LABELS = {
+    "давление на приеме": "p_in",
+    "давление на входе": "p_in",
+    "давление на выкиде": "p_out",
+    "давление на выходе": "p_out",
+    "давление на бг": "p_bg",
+    "давление бг": "p_bg",
+    "давление в коллекторе": "p_bg",
+}
+
+
+def pressure_metric_from_label(label: str) -> str | None:
+    """Только сопоставленные каналы; соседний датчик не подменяет основной."""
+    return _PRESSURE_LABELS.get(_norm(label))
 
 
 class TelemetryRecord(BaseModel):
@@ -42,11 +59,13 @@ class RawTelemetryMetric(StrEnum):
     p_in = "p_in"
     p_out = "p_out"
     p_bg = "p_bg"
+    pressure_unassigned = "pressure_unassigned"
     flow_rate = "flow_rate"
     q_day = "q_day"
     runtime = "runtime"
     energy = "energy"
     power = "power"
+    power_daily_reported = "power_daily_reported"
     t_year = "t_year"
     q_year = "q_year"
     level = "level"
@@ -63,11 +82,13 @@ _METRIC_UNITS: dict[RawTelemetryMetric, dict[str, tuple[str, float]]] = {
     RawTelemetryMetric.p_in: {"мпа": ("МПа", 1), "кгс/см2": ("МПа", 0.098)},
     RawTelemetryMetric.p_out: {"мпа": ("МПа", 1), "кгс/см2": ("МПа", 0.098)},
     RawTelemetryMetric.p_bg: {"мпа": ("МПа", 1), "кгс/см2": ("МПа", 0.098)},
+    RawTelemetryMetric.pressure_unassigned: {"неподтверждена": ("не подтверждена", 1)},
     RawTelemetryMetric.flow_rate: {"м3/ч": ("м³/ч", 1)},
     RawTelemetryMetric.q_day: {"м3/сут": ("м³/сут", 1)},
     RawTelemetryMetric.runtime: {"ч": ("ч", 1)},
     RawTelemetryMetric.energy: {"квт*ч/сут": ("кВт·ч/сут", 1)},
     RawTelemetryMetric.power: {"квт": ("кВт", 1)},
+    RawTelemetryMetric.power_daily_reported: {"квт": ("кВт", 1)},
     RawTelemetryMetric.t_year: {"ч": ("ч", 1)},
     RawTelemetryMetric.q_year: {"м3/год": ("м³/год", 1)},
     RawTelemetryMetric.level: {"мм": ("мм", 1)},
@@ -80,11 +101,13 @@ _METRIC_LABELS = {
     RawTelemetryMetric.p_in: "Давление на приёме насоса",
     RawTelemetryMetric.p_out: "Давление на выкиде насоса",
     RawTelemetryMetric.p_bg: "Давление на БГ",
+    RawTelemetryMetric.pressure_unassigned: "Давление: канал и единицы не подтверждены",
     RawTelemetryMetric.flow_rate: "Мгновенный расход жидкости",
     RawTelemetryMetric.q_day: "Суточная перекачка",
     RawTelemetryMetric.runtime: "Время работы за сутки",
     RawTelemetryMetric.energy: "Расход электроэнергии",
     RawTelemetryMetric.power: "Активная мощность",
+    RawTelemetryMetric.power_daily_reported: "Мощность суточного отчёта (база неизвестна)",
     RawTelemetryMetric.t_year: "Годовая наработка",
     RawTelemetryMetric.q_year: "Годовой объём перекачки",
     RawTelemetryMetric.level: "Уровень буферной ёмкости",
@@ -124,6 +147,14 @@ class TelemetrySubmission(BaseModel):
     injection_agent: str | None = None
     aggregation_period: AggregationPeriod
     records: list[RawTelemetryRecord] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def check_power_basis(self) -> "TelemetrySubmission":
+        if self.aggregation_period != AggregationPeriod.day and any(
+            record.metric == RawTelemetryMetric.power_daily_reported for record in self.records
+        ):
+            raise ValueError("power_daily_reported относится к суточному отчёту")
+        return self
 
     def to_payload(self) -> "TelemetryPayload":
         source = self.model_dump(exclude={"records"}, mode="json")
@@ -180,6 +211,7 @@ class NormalizedCalculationInput(BaseModel):
     w: float | None = None
     q_fact: float | None = None
     p_electric: float | None = None
+    power_daily_reported: float | None = None
     p_bg: float | None = None
     nu: float | None = None
     t_year: float | None = None
@@ -199,6 +231,7 @@ class NormalizedCalculationInput(BaseModel):
             w=self.w,
             q_fact=self.q_fact,
             p_electric=self.p_electric,
+            power_daily_reported=self.power_daily_reported,
             p_bg=self.p_bg,
             nu=self.nu,
             t_year=self.t_year,
@@ -285,17 +318,16 @@ def validate_telemetry(payload: TelemetryPayload) -> TelemetryValidationReport:
                 )
             )
         if (
-            rec.metric in {"pressure", "pressure_mpa", "flow"}
-            and not rec.unit
-            and rec.metric not in unknown_unit_metrics
-        ):
+            rec.unit == "не подтверждена"
+            or (rec.metric in {"pressure", "pressure_mpa", "flow"} and not rec.unit)
+        ) and rec.metric not in unknown_unit_metrics:
             unknown_unit_metrics.add(rec.metric)
             issues.append(
                 TelemetryIssue(
                     severity="warning",
                     code="unknown_unit",
                     field=rec.metric,
-                    message="Не указана единица измерения telemetry metric",
+                    message="Единица измерения telemetry metric не подтверждена",
                     record_index=i,
                 )
             )
@@ -329,13 +361,13 @@ def validate_telemetry(payload: TelemetryPayload) -> TelemetryValidationReport:
                 severity="error", code="missing_density", field="rho", message="Нет плотности"
             )
         )
-    if mapped.q_day is None and mapped.q_fact is None:
+    if mapped.q_fact is None and (mapped.q_day is None or mapped.t is None):
         issues.append(
             TelemetryIssue(
                 severity="error",
                 code="missing_flow",
                 field="q_day",
-                message="Нет расхода/перекачки",
+                message="Нужна измеренная подача либо согласованные Q_сут и T_сут",
             )
         )
     if mapped.w is None and mapped.p_electric is None:
@@ -362,12 +394,20 @@ def map_telemetry_to_calculation_input(
     out = NormalizedCalculationInput(tag=tag)
     records = [rec for rec in payload.records if tag is None or rec.tag == tag]
     for rec in sorted(records, key=lambda r: r.timestamp):
+        if not confirmed_quality(rec.quality) or rec.unit == "не подтверждена":
+            continue
         if rec.value == 0 and _norm(rec.metric) != "pump_state":
             continue
         field = _field_for(rec)
         if not field:
             continue
-        setattr(out, field, rec.value)
+        value = rec.value
+        if field in {"p_in", "p_out", "p_bg"}:
+            conversion = _METRIC_UNITS[RawTelemetryMetric(field)].get(_unit_key(rec.unit))
+            if conversion is None:
+                continue
+            value *= conversion[1]
+        setattr(out, field, value)
         out.sources[field] = _source_ref(rec)
         if out.tag is None:
             out.tag = rec.tag
@@ -393,16 +433,23 @@ def _field_for(rec: TelemetryRecord) -> str | None:
         return "w"
     if metric == "power":
         return "p_electric"
+    if metric == "power_daily_reported":
+        return "power_daily_reported"
     if metric == "density":
         return "rho"
     if metric == "viscosity":
         return "nu"
     if metric == "power_kw":
+        if (
+            str(rec.sheet or "").lower() == "r1020"
+            or "проток" in str(rec.source_file or "").lower()
+        ):
+            return "power_daily_reported"
         return "p_electric"
     if metric == "energy_kwh":
         return "w"
     if metric == "runtime_h":
-        return "t"
+        return None if "мин" in label else "t"
     if metric == "density_kg_m3":
         return "rho"
     if metric.startswith("flow"):
@@ -410,10 +457,5 @@ def _field_for(rec: TelemetryRecord) -> str | None:
             return "q_fact"
         return "q_day"
     if metric.startswith("pressure"):
-        if any(x in label for x in ("вход", "вх", "прием", "приеме")):
-            return "p_in"
-        if any(x in label for x in ("выход", "вых", "выкид")):
-            return "p_out"
-        if "бг" in label or "коллектор" in label:
-            return "p_bg"
+        return pressure_metric_from_label(rec.label)
     return None

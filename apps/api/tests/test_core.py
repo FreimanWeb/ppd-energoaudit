@@ -22,7 +22,6 @@ from ppd_audit.spec import (
     MotorSpec,
     PumpKind,
     PumpSpec,
-    ReferenceOutputs,
     RegimeMeasurement,
     load_object_spec,
 )
@@ -64,18 +63,6 @@ def test_aggregate_embeds_transmission_spec():
     assert agg.nominal_efficiency() == pytest.approx(0.94 * 0.98 * 0.60, abs=1e-12)
 
 
-def test_audit_requires_specific_passport_efficiencies():
-    """η_ном из Excel — только эталон для сверки, не вход расчёта."""
-    agg = _make_transfer_agg(
-        pump=PumpSpec(model="ЦНС", eta_nom=None),
-        motor=MotorSpec(model="СТД", p_nom=160.0, eta_nom=None),
-        reference=ReferenceOutputs(eta_nom=0.5766),
-    )
-
-    with pytest.raises(ValueError, match="паспорт"):
-        audit_aggregate(agg, Branch.transfer)
-
-
 def test_kns_opu_uses_each_aggregate_passport_efficiency():
     obj = load_object_spec("knsopu")
 
@@ -107,7 +94,6 @@ def test_positive_displacement_audit_marks_qh_diagnostic_not_applicable():
     assert result.audit_profile == "positive_displacement"
     assert result.h_due is None
     assert result.trace["29"]["value"] is None
-    assert "неприменима" in result.trace["29"]["subst"]
 
 
 def test_motor_efficiency_branches():

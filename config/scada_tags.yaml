@@ -19,18 +19,24 @@ pressure_unit: МПа
 objects:
   "0197":
     plant: kns97pren
-    technical_place: main
+    technical_place: kns97
     title: "Ек КНС 97"
+    # Единицы давлений с контроллера не подтверждены — значения пишутся
+    # как в выгрузке с quality=unit_unconfirmed.
+    pressure_units:
+      PINNA: null
+      POUNA: null
+      PKOL_: null
     aggregates:
       PUMP_001: "НА-1"
       PUMP_003: "НА-3"
   "0297":
     plant: kns97pren
-    technical_place: main
+    technical_place: kns97pr
     title: "Ек КНС 97ПР"
+    pressure_unit: МПа
     aggregates:
       PUMP_002: "НА-2 ПР"
-
   "5401":
     plant: kns54an
     technical_place: main

@@ -31,7 +31,7 @@ export function StationOverview({objectId,source,topology}:{objectId:string;sour
           <MetricCard label="Потери до устьев · оценка" value={data.network?.status === "scenario" ? data.network.operator_balance?.total_loss_kw : null} unit="кВт" help="Сценарная сумма потерь до устьев после штуцеров, как в графе ниже. Трение в стволах находится за этой границей. Выходная мощность исключена. Это не подтверждённый потенциал экономии; без полного баланса оценка отсутствует."/>
         </div>
       </Panel>
-      <SchemePanel station topology={topology} stationNetwork={data.network} pressures={data.pressures}/>
+      <SchemePanel topology={topology} stationNetwork={data.network} pressures={data.pressures}/>
       <Panel title="Годовая оценка · сценарий" help={data.annual_basis||"Оценка работы при сохранении текущего режима и принятой годовой наработке. Это стоимость потерь, а не подтверждённая экономия мероприятия."}>
         <div className="station-annual">
           <MetricCard label="Потери по КПД" value={null} unit="" help="Сумма индивидуальных годовых оценок по всем учтённым НА. Не среднее их КПД." segments={[
@@ -53,7 +53,7 @@ export function StationOverview({objectId,source,topology}:{objectId:string;sour
       {(data.measures?.length ?? 0)>0 ? <p className="muted">Годовые оценки мероприятий отдельных НА. Эффекты не суммируются.</p>
         : <div className="content-actions"><p>Недостаточно сопоставимых данных для оценки эффекта мероприятий.</p><LinkButton href="#sources">Проверить исходные данные</LinkButton></div>}
     </Panel>}
-    {!data&&<SchemePanel station topology={topology}/>}
+    {!data&&<SchemePanel topology={topology}/>}
     {warnings.length?<details><summary>Данные и расчёт</summary><ul>{warnings.map((warning,i)=><li key={i}>{warning}</li>)}</ul></details>:null}
   </div>;
 }

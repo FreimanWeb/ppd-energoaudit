@@ -45,7 +45,7 @@ export function LossDetailPage(p: PageProps & { loss: string; from: string }) {
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [p.loss]);
   const ready = p.loss && p.objectId && p.aggregateId && (p.source === "field_trip" || p.timestamp);
   const resource = useResource<Detail>(
-    ready ? `/objects/${segment(p.objectId)}/aggregates/${segment(p.aggregateId)}/loss-detail` : null,
+    ready ? `/objects/${segment(p.objectId)}/aggregates/${segment(p.aggregateId)}/loss-article-detail` : null,
     contextBody(p, { loss: p.loss }),
   );
   const data = resource.data;

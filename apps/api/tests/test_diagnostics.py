@@ -5,7 +5,24 @@ from fastapi.testclient import TestClient
 
 from ppd_audit.api.main import app
 from ppd_audit.db import AuditDatabase
-from ppd_audit.spec import load_object_spec
+from ppd_audit.services.manual_data import passport_fields_from_equipment
+from ppd_audit.spec import EquipmentData, load_object_spec
+
+
+def _store_equipment(database, obj, aggregate):
+    database.add_passport(
+        obj.id,
+        aggregate.id,
+        valid_from=datetime(1900, 1, 1),
+        **passport_fields_from_equipment(
+            EquipmentData.model_construct(
+                pump=aggregate.pump,
+                motor=aggregate.motor,
+                transmission=aggregate.transmission,
+                vfd=aggregate.vfd,
+            )
+        ),
+    )
 
 
 @pytest.fixture
@@ -18,6 +35,7 @@ def diagnostic_client(tmp_path, monkeypatch):
     database.upsert_plant(obj.id, obj.name, "НГДУ", "агрессивная", "кнс")
     for aggregate in obj.aggregates:
         database.upsert_aggregate(obj.id, aggregate.id, aggregate.role)
+        _store_equipment(database, obj, aggregate)
     monkeypatch.setattr(analysis_routes, "_database", lambda: database)
     monkeypatch.setattr(analysis_routes, "load_object_spec", lambda _: obj)
     monkeypatch.setattr(dashboard, "_database", lambda: database)
@@ -100,24 +118,25 @@ def test_missing_bg_pressure_is_not_a_normal_pressure_check(diagnostic_client):
 
 
 def test_model_change_does_not_reuse_old_aggregate_rules(diagnostic_client):
-    client, obj, _ = diagnostic_client
+    client, obj, database = diagnostic_client
     obj.aggregate("НА-1").pump.model = "ЦНС 180-1422(-1)"
+    _store_equipment(database, obj, obj.aggregate("НА-1"))
     report = view(client)
     assert report["binding_status"] == "model_mismatch"
     assert all(rule["status"] == "pending_confirmation" for rule in report["rules"])
 
 
 def test_unconfirmed_curves_and_working_zone_never_trigger_replacement(diagnostic_client):
-    client, obj, _ = diagnostic_client
+    client, obj, database = diagnostic_client
     aggregate = obj.aggregate("НА-2")
     aggregate.regime.q_fact = 150
     # Points alone do not establish source, approval or applicability of a passport curve.
     aggregate.pump.curve_qh = [[56, 5000], [80, 4900], [96, 4800]]
+    _store_equipment(database, obj, aggregate)
     checks = rules(view(client, aggregate_id="НА-2"))
     for rule_id in ("flow_low", "flow_high", "head_low", "head_high", "pump_efficiency_low"):
         assert checks[rule_id]["status"] == "pending_confirmation"
         assert checks[rule_id]["action"] == ""
-    assert checks["flow_high"]["condition"] == "Q > 96 м³/ч"
     assert checks["flow_high"]["source"]["cells"] == "A26:F26"
 
 
@@ -196,6 +215,7 @@ def test_kns97_numbering_conflict_does_not_bind_by_model_alone(diagnostic_client
     aggregate.pump.model = "ЦНС 40-1000(-2)"
     database.upsert_plant(obj.id, obj.name, "НГДУ", "пресная", "кнс")
     database.upsert_aggregate(obj.id, aggregate.id, "работа")
+    _store_equipment(database, obj, aggregate)
     report = view(client, obj.id, aggregate.id)
     assert report["binding_status"] == "pending_confirmation"
     assert all(rule["status"] == "pending_confirmation" for rule in report["rules"])

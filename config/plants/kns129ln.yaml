@@ -6,7 +6,7 @@ branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/Пресная
   вода/КНС 14 АН/для примера/кнс 129 ЛН расчет.xlsx
 aggregates:
-- id: НА-1
+- id: НА-2
   role: работа
   pump:
     model: ГНУ 750-1100

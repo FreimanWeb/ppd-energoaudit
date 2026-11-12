@@ -37,6 +37,8 @@ from .contracts import (
 )
 from .dashboard import router as dashboard_router
 from .data_routes import router as data_router
+from .loss_detail_routes import router as loss_detail_router
+from .manual_routes import router as manual_router
 from .monitoring_routes import router as monitoring_router
 from .station_routes import router as station_router
 
@@ -50,7 +52,7 @@ async def _lifespan(_: FastAPI):
     """
     if os.getenv("PPD_SKIP_DATA_PREPARE") != "1":
         path = Path(os.getenv("PPD_DATABASE_PATH", default_database_path()))
-        root = Path(__file__).resolve().parents[3]
+        root = project_root()
         await asyncio.to_thread(catalog.prepare_database, root, path)
     yield
 
@@ -61,6 +63,8 @@ app.include_router(data_router)
 app.include_router(monitoring_router)
 app.include_router(analysis_router)
 app.include_router(station_router)
+app.include_router(loss_detail_router)
+app.include_router(manual_router)
 app.include_router(auth_router)
 app.add_middleware(AuthenticationMiddleware)
 
@@ -89,8 +93,9 @@ def list_catalog_objects() -> list[dict]:
             "ngdu_name": item["ngdu"],
             "water_type": item["water"],
             "branch": item["branch"],
-            "is_example": item["id"] == "demo-ppd",
+            "is_example": item["is_example"],
             "has_telemetry": item["has_telemetry"],
+            "has_network": item["has_network"],
         }
         for item in catalog.object_index(_database())
     ]
@@ -98,6 +103,7 @@ def list_catalog_objects() -> list[dict]:
 
 def _to_response(spec: ObjectSpec, result: AuditResult) -> EnergyAuditResponse:
     regime = result.regime
+    measured = result.spec.regime if result.spec is not None else None
     return EnergyAuditResponse(
         object_id=spec.id,
         object_name=spec.name,
@@ -120,6 +126,20 @@ def _to_response(spec: ObjectSpec, result: AuditResult) -> EnergyAuditResponse:
             h_due_m=result.h_due,
             sec_optimal_kwh_m3=result.sec_optimal,
             dw_throttle_kwh_year=result.dw_throttle,
+            power_operating_avg_kw=(
+                measured.w / measured.t
+                if measured is not None
+                and measured.w is not None
+                and measured.t is not None
+                and 0 < measured.t <= 24
+                else None
+            ),
+            power_daily_avg_kw=(
+                measured.w / 24 if measured is not None and measured.w is not None else None
+            ),
+            power_daily_reported_kw=(
+                measured.power_daily_reported if measured is not None else None
+            ),
         ),
         trace=formula_entries(result.trace),
     )
@@ -194,11 +214,13 @@ def _database_metric(metric: str) -> tuple[str, str]:
         "p_in": ("p_in", "МПа"),
         "p_out": ("p_out", "МПа"),
         "p_bg": ("p_bg", "МПа"),
+        "pressure_unassigned": ("pressure_unassigned", "не подтверждена"),
         "flow_rate": ("flow_rate", "м³/ч"),
         "q_day": ("q_day", "м³/сут"),
         "runtime": ("runtime", "ч"),
         "energy": ("energy", "кВт·ч"),
         "power": ("power", "кВт"),
+        "power_daily_reported": ("power_daily_reported", "кВт"),
         "density": ("density", "кг/м³"),
         "viscosity": ("viscosity", "сСт"),
         "level": ("level", "мм"),

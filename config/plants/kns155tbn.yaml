@@ -1,12 +1,13 @@
 id: kns155tbn
 name: КНС-155т
 ngdu: Бавлынефть
+operator_visible: false  # Исторический справочный объект: паспорт сохранён, в каталоге оператора скрыт.
 water_type: пластовая
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/пластовая
   вода/16КНС 155т БН 28.03.24/кнс-155 расчет.xlsx
 aggregates:
-- id: НА-1
+- id: НА-2
   role: работа
   pump:
     model: ЦНС 180-1422(-3)
@@ -53,7 +54,7 @@ aggregates:
     dw_efficiency: 547868.0950433292
     dw_throttle: 6538.023534400948
     t_year: 2494.3700000000003
-- id: НА-2
+- id: НА-3
   role: работа
   pump:
     model: ЦНС 180-1050

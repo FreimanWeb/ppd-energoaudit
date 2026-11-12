@@ -6,6 +6,7 @@ import { inspections, inspectionFor, inspectionHref, relatedMeasures } from "../
 import "../inspection/inspection.css";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Audit } from "../../shared/types";
+import { contextBody, type PageProps } from "../../shared/ui/context";
 import { dashboardData } from "../overview/dashboardData.mjs";
 import { LossCharts } from "./LossCharts";
 import { Panel } from "../../shared/ui/Panel";
@@ -14,7 +15,7 @@ import { fmt } from "../../shared/ui/format";
 import { aggregateLossGroups } from "../../pages/lossChartData.mjs";
 import { lossDetailHref } from "./lossDetail.mjs";
 
-export function LossesView({ audit, inspectionKey, summary, children }: { audit: Audit; inspectionKey?: string; summary?:ReactNode; children?:ReactNode }) {
+export function LossesView({ audit, context, inspectionKey, summary, children }: { audit: Audit; context: PageProps; inspectionKey?: string; summary?:ReactNode; children?:ReactNode }) {
   const [mode, setMode] = useState<"decomposition" | "percentage">("decomposition");
   const view = dashboardData(audit);
   const [detailed,setDetailed]=useState(()=>Boolean(inspectionFor(inspectionKey)?.loss));
@@ -36,7 +37,7 @@ export function LossesView({ audit, inspectionKey, summary, children }: { audit:
   const proposals = useResource<{ annual: { measure_id: string; name: string; addresses?: string; money_saving_krub: number; cls: string }[] }>(
     view.usable && addresses.length > 0 && (audit.source === "field_trip" || timestamp)
       ? `/objects/${segment(audit.audit.object_id)}/aggregates/${segment(audit.audit.aggregate_id)}/measures` : null,
-    JSON.stringify({source: audit.source, basis: "annual", ...(audit.source === "telemetry" && timestamp ? {day: timestamp.slice(0, 10), timestamp} : {})}),
+    contextBody(context, {basis: "annual"}),
   );
   const measures = relatedMeasures(proposals.data?.annual ?? [], metric);
   // Клик по столбцу потерь открывает страницу подробностей статьи; стабильная

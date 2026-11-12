@@ -292,7 +292,6 @@ class WellCard:
     q_m3_day: float | None
     p_before_choke_atm: float | None
     p_after_choke_atm: float | None
-    agent_density: float | None
     current: MonthRecord | None
     months: list[MonthRecord] = field(default_factory=list)
 
@@ -363,22 +362,12 @@ def parse_card(content: bytes, file_code: str) -> WellCard:
         key=lambda record: record.month,
     )
 
-    density = None
-    if "ГДИ" in book.sheet_names():
-        survey = book.sheet_by_name("ГДИ")
-        for row in range(survey.nrows - 1, 3, -1):
-            candidate = _number(_cell(survey, row, 9))
-            if candidate:
-                density = candidate * 1000.0  # г/см³ → кг/м³
-                break
-
     return WellCard(
         well=well_from_file_code(file_code),
         state=str(_cell(regime, 4, 1)).strip(),
         q_m3_day=_number(_cell(regime, 8, 1)),
         p_before_choke_atm=_number(_cell(regime, 8, 4)) or None,
         p_after_choke_atm=_number(_cell(regime, 8, 6)) or None,
-        agent_density=density,
         current=current,
         months=history,
     )

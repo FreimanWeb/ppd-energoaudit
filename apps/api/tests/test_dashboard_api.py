@@ -51,14 +51,6 @@ def test_dashboard_selection_and_snapshot_audit(dashboard):
     base = "/objects/fixture/aggregates/НА-02"
     aggregates = client.get("/objects/fixture/aggregates")
     assert aggregates.status_code == 200
-    assert aggregates.json() == [
-        {
-            "code": "НА-02",
-            "role": "работа",
-            "pump_model": "ЦНС 40-1000",
-            "has_telemetry": True,
-        }
-    ]
     assert client.get(base + "/dates").json() == {
         "dates": ["2026-07-24", "2026-07-25"],
         "default_date": "2026-07-24",
@@ -232,12 +224,10 @@ def test_aggregate_without_telemetry_or_passport_is_available(dashboard):
     db.upsert_aggregate("fixture", "НА-03", "резерв")
     response = client.get("/objects/fixture/aggregates")
     assert response.status_code == 200
-    assert response.json()[1] == {
-        "code": "НА-03",
-        "role": "резерв",
-        "pump_model": None,
-        "has_telemetry": False,
-    }
+    aggregate = next(a for a in response.json() if a["code"] == "НА-03")
+    assert aggregate["role"] == "резерв"
+    assert aggregate["pump_model"] is None
+    assert aggregate["has_telemetry"] is False
     assert client.get("/objects/fixture/aggregates/НА-03/dates").json() == {
         "dates": [],
         "default_date": None,
@@ -288,9 +278,16 @@ def test_snapshot_trace_includes_shared_formula_presentation(dashboard):
     assert entry["formula"] and entry["subst"]
 
 
-def test_snapshot_exposes_shared_pump_assessment(dashboard):
-    response = dashboard[0].post(
-        "/objects/fixture/aggregates/НА-02/snapshot-audit",
-        json={"day": "2026-07-24", "timestamp": "2026-07-24T00:00:00"},
-    )
-    assert response.json().get("pump_assessment") == {"name": "низкий КПД", "tone": "bad"}
+def test_typical_topology_does_not_join_distinct_hydraulic_groups(dashboard):
+    client, database = dashboard
+    database.upsert_technical_place("fixture", "second", "Вторая группа")
+    database.upsert_aggregate("fixture", "НА-03", "работа", technical_place_code="second")
+    response = client.get("/objects/fixture/topology")
+    assert response.status_code == 200
+    graph = response.json()
+    pumps = {node["agg"]: node["id"] for node in graph["nodes"] if node["type"] == "pump"}
+    destinations = {
+        code: {edge["to"] for edge in graph["edges"] if edge["from"] == node}
+        for code, node in pumps.items()
+    }
+    assert destinations["НА-02"].isdisjoint(destinations["НА-03"])

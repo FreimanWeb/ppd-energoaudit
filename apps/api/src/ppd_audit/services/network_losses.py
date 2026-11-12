@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from ..core.audit import AuditResult
 from ..core.hydraulics import darcy_weisbach_dp, velocity
+from ..core.network import _key
 from ..core.pump import KnsDecomposition
 from ..core.roughness import hydraulic_reference
 
@@ -23,8 +24,7 @@ _OPTIONS = {
 
 
 def _name(value: str) -> str:
-    normalized = re.sub(r"\s+", " ", value.strip()).upper()
-    return re.sub(r"КНС\s+54\b", "КНС-54", normalized)
+    return re.sub(r"\s+", " ", value.strip()).upper()
 
 
 def _well(value: str) -> str | None:
@@ -49,32 +49,53 @@ def _parameters(options: dict | None) -> dict:
     return values
 
 
-def _paths(network: dict, warnings: list[str]) -> tuple[dict, dict, set[str]]:
+def _station_nodes(network: dict) -> list[str]:
+    """Узлы станции, от которых начинаются разводящие водоводы объекта.
+
+    Узлы заданы в снимке сети или добавлены загрузчиком из config/network.yaml.
+    Сравнение — без регистра, пробелов и дефисов, как в core.network.resolve_paths.
+    """
+    nodes = network.get("station_nodes")
+    if isinstance(nodes, str):
+        nodes = [nodes]
+    if nodes:
+        return [str(node) for node in nodes]
+    root = network.get("root_node")
+    if root:
+        return [str(root)]
+    return []
+
+
+def _paths(
+    network: dict, warnings: list[str], station_keys: set[str]
+) -> tuple[dict, dict, set[str]]:
     """Один путь на скважину; интервалы трубы остаются последовательными."""
     groups = defaultdict(list)
     for segment in network["segments"]:
-        if (
-            segment["purpose"] not in {"Внутриплощадочный", "Подводящий"}
-            and not _name(segment["to_node"]).startswith("БГ-")
-            and not _name(segment["from_node"]).startswith(("КНС-53", "КНС 53"))
-        ):
+        if segment["purpose"] not in {"Внутриплощадочный", "Подводящий"} and not _name(
+            segment["to_node"]
+        ).startswith("БГ-"):
             groups[str(segment["pipeline_id"])].append(segment)
     by_name = defaultdict(list)
     by_end = defaultdict(list)
     for pid, sections in groups.items():
-        by_name[_name(sections[0]["pipeline_name"])].append(pid)
-        by_end[_name(sections[0]["to_node"])].append(pid)
+        by_name[_key(sections[0]["pipeline_name"])].append(pid)
+        by_end[_key(sections[0]["to_node"])].append(pid)
     parents = {}
     synthetic_roots = set()
     for pid, sections in groups.items():
-        origin = _name(sections[0]["from_node"])
+        origin = _key(sections[0]["from_node"])
         candidates = by_name.get(origin) or by_end.get(origin, [])
         candidates = [candidate for candidate in candidates if candidate != pid]
         if len(candidates) > 1:
             raise ValueError(f"Неоднозначное соединение трубопровода {pid}: {candidates}")
         parents[pid] = candidates[0] if candidates else None
-        if not candidates and origin != _name(network.get("root_node", "КНС-54")):
+        if not candidates and origin not in station_keys:
             synthetic_roots.add(pid)
+    if synthetic_roots and not station_keys:
+        warnings.append(
+            "Узлы станции не заданы: ветви без известного входа подключены к БГ синтетически."
+        )
 
     def path(pid: str) -> list[str]:
         result = []
@@ -127,11 +148,15 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
     """
     values = _parameters(options)
     warnings = list(network.get("warnings", []))
+    station_nodes = _station_nodes(network)
+    station_label = (
+        station_nodes[0] if station_nodes else str(network.get("object_id") or "станция")
+    )
     result = {
         "status": "unavailable",
         "title": "Демо · синтетическая цепочка"
         if network.get("is_synthetic")
-        else "Полная цепочка КНС-54 · сценарий",
+        else f"Полная цепочка {station_label} · сценарий",
         "input_kw": None,
         "useful_kw": None,
         "total_loss_kw": None,
@@ -164,14 +189,18 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
             "well_count": 0,
             "excluded_pipeline_count": 0,
             "synthetic_connection_count": 0,
+            "is_synthetic": bool(network.get("is_synthetic")),
             "source_file": network.get("source_file"),
             "exported_at": network.get("exported_at"),
         },
         "options": values,
     }
     regime = audit.regime
-    if network.get("object_id") not in {"kns54an", "demo-ppd"}:
-        warnings.append("Сценарий поддерживает только сеть КНС-54.")
+    network_group = network.get("technical_place_code")
+    if network_group is not None and (
+        audit.spec is None or audit.spec.technical_place_code != network_group
+    ):
+        warnings.append("Сеть относится к другой гидравлической группе агрегатов.")
         return result
     observed = [regime.q, regime.rho, regime.p_electric, regime.p_hydraulic]
     if not all(math.isfinite(value) and value > 0 for value in observed):
@@ -253,7 +282,9 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         warnings.append("Физическая цепочка агрегата содержит отрицательные потери/мощность БГ.")
         return result
     try:
-        groups, paths, synthetic_roots = _paths(network, warnings)
+        groups, paths, synthetic_roots = _paths(
+            network, warnings, {_key(node) for node in station_nodes}
+        )
     except (KeyError, ValueError) as exc:
         warnings.append(str(exc))
         return result
@@ -292,7 +323,7 @@ def build_network_loss_map(audit: AuditResult, network: dict, options: dict | No
         + ("пропорционально фактической закачке." if measured_split else "поровну."),
         "Точки врезок неизвестны: учтена вся длина родительской трубы; потери могут быть завышены.",
         "Внутриплощадочные, подводящие и участок до БГ исключены: насос→БГ уже учтён.",
-        "Для соединений названия «КНС 54» и «КНС-54» приняты эквивалентными.",
+        "Имена узлов и труб сопоставлены без регистра, пробелов и дефисов.",
         "Реестровые Q/P не использованы: единицы и дата измерений не подтверждены.",
         "Шероховатость — справочная по типу трубы и покрытию; в реестре её нет.",
         "Требуемое давление и геодезический перепад определяют полезную работу; "

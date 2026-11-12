@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from ..core.audit import ETA_VFD_DEFAULT
 from ..core.specific_energy import sec_calc, sec_optimal
 from ..db import AuditDatabase
+from ..measurement_quality import usable_measurement
 from .telemetry_audit import telemetry_snapshots
 
 
@@ -43,7 +44,7 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
             for row in conn.execute("""
             SELECT p.code, p.name, p.water_type, n.name AS ngdu_name
             FROM plants p JOIN ngdu n ON n.id = p.ngdu_id
-            WHERE (p.is_example = 0 OR p.code = 'demo-ppd')
+            WHERE (p.is_example = 0 OR p.code = 'demo-ppd') AND p.operator_visible = 1
             ORDER BY n.name, p.name
         """)
         ]
@@ -52,7 +53,7 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
             for row in conn.execute("""
             SELECT p.code AS object_id, a.code, a.role, a.id
             FROM aggregates a JOIN technical_places tp ON tp.id = a.technical_place_id
-            JOIN plants p ON p.id = tp.plant_id WHERE tp.code = 'main'
+            JOIN plants p ON p.id = tp.plant_id WHERE p.operator_visible = 1
         """)
         ]
         params = [aggregate_code, aggregate_code]
@@ -63,15 +64,16 @@ def _load(database, object_id=None, start=None, end=None, aggregate_code=None, h
                 JOIN technical_places tp ON tp.id = tm.technical_place_id
                 LEFT JOIN aggregates a ON a.id = tm.aggregate_id
                 WHERE tm.metric IN ('q_day','energy','flow_rate','power','p_in','p_out')
-                  AND tp.code = 'main' AND (? IS NULL OR a.code = ?)
+                  AND (? IS NULL OR a.code = ?)
                 GROUP BY tm.plant_id
             )
             SELECT p.code AS object_id, tm.aggregate_id, tm.timestamp, tm.metric, tm.value,
-                   tm.quality
+                   tm.quality, tm.unit
             FROM telemetry_measurements tm JOIN plants p ON p.id = tm.plant_id
             JOIN technical_places tp ON tp.id = tm.technical_place_id
             {latest_join}
-            WHERE (p.is_example = 0 OR p.code = 'demo-ppd') AND tp.code = 'main'
+            WHERE (p.is_example = 0 OR p.code = 'demo-ppd')
+              AND p.operator_visible = 1
               AND tm.metric IN ('q_day','energy','flow_rate','power','p_in','p_out')
         """
         if object_id:
@@ -124,9 +126,7 @@ def _points(rows, aggregate_id=None, *, kpi_only=False):
         stamp, scope, metric = row["timestamp"], row["aggregate_id"], row["metric"]
         if kpi_only and metric not in ("q_day", "energy") and stamp not in interval_times:
             continue
-        value = (
-            _nonnegative(row["value"]) if row["quality"] in (None, "", "good", "ready") else None
-        )
+        value = _nonnegative(row["value"]) if usable_measurement(row) else None
         if metric in ("q_day", "energy"):
             day = stamp[:10]
             daily[day][scope][metric] = value
@@ -207,26 +207,11 @@ def _add_reference_points(database, aggregate_id, points, snapshots):
     """Ориентиры по парным давлениям и паспорту, действовавшему в момент измерения."""
     if not snapshots:
         return points
-    with closing(sqlite3.connect(database.path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
-        conn.row_factory = sqlite3.Row
-        passports = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT * FROM aggregate_passports WHERE aggregate_id = ? ORDER BY valid_from DESC",
-                (aggregate_id,),
-            )
-        ]
+    passports = database.passports_at(aggregate_id, [snapshot.timestamp for snapshot in snapshots])
     mapped = {point["timestamp"]: point for point in points}
     for snapshot in snapshots:
         stamp = snapshot.timestamp.isoformat()
-        passport = next(
-            (
-                p
-                for p in passports
-                if p["valid_from"] <= stamp and (p["valid_to"] is None or stamp <= p["valid_to"])
-            ),
-            None,
-        )
+        passport = passports.get(stamp)
         if passport is None:
             continue
         factors = [

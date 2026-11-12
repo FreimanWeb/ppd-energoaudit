@@ -12,6 +12,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..spec import PumpKind, PumpSpec
+
 
 def reynolds(q_nom: float, nu: float, d_outer_mm: float, wall_mm: float) -> float:
     """Число Рейнольдса по характеристике насоса (28).
@@ -50,10 +52,12 @@ def viscosity_factors(re: float) -> ViscosityFactors:
 
 
 def fit_parabola(points: list[list[float]]) -> tuple[float, float, float]:
-    """МНК-аппроксимация y = a·x² + b·x + c по точкам [[x, y], ...] (нужно ≥3)."""
+    """МНК y = a·x² + b·x + c; не менее трёх различных конечных точек."""
     pts = np.asarray(points, dtype=float)
-    if pts.shape[0] < 3:
-        raise ValueError("для параболы нужно ≥3 точек паспортной кривой")
+    if pts.ndim != 2 or pts.shape[1] != 2 or pts.shape[0] < 3:
+        raise ValueError("для параболы нужно ≥3 точек характеристики")
+    if not np.isfinite(pts).all() or len(np.unique(pts[:, 0])) != len(pts):
+        raise ValueError("точки должны быть конечными с различными подачами")
     a, b, c = np.polyfit(pts[:, 0], pts[:, 1], 2)
     return float(a), float(b), float(c)
 
@@ -63,11 +67,98 @@ def poly2(x: float, coeffs: tuple[float, float, float]) -> float:
     return a * x * x + b * x + c
 
 
-def head_due(q: float, qh_points: list[list[float]]) -> float:
-    """Должный напор H_д при подаче q (29) по координатам кривой Q-H."""
-    return poly2(q, fit_parabola(qh_points))
+def _bounded_value(q: float, points: list[list[float]], maximum: float) -> float | None:
+    if len(points) < 3 or not math.isfinite(q):
+        return None
+    if not min(point[0] for point in points) <= q <= max(point[0] for point in points):
+        return None
+    value = poly2(q, fit_parabola(points))
+    return value if math.isfinite(value) and 0 <= value <= maximum else None
 
 
-def eta_due(q: float, qeta_points: list[list[float]]) -> float:
-    """Должный КПД η_д при подаче q (30) по координатам кривой Q-η."""
-    return poly2(q, fit_parabola(qeta_points))
+def head_due(q: float, qh_points: list[list[float]]) -> float | None:
+    """Опорный H (29) только внутри диапазона исходных точек Q-H."""
+    return _bounded_value(q, qh_points, math.inf)
+
+
+def eta_due(q: float, qeta_points: list[list[float]]) -> float | None:
+    """Опорный η (30), в долях, без экстраполяции и обрезки невалидного МНК."""
+    return _bounded_value(q, qeta_points, 1.0)
+
+
+@dataclass(frozen=True)
+class PumpCharacteristic:
+    h_due_m: float | None
+    eta_due: float | None
+    qh_status: str
+    qeta_status: str
+    origin: str
+    verified: bool
+    notes: tuple[str, ...]
+
+
+def evaluate_pump_characteristic(pump: PumpSpec, q: float) -> PumpCharacteristic:
+    """Оценить обе кривые, отдельно от подтверждения применимости к оборудованию."""
+    source = pump.curve_source
+    origin = source.kind if source is not None else "unverified"
+    notes = []
+    blocked = None
+    if pump.kind == PumpKind.positive_displacement:
+        blocked = "not_applicable"
+        notes.append("Q-H/Q-η центробежного насоса неприменимы к объёмному насосу.")
+    elif source is not None:
+        if source.model and source.model.replace(" ", "").casefold() != (
+            pump.model.replace(" ", "").casefold()
+        ):
+            blocked = "model_mismatch"
+            notes.append("Обозначение насоса не совпадает с привязкой характеристики.")
+        elif (
+            source.speed_rpm is not None
+            and pump.n_rpm is not None
+            and not math.isclose(source.speed_rpm, pump.n_rpm, rel_tol=1e-6)
+        ):
+            blocked = "speed_mismatch"
+            notes.append("Частота вращения не совпадает с условиями характеристики.")
+
+    def evaluate(points, evaluator, label):
+        if blocked:
+            return None, blocked
+        if not points:
+            notes.append(f"{label}: исходные точки отсутствуют.")
+            return None, "missing"
+        if len(points) < 3:
+            notes.append(f"{label}: для квадратичной аппроксимации нужны ≥3 точки.")
+            return None, "insufficient_points"
+        lower, upper = min(p[0] for p in points), max(p[0] for p in points)
+        if not lower <= q <= upper:
+            notes.append(f"{label}: Q={q:g} вне диапазона {lower:g}–{upper:g} м³/ч.")
+            return None, "out_of_range"
+        value = evaluator(q, points)
+        if value is None:
+            notes.append(f"{label}: аппроксимация даёт физически недопустимое значение.")
+            return None, "invalid_fit"
+        return value, "within_range"
+
+    head, h_status = evaluate(pump.curve_qh, head_due, "Q-H")
+    eta, eta_status = evaluate(pump.curve_qeta, eta_due, "Q-η")
+    binding_verified = bool(
+        source is not None
+        and source.verified
+        and source.model
+        and source.speed_rpm is not None
+        and pump.n_rpm is not None
+        and blocked is None
+    )
+    if not binding_verified:
+        notes.append("Применимость характеристики к установленному насосу не подтверждена.")
+    if source is not None and source.note:
+        notes.append(source.note)
+    return PumpCharacteristic(
+        head,
+        eta,
+        h_status,
+        eta_status,
+        origin,
+        binding_verified and head is not None and head > 0 and eta is not None and eta > 0,
+        tuple(notes),
+    )

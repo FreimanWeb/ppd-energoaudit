@@ -97,18 +97,18 @@ def test_objects_endpoint_returns_ngdu_from_database(tmp_path, monkeypatch):
     monkeypatch.setenv("PPD_DATABASE_PATH", str(db.path))
 
     response = TestClient(app).get("/objects")
-
     assert response.status_code == 200
-    assert response.json() == [
-        {
-            "code": "kns97",
-            "name": "КНС-97",
-            "ngdu_name": "Елховнефть",
-            "water_type": "пресная",
-            "branch": "кнс",
-            "is_example": False,
-        }
-    ]
+    codes = {plant["code"] for plant in response.json()}
+    assert "kns97" in codes
+    kns97 = next(plant for plant in response.json() if plant["code"] == "kns97")
+    assert kns97 == {
+        "code": "kns97",
+        "name": "КНС-97",
+        "ngdu_name": "Елховнефть",
+        "water_type": "пресная",
+        "branch": "кнс",
+        "is_example": False,
+    }
 
 
 def test_telemetry_endpoint_persists_time_series(tmp_path, monkeypatch):

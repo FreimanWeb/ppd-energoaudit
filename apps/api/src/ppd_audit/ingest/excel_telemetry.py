@@ -87,6 +87,8 @@ def _metric(header: str) -> tuple[str, str] | None:
     if "расход" in text or "перекач" in text or "закач" in text:
         return "flow", "м³" if "м3" in text or "м³" in text else ""
     if "моточас" in text or "время" in text or "нараб" in text:
+        if "мин" in text:
+            return "runtime_reported", "не подтверждена"
         return "runtime_h", "ч"
     if "урэ" in text:
         return "sec_kwh_per_m3", "кВт·ч/м³"

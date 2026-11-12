@@ -6,13 +6,13 @@ duplicating the plant passport schema.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from ..services.diagnostics import DiagnosticReport
-from ..spec import ObjectSpec
+from ..spec import EquipmentData, ObjectSpec
 
 
 class EnergyAuditRequest(BaseModel):
@@ -26,16 +26,19 @@ class EnergyAuditMetrics(BaseModel):
     p_hydraulic_kw: float
     p_electric_kw: float
     eta_unit: float
-    eta_nom: float
-    load_factor: float
-    eta_motor_real: float
-    eta_pump: float
+    eta_nom: float | None
+    load_factor: float | None
+    eta_motor_real: float | None
+    eta_pump: float | None
     sec_fact_kwh_m3: float
-    sec_calc_kwh_m3: float
-    dw_efficiency_kwh_year: float
+    sec_calc_kwh_m3: float | None
+    dw_efficiency_kwh_year: float | None
     h_due_m: float | None = None
     sec_optimal_kwh_m3: float | None = None
     dw_throttle_kwh_year: float | None = None
+    power_operating_avg_kw: float | None = None
+    power_daily_avg_kw: float | None = None
+    power_daily_reported_kw: float | None = None
 
 
 class EnergyAuditResponse(BaseModel):
@@ -59,6 +62,7 @@ class PlantSummary(BaseModel):
 
 class CatalogPlantSummary(PlantSummary):
     has_telemetry: bool
+    has_network: bool = False
 
 
 class TelemetryStored(BaseModel):
@@ -75,6 +79,8 @@ class AggregateSummary(BaseModel):
     role: str
     pump_model: str | None = None
     has_telemetry: bool
+    technical_place_code: str = "main"
+    technical_place_name: str = "Основная группа"
 
 
 class TelemetryDates(BaseModel):
@@ -120,6 +126,8 @@ class TopologyResponse(BaseModel):
 class SnapshotAuditRequest(BaseModel):
     day: str
     timestamp: str
+    measurement_id: int | None = None
+    equipment_override: EquipmentData | None = None
 
 
 class QualityIssueResponse(BaseModel):
@@ -141,6 +149,7 @@ class ResultScopeResponse(BaseModel):
 
 
 class RegimeResponse(BaseModel):
+    measured_at: date | None = None
     p_in: float
     p_out: float
     p_bg: float | None
@@ -151,6 +160,7 @@ class RegimeResponse(BaseModel):
     rho: float = 1000
     q_fact: float | None = None
     p_electric: float | None = None
+    power_daily_reported: float | None = None
     nu: float | None = None
 
 
@@ -179,3 +189,4 @@ class SnapshotAuditResponse(BaseModel):
     tariff: float = 4.68
     tariff_warning: str | None = None
     target_sec: float | None = None
+    analysis_context: dict | None = None

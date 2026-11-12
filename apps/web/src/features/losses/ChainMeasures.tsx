@@ -18,7 +18,7 @@ export function ChainMeasures({context,annual,eligible,loading,error,annualDetai
   context:PageProps;annual:Parameters<typeof catalogMeasures>[0];eligible:boolean;loading:boolean;error?:string;annualDetail:(id:string)=>ReactNode;
 }) {
   const [intervention,setIntervention]=useState<string|null>(null);
-  const supported=["kns54an","demo-ppd"].includes(context.objectId);
+  const supported=context.hasNetwork ?? false;
   const path=`/objects/${segment(context.objectId)}/aggregates/${segment(context.aggregateId)}/network-losses`;
   const params=new URL(location.href).searchParams;
   const scenarioValue=params.get("network_scenario");

@@ -6,14 +6,14 @@ from math import isfinite
 
 from ..core.audit import audit_aggregate
 from ..db import AuditDatabase
+from ..measurement_quality import usable_measurement
 from ..measures.registry import suggest_measures
 from ..spec import Branch, load_object_spec
 from .analysis import annual_summary
 from .armits_data import load_network
-from .audit import run_energy_audit
 from .catalog import tariff, with_confirmed_density
 from .station_network import build_station_network
-from .telemetry_audit import run_snapshot_audit
+from .telemetry_audit import run_field_trip_audit, run_snapshot_audit
 
 
 def station_summary(
@@ -47,7 +47,7 @@ def station_summary(
                 if row["metric"] not in ("flow_rate", "power"):
                     continue
                 value = float(row["value"])
-                if row["quality"] not in (None, "", "good", "ready") or not isfinite(value):
+                if not usable_measurement(row):
                     invalid_stamps.add(row["timestamp"])
                     continue
                 values.setdefault(row["timestamp"], {}).setdefault(row["metric"], set()).add(value)
@@ -103,16 +103,13 @@ def station_summary(
     for code in codes:
         try:
             if source == "field_trip":
-                audit = run_energy_audit(obj, code)
+                regime = obj.aggregate(code).regime
+                if regime is None:
+                    raise ValueError("нет исходного выездного замера")
+                audit = run_field_trip_audit(database, object_id, code, regime)
                 measure_audit = audit
                 flow, power = audit.regime.q, audit.regime.p_electric
-                known_runtime = audit.spec.regime.t_year is not None
-                if not known_runtime:
-                    regime = audit.spec.regime.model_copy(update={"t_year": 8760.0})
-                    audit = audit_aggregate(
-                        audit.spec.model_copy(update={"regime": regime}),
-                        Branch(audit.branch),
-                    )
+                known_runtime = not audit.annual_runtime_is_assumed
                 warnings.append(f"{code}: выездной замер; одновременность замеров не подтверждена.")
             else:
                 point = raw[code].get(stamp.isoformat())
@@ -148,7 +145,7 @@ def station_summary(
                     audit.spec.model_copy(update={"regime": regime}),
                     Branch(audit.branch),
                 )
-                known_runtime = not snapshot.annual_runtime_is_assumed
+                known_runtime = not audit.annual_runtime_is_assumed
                 # Existing audit may use daily medians; never annualise them as a spot regime.
                 annual_valid = (
                     annual_valid and not snapshot.uses_daily_flow and not snapshot.uses_daily_power
@@ -167,7 +164,7 @@ def station_summary(
             flows.append(flow)
             powers.append(power)
             result["included_aggregates"].append(code)
-            annual_runtimes.append((known_runtime, audit.spec.regime.t_year))
+            annual_runtimes.append((known_runtime, audit.annual_runtime_hours))
         except (ArithmeticError, KeyError, ValueError, FileNotFoundError) as exc:
             warnings.append(f"{code}: {exc}")
     if len(audits) != len(codes):

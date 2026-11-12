@@ -1,6 +1,7 @@
 id: kns10bn
 name: КНС-10
 ngdu: Бавлынефть
+operator_visible: false  # Исторический справочный объект: паспорт сохранён, в каталоге оператора скрыт.
 water_type: пластовая
 branch: кнс
 source: /Users/ramilguliev/Downloads/ИИ_агенты_энергоэффективность/ppd-energoaudit/data/raw/ntu/пластовая

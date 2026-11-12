@@ -10,7 +10,7 @@ from ppd_audit.core.audit import audit_aggregate
 from ppd_audit.core.pump import KnsDecomposition
 from ppd_audit.services.armits_data import load_network
 from ppd_audit.services.diagnostics import diagnose_aggregate
-from ppd_audit.services.loss_details import build_loss_detail, loss_key
+from ppd_audit.services.loss_article_details import build_loss_detail, loss_key
 from ppd_audit.services.network_losses import build_network_analysis
 from ppd_audit.services.pump_recommendations import recommendations
 from ppd_audit.services.result_scope import result_scope
@@ -39,9 +39,7 @@ def _detail(key, audit, network=None):
             audit,
             "kns54an",
             "НА-1",
-            diagnose_aggregate(
-                "kns54an", audit, result_scope(audit.spec.regime, audit.spec.regime.t_year), None
-            ),
+            diagnose_aggregate("kns54an", audit, result_scope(audit), None),
         ),
     )
 
@@ -111,7 +109,7 @@ def test_loss_detail_api(monkeypatch):
     app.include_router(analysis_routes.router)
     client = TestClient(app)
     response = client.post(
-        "/objects/kns54an/aggregates/НА-1/loss-detail",
+        "/objects/kns54an/aggregates/НА-1/loss-article-detail",
         json={"source": "field_trip", "loss": "nominal"},
     )
 
@@ -120,7 +118,7 @@ def test_loss_detail_api(monkeypatch):
     assert body["key"] == "nominal" and body["power_kw"] > 0
     assert (
         client.post(
-            "/objects/kns54an/aggregates/НА-1/loss-detail",
+            "/objects/kns54an/aggregates/НА-1/loss-article-detail",
             json={"source": "field_trip", "loss": "useful"},
         ).status_code
         == 400
