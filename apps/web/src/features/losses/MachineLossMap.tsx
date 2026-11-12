@@ -112,6 +112,13 @@ function SelectedLoss({context, focus, inputKw}: {context: PageProps; focus: str
   const component = data?.components.length === 1 ? data.components[0] : undefined;
   const blockers = data?.requirements.filter(item => item.status === "missing" || item.status === "conflict") ?? [];
   const problem = data ? calculationProblem(data) : "";
+  const uncertain = data?.requirements.filter(item => item.status !== "ready") ?? [];
+  const equipmentKey = focus === "transmission_loss" ? "transmission.efficiency"
+    : focus === "motor_chain_loss" ? "motor.eta_nom" : focus === "vfd_loss" ? "vfd" : "";
+  const equipment = blockers.find(item => item.action === "equipment")
+    ?? uncertain.find(item => item.key === equipmentKey)
+    ?? uncertain.find(item => item.action === "equipment")
+    ?? data?.requirements.find(item => item.action === "equipment");
   const correctionHref = blockers.length === 1 && blockers[0].action !== "review"
     ? requirementHref(blockers[0]) : inspectionHref("onboarding", focus);
   return <section ref={root} tabIndex={-1} className="machine-loss-selection" aria-label="Выбранная составляющая">
@@ -121,17 +128,25 @@ function SelectedLoss({context, focus, inputKw}: {context: PageProps; focus: str
     <Status {...resource}/>
     {data && <>
       {!physicalHallKeys[focus] && <p className="muted">Составляющая другого разложения; столбцы выше показывают потери по оборудованию.</p>}
+      <p className="machine-loss-step">Результат</p>
       <p className="machine-loss-selected-value">{data.total_kw == null ? "Нет расчёта" : `${component?.origin === "assumed" ? "≈ " : ""}${fmt(data.total_kw)} кВт`}</p>
       <p className="muted">{data.total_kw != null && inputKw != null && inputKw > 0
         ? `${fmt(data.total_kw / inputKw * 100, 1)} % электрического ввода агрегата`
         : "Доля электрического ввода не определена"}</p>
       {data.total_kw != null && <p>{component?.basis || data.boundary}</p>}
       {component?.formula_latex && <MathEquation latex={component.formula_latex}/>}
+      <p className="machine-loss-confidence"><strong>Основание оценки</strong>
+        {problem ? " Есть недостающие или противоречивые входы; ограничения указаны ниже."
+          : uncertain.length || component?.origin === "assumed" ? " В расчёте есть оценочные или неподтверждённые входы. Это не измерение потерь и не подтверждённая экономия."
+          : " Значение рассчитано по входам выбранного режима. Это не измерение потерь и не подтверждённая экономия."}
+      </p>
       {(problem || data.status === "unavailable") && <p className="notice error" role="alert">
         {problem || "Недостаточно данных для этой составляющей."}
-        {" "}<LinkButton href={correctionHref}>Уточнить исходные данные</LinkButton>
+        {(!equipment || blockers.some(item => item.action !== "equipment")) && <>{" "}<LinkButton href={correctionHref}>Уточнить исходные данные</LinkButton></>}
       </p>}
+      <p className="machine-loss-step">Следующий шаг</p>
       <nav className="machine-loss-links" aria-label="Действия для составляющей">
+        {equipment && <LinkButton href={requirementHref(equipment)} variant="primary">{uncertain.some(item => item.action === "equipment") ? "Проверить характеристики" : "Характеристики оборудования"}</LinkButton>}
         <LinkButton href={hallReportHref(focus, physicalHallKeys[focus] ? "equipment" : "causal")}>Расчёт и источники</LinkButton>
         <LinkButton href={inspectionHref("measures", focus)}>Мероприятия</LinkButton>
       </nav>

@@ -88,3 +88,27 @@ test('machine block separates indicators, loss map, working point and recommenda
  assert.equal(pageForMode('analysis','machine-losses'),'machine-losses');
  assert.equal(pageForMode('field_trip','machine-losses'),'machine-losses');
 });
+
+test("equipment edits return to the exact loss, regime and decomposition after reload", async () => {
+  const { equipmentJournalHref, equipmentReturnHref } = await import("./app/navigation.mjs");
+  const origin = "http://localhost/?object=knsopu&aggregate=%D0%9D%D0%90-1&mode=analysis&day=2026-09-29&timestamp=2026-09-29T12%3A00%3A00&inspect=pump_loss&decomposition=equipment#formulas";
+  const journal = new URL(equipmentJournalHref("motor.eta_nom", origin), origin);
+  assert.equal(journal.hash, "#equipment-journal");
+  assert.equal(journal.searchParams.get("focus"), "motor.eta_nom");
+  assert.equal(equipmentReturnHref(journal.href), new URL(origin).pathname + new URL(origin).search + "#formulas");
+});
+
+test("equipment return never switches context or navigates to an external or recursive destination", async () => {
+  const { equipmentJournalHref, equipmentReturnHref } = await import("./app/navigation.mjs");
+  const origin = "http://localhost/?object=knsopu&aggregate=NA-1&mode=field_trip&measurement=7&inspect=pump_loss#machine-losses";
+  const journal = new URL(equipmentJournalHref("motor.eta_nom", origin), origin);
+  for (const [key, value] of [["object", "kns54an"], ["aggregate", "NA-2"], ["measurement", "8"], ["mode", "analysis"]]) {
+    const changed = new URL(journal);
+    changed.searchParams.set(key, value);
+    assert.equal(equipmentReturnHref(changed.href), null);
+  }
+  for (const destination of ["https://example.com/#machine-losses", "/other#machine-losses", "/#equipment-journal", "http://[invalid"]) {
+    journal.searchParams.set("return_to", destination);
+    assert.equal(equipmentReturnHref(journal.href), null);
+  }
+});

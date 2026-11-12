@@ -62,18 +62,29 @@ export function App({ logout }: { logout?: () => void }) {
   } = selection;
   const [sidebarOpen, setSidebarOpen] = useState(false),
     [rawPage, setPage] = useState(() => initialPage(location.href));
+  const currentHref = useRef(location.href);
+  const scrollPositions = useRef(new Map<string, number>());
+  const scrollTarget = useRef<number | null>(null);
   useEffect(() => {
+    const previousRestoration = history.scrollRestoration;
+    history.scrollRestoration = "manual";
     const update = () => {
-      setPage(initialPage(location.href));
-      setSelection(readAnalysisContext(location.href));
-
-      window.scrollTo({ top: 0, behavior: "instant" });
+      const href = location.href;
+      if (href === currentHref.current) return;
+      scrollPositions.current.set(currentHref.current, window.scrollY);
+      const nextPage = initialPage(href);
+      const previousPage = initialPage(currentHref.current);
+      scrollTarget.current = scrollPositions.current.get(href) ?? (nextPage === previousPage ? null : 0);
+      currentHref.current = href;
+      setPage(nextPage);
+      setSelection(readAnalysisContext(href));
     };
     window.addEventListener("hashchange", update);
     window.addEventListener("popstate", update);
     return () => {
       window.removeEventListener("hashchange", update);
       window.removeEventListener("popstate", update);
+      history.scrollRestoration = previousRestoration;
     };
   }, []);
   const page = pageForMode(mode, rawPage),
@@ -179,6 +190,32 @@ export function App({ logout }: { logout?: () => void }) {
     isExample: object?.is_example ?? false,
   };
   const contextKey = `${object?.code}/${aggregate?.code}/${mode}`;
+  useEffect(() => { currentHref.current = location.href; }, [selection, rawPage]);
+  useEffect(() => {
+    if (scrollTarget.current == null || context.selectionPending) return;
+    const target = scrollTarget.current;
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    const restore = () => {
+      window.scrollTo({top: target, behavior: "instant"});
+      if (document.documentElement.scrollHeight - innerHeight >= target) {
+        scrollTarget.current = null;
+        observer.disconnect();
+      }
+    };
+    const observer = new ResizeObserver(restore);
+    observer.observe(main);
+    const frame = requestAnimationFrame(restore);
+    const cancel = () => { scrollTarget.current = null; observer.disconnect(); cancelAnimationFrame(frame); };
+    window.addEventListener("wheel", cancel, {once: true});
+    window.addEventListener("touchstart", cancel, {once: true});
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener("wheel", cancel);
+      window.removeEventListener("touchstart", cancel);
+    };
+  }, [page, selection, context.selectionPending]);
   const telemetryRequest = useRef(0);
   const [telemetryMessage, setTelemetryMessage] = useState("");
   useEffect(() => { telemetryRequest.current += 1; setTelemetryMessage(""); }, [object?.code, aggregate?.code, aggregateChoice, day, mode, page]);

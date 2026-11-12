@@ -1,6 +1,7 @@
 import type { Requirement } from "../../shared/types";
 import { LinkButton } from "../../shared/ui/Button";
 import { fmt } from "../../shared/ui/format";
+import { equipmentJournalHref } from "../../app/navigation.mjs";
 import "./manual.css";
 
 const statusText: Record<Requirement["status"], string> = {
@@ -26,13 +27,11 @@ function valueText(value: unknown): string {
 /** Целевая страница действия по требованию: журнал оборудования, сеть или
  *  страница готовности. Параметр focus подсвечивает нужный параметр. */
 export function requirementHref(req: Requirement): string {
+  if (req.action === "equipment") return equipmentJournalHref(req.key);
   const url = new URL(location.href);
   url.searchParams.delete("edit");
   url.searchParams.delete("focus");
-  if (req.action === "equipment") {
-    url.searchParams.set("focus", req.key);
-    url.hash = "equipment-journal";
-  } else if (req.action === "network") {
+  if (req.action === "network") {
     url.hash = "network";
   } else {
     url.hash = "onboarding";

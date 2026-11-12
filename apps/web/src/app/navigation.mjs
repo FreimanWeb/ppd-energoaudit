@@ -128,3 +128,35 @@ export function analysisContextURL(href, context) {
   return url.href;
 }
 
+
+/** @param {string} focus @param {string} [href] */
+export function equipmentJournalHref(focus, href = location.href) {
+  const url = new URL(href);
+  url.searchParams.delete("return_to");
+  url.searchParams.delete("focus");
+  const back = `${url.pathname}${url.search}${url.hash}`;
+  url.searchParams.set("return_to", back);
+  url.searchParams.set("focus", focus);
+  url.hash = "equipment-journal";
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/** Возврат допустим только в тот же расчётный контекст приложения.
+ * @param {string} [href] @returns {string|null} */
+export function equipmentReturnHref(href = location.href) {
+  const current = new URL(href);
+  const destination = current.searchParams.get("return_to");
+  if (!destination) return null;
+  try {
+    const target = new URL(destination, current);
+    if (target.origin !== current.origin || target.pathname !== current.pathname ||
+        target.hash === "#equipment-journal" || !pages.some(page => `#${page.id}` === target.hash)) return null;
+    const context = readAnalysisContext(current.href), previous = readAnalysisContext(target.href);
+    if (Object.keys(context).some(key => context[key] !== previous[key])) return null;
+    target.searchParams.delete("return_to");
+    target.searchParams.delete("focus");
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return null;
+  }
+}

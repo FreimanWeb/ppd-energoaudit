@@ -24,6 +24,9 @@
 .machine-loss-selection h3 { margin: 0; }
 .machine-loss-selected-value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .machine-loss-links { display: flex; gap: .75rem; flex-wrap: wrap; }
+.machine-loss-step { margin: 1.25rem 0 .5rem; font-size: .85rem; color: var(--content-muted); }
+.machine-loss-confidence { max-width: 65ch; }
+.machine-loss-confidence strong { display: block; margin-bottom: .35rem; }
 @media (max-width: 600px) {
   .machine-loss-balance { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
   .machine-loss-balance > div:last-child { grid-column: 1 / -1; display: flex; align-items: baseline; gap: .5rem; }

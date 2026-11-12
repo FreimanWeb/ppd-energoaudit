@@ -4,7 +4,9 @@ import type { PageProps } from "../shared/ui/context";
 import { Panel } from "../shared/ui/Panel";
 import { Status } from "../shared/ui/Status";
 import { Table } from "../shared/ui/Table";
-import { Button } from "../shared/ui/Button";
+import { Button, LinkButton } from "../shared/ui/Button";
+import { equipmentReturnHref } from "../app/navigation.mjs";
+import { followInternalLink } from "../shared/ui/navigation";
 import type { EquipmentData, EquipmentJournalResponse, EquipmentParameter, EquipmentResponse, JournalEntry, ManualMeasurement, PumpCurveSource } from "../shared/types";
 import { journalPatch, normalizeEquipmentTime, parameterDifferences, parseEquipmentNumber, sameParameterValue } from "../features/manual/journalDraft.mjs";
 import "../features/manual/manual.css";
@@ -87,6 +89,7 @@ function CurveTable({rows, parameter, onChange}: {rows: CurveRow[]; parameter: E
 function JournalEditor({p}: {p: Props}) {
   const base = `/objects/${segment(p.objectId)}/aggregates/${segment(p.aggregateId)}`;
   const ready = Boolean(p.objectId && p.aggregateId && !p.selectionPending);
+  const back = equipmentReturnHref();
   const journal = useResource<EquipmentJournalResponse>(ready ? `${base}/equipment-journal` : null, undefined, true);
   const [component, setComponent] = useState<Component>("pump");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -107,6 +110,7 @@ function JournalEditor({p}: {p: Props}) {
   const editable = componentParameters.filter(item => !supersedes || Object.hasOwn(supersedes.changes, item.key));
   const replacement = !supersedes && meta.reason === "replacement";
   const focusKey = new URL(location.href).searchParams.get("focus") ?? "";
+  const focusedParameter = useRef("");
   const label = (key: string) => parameterTitle(byKey[key], key);
   const beforeValue = (key: string) => supersedes ? supersedes.changes[key] ?? null : equipmentValue(baseline.data, key);
   const inputBase = (key: string) => replacement ? null : beforeValue(key);
@@ -116,7 +120,14 @@ function JournalEditor({p}: {p: Props}) {
 
   useEffect(() => { if (journal.data && !revision) setRevision(journal.data.revision); }, [journal.data, revision]);
   useEffect(() => { const target = focusKey.split(".")[0]; if (COMPONENTS.some(item => item.id === target)) setComponent(target as Component); }, [focusKey]);
-  useEffect(() => { root.current?.querySelector<HTMLElement>('[data-focused="true"]')?.scrollIntoView({block: "center"}); }, [component, focusKey]);
+  useEffect(() => {
+    if (!focusKey || focusedParameter.current === focusKey || baseline.loading || !baseline.data) return;
+    const field = root.current?.querySelector<HTMLElement>('[data-focused="true"]');
+    if (!field) return;
+    field.scrollIntoView({block: "center"});
+    field.querySelector<HTMLElement>("input, select")?.focus({preventScroll: true});
+    focusedParameter.current = focusKey;
+  }, [component, focusKey, parameters, baseline.loading, baseline.data]);
   useEffect(() => {
     if (confirmation && !dialog.current?.open) dialog.current?.showModal();
     else if (!confirmation && dialog.current?.open) dialog.current.close();
@@ -217,7 +228,7 @@ function JournalEditor({p}: {p: Props}) {
       setConflict(false);
       p.onEquipmentOverride(null);
       invalidateResources();
-      setMessage({kind: "ok", text: "Изменение сохранено в журнале. Расчёты обновлены с учётом даты действия."});
+      setMessage({kind: "ok", text: "Изменение сохранено в журнале. Для выбранного режима используются характеристики на его дату."});
     } catch { setConfirmation(null); setMessage({kind: "error", text: "Не удалось сохранить изменение. Черновик сохранён; проверьте соединение."}); }
     finally { setSaving(false); }
   };
@@ -302,6 +313,10 @@ function JournalEditor({p}: {p: Props}) {
       <div className="manual-actions">
         <button ref={saveButton} className="ds-button ds-button-primary" type="submit" aria-describedby="journal-save-status" disabled={!hasChanges || conflict || saving || baseline.loading || !baseline.data}>Сохранить</button>
         <span id="journal-save-status" className="muted" role="status">{baseline.loading ? "Загружаем значения…" : hasChanges ? "Есть несохранённые изменения" : replacement ? "Укажите характеристики нового оборудования" : "Нет изменений для сохранения"}</span>
+        {back && <LinkButton href={back} onClick={event => {
+          if (hasChanges && !window.confirm("Вернуться к расчёту без сохранения изменений?")) { event.preventDefault(); return; }
+          followInternalLink(event);
+        }}>Вернуться к расчёту</LinkButton>}
       </div>
     </form> : null}
     <dialog ref={dialog} className="journal-confirmation" aria-labelledby="journal-confirm-title" onCancel={event => {if (saving) event.preventDefault();}} onClose={() => {setConfirmation(null); saveButton.current?.focus();}}>
