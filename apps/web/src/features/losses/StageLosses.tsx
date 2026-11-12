@@ -1,6 +1,6 @@
 import {lossLabels} from "../../shared/lossLabels";
 import {PipelineLosses,type PipelineSegment,type PipelineWell} from "./PipelineLosses";
-import { MachineLossMap } from "./MachineLossMap";
+import { LossesView } from "./LossesView";
 import { LossDetailPanel, lossDetailKey } from "./LossDetailPanel";
 import { readNetworkScenario } from "./networkScenario.mjs";
 import { OverviewView } from "../overview/OverviewView";
@@ -105,7 +105,7 @@ export function StageLosses({ stage, audit, context, inspectionKey, view="indica
       <OverviewView audit={audit}/>
       {audit.source==="telemetry" && <EfficiencyHistory audit={audit}/>}
     </>;
-    return <MachineLossMap context={context} inspectionKey={inspectionKey} unfit={audit.quality.status==="unfit"} issues={audit.quality.issues.map(issue=>issue.message)}/>;
+    return <LossesView audit={audit} context={context} inspectionKey={inspectionKey}/>;
   }
   return <Panel title={definition.label} action={supported ? <span className="stage-basis">Сценарная оценка сети ниже БГ</span> : undefined}>
       {stageContent}

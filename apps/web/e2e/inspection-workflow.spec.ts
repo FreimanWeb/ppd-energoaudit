@@ -26,7 +26,7 @@ test('efficiency deviation leads to its losses and applicable measures without i
  await card.getByLabel('Разобрать: Потери по КПД',{exact:true}).click();
  await card.getByRole('link',{name:'Потери',exact:true}).click();
  await expect(page).toHaveURL(/inspect=efficiency_loss/);
- await page.getByLabel('Действия для составляющей').getByRole('link',{name:'Мероприятия',exact:true}).click();
+ await page.getByLabel('Предлагаемые мероприятия').getByRole('link',{name:'Оценить мероприятия',exact:true}).click();
  await expect(page.getByLabel('Связанные мероприятия')).toContainText('восстановление КПД');
  await page.screenshot({path:'/tmp/ppd-question-measures.png',fullPage:true});
  expect(new URL(page.url()).searchParams.get('aggregate')).toBe('НА-1');
@@ -37,17 +37,8 @@ test('efficiency deviation leads to its losses and applicable measures without i
  await expect(page.getByRole('region',{name:'Мероприятие',exact:true})).toContainText('Требует оценки');
 });
 
-test('equipment selection survives calculation navigation, reload and browser history',async({page})=>{
- await page.goto('/?object=knsopu&mode=field_trip&aggregate=НА-1#machine-losses');
- const pump=page.getByRole('button',{name:/^Потери в насосе/});
- await pump.focus();
- await page.keyboard.press('Enter');
- await expect(page).toHaveURL(/inspect=pump_loss/);
- await expect(pump).toHaveAttribute('aria-pressed','true');
- await page.reload();
- const selected=page.getByLabel('Выбранная составляющая');
- await selected.getByRole('link',{name:'Расчёт и источники',exact:true}).click();
- await expect(page).toHaveURL(/inspect=pump_loss#formulas$/);
+test('detailed equipment and causal calculations retain context when returning to the classic map',async({page})=>{
+ await page.goto('/?object=knsopu&mode=field_trip&aggregate=НА-1&inspect=pump_loss#formulas');
  await expect(page.getByLabel('Разбор потерь').getByRole('table')).toContainText('Электрическая мощность');
  const decomposition=page.getByLabel('Разложение потерь');
  await decomposition.getByRole('link',{name:'По причинам',exact:true}).click();
@@ -66,12 +57,7 @@ test('equipment selection survives calculation navigation, reload and browser hi
  await decomposition.getByRole('link',{name:'По оборудованию',exact:true}).click();
  await page.getByLabel('Разбор потерь').getByRole('button',{name:'Потери в насосе',exact:true}).click();
  await page.getByRole('link',{name:'К карте потерь',exact:true}).click();
- await selected.getByRole('button',{name:'Закрыть разбор',exact:true}).click();
- await expect(pump).toHaveAttribute('aria-pressed','false');
- await expect(pump).toBeFocused();
- await page.goBack();
- await expect(pump).toHaveAttribute('aria-pressed','true');
- await expect(selected.getByRole('link',{name:'Расчёт и источники',exact:true})).toBeVisible();
+ await expect(page.getByRole('group',{name:'Декомпозиция мощности',exact:true})).toBeVisible();
  const context=new URL(page.url()).searchParams;
  expect(context.get('object')).toBe('knsopu');
  expect(context.get('aggregate')).toBe('НА-1');
@@ -82,5 +68,5 @@ test('equipment selection survives calculation navigation, reload and browser hi
  }
  await page.getByRole('navigation',{name:'Вкладки: Машинный блок',exact:true}).getByRole('link',{name:'Показатели',exact:true}).click();
  await expect(page.getByRole('heading',{name:'КПД',exact:true})).toBeVisible();
- await expect(page.getByLabel('Разбор потерь')).toHaveCount(0);
+ await expect(page.getByRole('group',{name:'Декомпозиция мощности',exact:true})).toHaveCount(0);
 });

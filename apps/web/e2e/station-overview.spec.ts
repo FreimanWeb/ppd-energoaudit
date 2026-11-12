@@ -32,7 +32,7 @@ test('overview is station-wide, shows both demo pumps, and puts the scheme befor
 test('machine loss map belongs to the machine block',async({page})=>{
   await page.goto('/?object=demo-ppd&aggregate=НА-1#machine-block');
   await page.getByRole('navigation',{name:'Вкладки: Машинный блок',exact:true}).getByRole('link',{name:'Карта потерь',exact:true}).click();
-  await expect(page.getByRole('button',{name:/^Потери в насосе/})).toBeVisible();
+  await expect(page.getByRole('group',{name:'Декомпозиция мощности',exact:true})).toBeVisible();
   await expect(page.getByLabel('Агрегат',{exact:true}).locator('option')).toHaveCount(2);
   await goToSection(page,'losses');
   await goToSection(page,'forecast');

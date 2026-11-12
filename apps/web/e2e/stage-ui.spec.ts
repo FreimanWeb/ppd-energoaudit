@@ -7,8 +7,9 @@ test("machine loss selection opens measures for the same aggregate", async ({pag
   await page.goto(context + "#machine-block");
   await expect(page.getByText("КПД насоса расчётный", {exact:true})).toBeVisible();
   await page.getByRole("navigation",{name:"Вкладки: Машинный блок",exact:true}).getByRole("link",{name:"Карта потерь",exact:true}).click();
-  await page.getByRole("button",{name:/^Потери в насосе/}).click();
-  await page.getByLabel("Действия для составляющей").getByRole("link",{name:"Мероприятия",exact:true}).click();
+  const plot = page.getByRole("group",{name:"Декомпозиция мощности",exact:true});
+  await plot.getByRole("button",{name:/^Потери из-за снижения КПД/}).click();
+  await page.getByLabel("Предлагаемые мероприятия").getByRole("link",{name:/Оценить/}).click();
   await expect.poll(() => new URL(page.url()).hash).toBe("#measures");
   expect(new URL(page.url()).searchParams.get("aggregate")).toBe("НА-1");
 });
