@@ -37,8 +37,8 @@ export function WorkingPointPage(p: PageProps) {
     manufacturer: "данные изготовителя",
     engineering: "инженерный источник",
     experimental: "экспериментальные данные",
-    unverified: "источник не подтверждён",
     model: "оценочная модель",
+    unverified: "источник не подтверждён",
     unavailable: "нет данных",
   };
   const origin = (value: string) => origins[value] ?? "источник не подтверждён";

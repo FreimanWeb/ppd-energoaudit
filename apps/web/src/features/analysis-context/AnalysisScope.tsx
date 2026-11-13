@@ -1,13 +1,14 @@
+import { Button, LinkButton } from "../../shared/ui/Button";
 import "./analysisScope.css";
 
-export function AnalysisScope({page,aggregate,source,timestamp,well,measurementId,scenario}: {
+export function AnalysisScope({page,aggregate,source,timestamp,well,measurementId,scenario,isExample,onResetScenario}: {
   page:string;aggregate:string;source:"telemetry"|"field_trip";timestamp:string;well:string;
-  measurementId?:number|null;scenario?:boolean;
+  measurementId?:number|null;scenario?:boolean;isExample:boolean;onResetScenario:()=>void;
 }) {
   let scope = aggregate || "Агрегат не выбран";
   let basis = source === "field_trip"
-    ? (measurementId ? `Выездной замер · ручная запись №${measurementId}` : "Выездной замер · запись паспорта")
-    : "Выбранный режим";
+    ? (measurementId ? `Выездной замер · архивная запись №${measurementId}` : "Выездной замер")
+    : "По телеметрии";
   let note = "";
   let showTime = source === "telemetry";
   if (page === "overview") {
@@ -39,14 +40,21 @@ export function AnalysisScope({page,aggregate,source,timestamp,well,measurementI
     note = "Период истории и горизонт прогноза задаются ниже.";
     showTime = false;
   } else if (["losses","network-scenario","pipelines","wells"].includes(page)) {
-    scope = `Сценарий одного НА · ${scope}`;
+    scope = `Расчётный сценарий одного НА · ${scope}`;
     note = "Расход выбранного НА распределён по сети; совместная работа остальных НА в этом сценарии не учитывается.";
   }
-  if (scenario) note = `${note ? `${note} ` : ""}Действует временный сценарий оборудования: расчёты используют несохранённые значения.`.trim();
+  if (scenario) {
+    if (!scope.startsWith("Расчётный сценарий")) scope = `Расчётный сценарий · ${scope}`;
+    note = `${note ? `${note} ` : ""}Характеристики оборудования изменены без сохранения; опубликованные данные не изменены.`.trim();
+  }
   return <section className="analysis-scope" aria-label="Контекст анализа">
-    <div><strong>{scope}</strong><span>{basis}</span>
+    <div><strong>{scope}</strong><span>{isExample ? `Демонстрационные данные · ${basis}` : basis}</span>
       {showTime && (timestamp ? <time dateTime={timestamp}>{new Date(timestamp).toLocaleString("ru-RU")}</time> : <span>Момент режима не выбран</span>)}
     </div>
     {note && <p>{note}</p>}
+    {scenario && <nav className="analysis-scope-actions" aria-label="Действия расчётного сценария">
+      <LinkButton href="#equipment-journal">Открыть журнал оборудования</LinkButton>
+      <Button variant="secondary" onClick={onResetScenario}>Сбросить сценарий</Button>
+    </nav>}
   </section>;
 }

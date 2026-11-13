@@ -21,7 +21,7 @@ test('moving from the station to an aggregate makes the scope and time explicit'
   await page.locator('.sidebar-nav').getByRole('link',{name:'Машинный блок',exact:true}).click();
   await expect(page.getByRole('heading',{name:'КПД',exact:true})).toBeVisible();
   await expect(context).toContainText('НА-1');
-  await expect(context).toContainText('Выбранный режим');
+  await expect(context).toContainText('По телеметрии');
   await expect(context.locator('time')).toHaveAttribute('datetime', /T\d{2}:\d{2}:\d{2}$/);
 });
 
@@ -31,4 +31,19 @@ test('switching objects clears the well and page-specific intervention',async({p
   await page.getByRole('combobox',{name:'Объект',exact:true}).selectOption('kns54an');
   await expect(page.getByRole('heading',{name:'КНС-54',exact:true})).toBeVisible();
   for(const parameter of ['well','measure','stage'])expect(new URL(page.url()).searchParams.has(parameter)).toBe(false);
+});
+
+test('demonstration, measured input and network scenario are not presented as the same basis',async({page})=>{
+  const context=page.getByRole('region',{name:'Контекст анализа',exact:true});
+  await page.goto('/?object=knsopu&aggregate=НА-1&mode=field_trip#machine-block');
+  await expect(page.getByRole('heading',{name:'КПД',exact:true})).toBeVisible();
+  await expect(context).toContainText('Выездной замер');
+  await expect(context).not.toContainText('Демонстрационные данные');
+  await expect(context).not.toContainText('Расчётный сценарий');
+  await page.goto('/?object=demo-ppd&aggregate=НА-1&mode=field_trip#losses');
+  await expect(page.locator('.network-losses')).toBeVisible();
+  await expect(context).toContainText('Демонстрационные данные');
+  await expect(context).toContainText('Расчётный сценарий');
+  await expect(context).toContainText('Выездной замер');
+  await expect(page.locator('.scenario-banner')).toHaveCount(0);
 });

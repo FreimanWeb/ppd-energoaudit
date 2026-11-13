@@ -454,13 +454,7 @@ export function App({ logout }: { logout?: () => void }) {
         {page !== "portfolio" && section && section.pages.length > 1 && <nav className="page-tabs" aria-label={`Вкладки: ${section.label}`}>
           {section.pages.filter(item=>!item.hidden).map(item => <a key={item.id} href={navigationHref(item.id)} aria-current={sectionPage === item.id ? "page" : undefined}>{item.label}</a>)}
         </nav>}
-        {page !== "portfolio" && <AnalysisScope page={page} aggregate={page === "timeline" ? aggregateChoice : aggregate?.code ?? ""} source={source} timestamp={timestamp} well={selectedWell} measurementId={measurementId} scenario={Boolean(equipmentOverride)} />}
-        {equipmentOverride && <div className="notice scenario-banner" role="status">
-          <strong>Временный сценарий оборудования активен.</strong>
-          <span>Расчёты {aggregate?.code} используют несохранённые значения; опубликованный паспорт не изменён.</span>
-          <a className="ds-button ds-button-secondary" href="#equipment-journal">Открыть журнал оборудования</a>
-          <button type="button" className="ds-button ds-button-secondary" onClick={() => setOverrideState(null)}>Сбросить сценарий</button>
-        </div>}
+        {page !== "portfolio" && <AnalysisScope page={page} aggregate={page === "timeline" ? aggregateChoice : aggregate?.code ?? ""} source={source} timestamp={timestamp} well={selectedWell} measurementId={measurementId} scenario={Boolean(equipmentOverride) && auditPage} isExample={object?.is_example ?? false} onResetScenario={() => setOverrideState(null)} />}
         {page === "portfolio" && (objects.data ? <PortfolioView onOpenObject={openObject} /> : <Notice {...objects} />)}
         {page === "timeline" && object && <TimelineView key={object.code} objectId={object.code} aggregateId={aggregateChoice} timestamp={timestampChoice || (dayChoice ? timestamp : "")}
           onSelectTimestamp={value => changeSelection({day:value.slice(0,10),timestamp:value})} />}

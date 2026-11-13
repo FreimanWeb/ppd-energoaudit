@@ -10,6 +10,7 @@ for (const pumpEfficiency of [0.78, null]) {
         nominal: { q: 100, h: 1000, eta: 0.8 }, due: { h: null, eta: null },
         origin: { qh: "passport", qeta: "passport", system: "unavailable" },
         notes: [], pump_kind: "центробежный",
+        ranges: { qh: [80, 120], qeta: [80, 120] },
       } });
     });
     await page.goto("/?object=kns54an&aggregate=" + encodeURIComponent("НА-1") + "&day=2026-09-29#working-point");

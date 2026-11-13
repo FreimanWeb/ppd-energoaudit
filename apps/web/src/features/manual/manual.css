@@ -55,8 +55,6 @@
 .manual-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
 .curve-editor { display: grid; gap: var(--space-3); margin-block: var(--space-3); }
 .curve-editor table input { width: 8rem; padding: .35rem .5rem; font: inherit; }
-.scenario-banner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.scenario-banner strong { margin-right: var(--space-2); }
 .journal-fields { min-width: 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .journal-fields details { margin-top: var(--space-4); }
 .journal-confirmation { width: min(52rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); box-sizing: border-box; overflow: auto; padding: var(--space-5); color: var(--content-primary); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
